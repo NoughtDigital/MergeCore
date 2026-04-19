@@ -1,4 +1,5 @@
 import { homepageCopy } from "@/lib/copy";
+import { RulePackMarqueeRow } from "@/components/rule-pack-marquee-row";
 
 const c = homepageCopy;
 
@@ -7,54 +8,31 @@ const currentRulePacks = [
     title: "Laravel Core",
     sub: "Production rules",
     accent: "green",
-    icon: (
-      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-        <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
-      </svg>
-    ),
+    icon: "hex",
   },
   {
     title: "Filament",
     sub: "Admin & panels",
     accent: "blue",
-    icon: (
-      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-        <rect x="3" y="4" width="18" height="16" rx="2"></rect>
-        <path d="M8 9h8M8 13h5"></path>
-      </svg>
-    ),
+    icon: "panel",
   },
   {
     title: "Pest",
     sub: "Testing rules",
     accent: "purple",
-    icon: (
-      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-        <path d="M9 3h6"></path>
-        <path d="M10 9h4"></path>
-        <path d="M8 3v6l-4 8a2 2 0 0 0 1.8 3h12.4a2 2 0 0 0 1.8-3l-4-8V3"></path>
-      </svg>
-    ),
+    icon: "flask",
   },
   {
     title: "Livewire",
     sub: "Component behaviour",
     accent: "cyan",
-    icon: (
-      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-        <path d="M3 12h4l3 8 4-16 3 8h4"></path>
-      </svg>
-    ),
+    icon: "pulse",
   },
   {
     title: "Alpine",
     sub: "Blade frontend rules",
     accent: "orange",
-    icon: (
-      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-        <path d="m4 15 4-6 4 4 4-8 4 10"></path>
-      </svg>
-    ),
+    icon: "mountain",
   },
 ];
 
@@ -63,70 +41,37 @@ const futureRulePacks = [
     title: "TypeScript",
     sub: "App & service rules",
     accent: "blue",
-    icon: (
-      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-        <path d="M4 5h16v14H4z"></path>
-        <path d="M9 9h6M12 9v8M9 17h6"></path>
-      </svg>
-    ),
+    icon: "ts",
   },
   {
     title: "React",
     sub: "Frontend review packs",
     accent: "cyan",
-    icon: (
-      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-        <circle cx="12" cy="12" r="1.5"></circle>
-        <path d="M19.4 11.1c.5 2.5-.7 4.9-3.1 6.1-2.6 1.3-6 1.5-8.3-.2-2-1.5-2.7-4.3-1.8-6.6 1-2.6 3.6-4.9 6.3-5.7 2.5-.7 5.4-.3 6.9 1.9 1 1.4 1.2 3 .9 4.5Z"></path>
-      </svg>
-    ),
+    icon: "react",
   },
   {
     title: "Node",
     sub: "Backend JS services",
     accent: "green",
-    icon: (
-      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-        <path d="M12 2 4 7v10l8 5 8-5V7z"></path>
-        <path d="M9 10v4M15 10v4M9 14h6"></path>
-      </svg>
-    ),
+    icon: "node",
   },
   {
     title: "Python",
     sub: "Services & data work",
     accent: "yellow",
-    icon: (
-      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-        <path d="M8 7a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2H8z"></path>
-        <path d="M16 17a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2v-2h8z"></path>
-        <circle cx="10" cy="8.5" r="0.5"></circle>
-        <circle cx="14" cy="15.5" r="0.5"></circle>
-      </svg>
-    ),
+    icon: "python",
   },
   {
     title: "Go",
     sub: "Modules & APIs",
     accent: "teal",
-    icon: (
-      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-        <path d="M4 12h8"></path>
-        <path d="M4 8h10"></path>
-        <path d="M4 16h7"></path>
-        <circle cx="16.5" cy="12" r="3.5"></circle>
-      </svg>
-    ),
+    icon: "go",
   },
   {
     title: "Horizon & Octane",
     sub: "Deeper Laravel ops",
     accent: "red",
-    icon: (
-      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-        <path d="M13 2 3 14h7l-1 8 10-12h-7z"></path>
-      </svg>
-    ),
+    icon: "bolt",
   },
 ];
 
@@ -172,47 +117,6 @@ const packArtifacts = [
     ],
   },
 ];
-
-function MarqueeRow({
-  items,
-  className,
-}: {
-  items: typeof currentRulePacks;
-  className: string;
-}) {
-  return (
-    <div className={`marquee-track ${className}`}>
-      <div className="marquee-content">
-        {items.map((item, index) => (
-          <article
-            key={`${item.title}-${index}`}
-            className={`flex-card${index === 2 ? " prominent" : ""}`}
-          >
-            <div className={`flex-icon ${item.accent}`}>{item.icon}</div>
-            <div className="flex-info">
-              <div className="flex-title">{item.title}</div>
-              <div className="flex-sub">{item.sub}</div>
-            </div>
-          </article>
-        ))}
-      </div>
-      <div className="marquee-content" aria-hidden="true">
-        {items.map((item, index) => (
-          <article
-            key={`${item.title}-clone-${index}`}
-            className={`flex-card${index === 2 ? " prominent" : ""}`}
-          >
-            <div className={`flex-icon ${item.accent}`}>{item.icon}</div>
-            <div className="flex-info">
-              <div className="flex-title">{item.title}</div>
-              <div className="flex-sub">{item.sub}</div>
-            </div>
-          </article>
-        ))}
-      </div>
-    </div>
-  );
-}
 
 export default function HomePage() {
   return (
@@ -292,13 +196,19 @@ export default function HomePage() {
 
           <div className="marquee-container">
             <div className="marquee-row-label">Current rule packs</div>
-            <div className="marquee-row-clip row-enter row-enter-1">
-              <MarqueeRow items={currentRulePacks} className="track-1" />
-            </div>
+            <RulePackMarqueeRow
+              items={currentRulePacks}
+              direction="left"
+              duration={40}
+              delayMs={120}
+            />
             <div className="marquee-row-label future">Future rule packs</div>
-            <div className="marquee-row-clip row-enter row-enter-2">
-              <MarqueeRow items={futureRulePacks} className="track-2" />
-            </div>
+            <RulePackMarqueeRow
+              items={futureRulePacks}
+              direction="right"
+              duration={46}
+              delayMs={260}
+            />
           </div>
         </section>
 

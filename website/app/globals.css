@@ -305,6 +305,7 @@ h2 {
   );
   backface-visibility: hidden;
   transform: translateZ(0);
+  opacity: 0;
 }
 
 .marquee-row-label.future {
@@ -317,14 +318,15 @@ h2 {
   gap: 1.4rem;
   will-change: transform;
   transform: translate3d(0, 0, 0);
+  animation-play-state: paused;
 }
 
-.marquee-track.track-1 {
-  animation: marquee-left 34s linear infinite;
+.marquee-track.marquee-left {
+  animation: marquee-left var(--marquee-duration, 34s) linear infinite;
 }
 
-.marquee-track.track-2 {
-  animation: marquee-right 38s linear infinite;
+.marquee-track.marquee-right {
+  animation: marquee-right var(--marquee-duration, 38s) linear infinite;
 }
 
 .marquee-content {
@@ -428,13 +430,13 @@ h2 {
     transform: translate3d(0, 0, 0);
   }
   to {
-    transform: translate3d(calc(-50% - 0.7rem), 0, 0);
+    transform: translate3d(calc(var(--marquee-distance, 0px) * -1), 0, 0);
   }
 }
 
 @keyframes marquee-right {
   from {
-    transform: translate3d(calc(-50% - 0.7rem), 0, 0);
+    transform: translate3d(calc(var(--marquee-distance, 0px) * -1), 0, 0);
   }
   to {
     transform: translate3d(0, 0, 0);
@@ -453,20 +455,19 @@ h2 {
 }
 
 .row-enter {
-  opacity: 0;
+  animation: none;
+}
+
+.row-enter.is-ready {
   animation: row-enter 900ms cubic-bezier(0.18, 0.9, 0.24, 1) forwards;
-}
-
-.row-enter-1 {
-  animation-delay: 120ms;
-}
-
-.row-enter-2 {
-  animation-delay: 260ms;
 }
 
 .marquee-row-clip:hover .marquee-track {
   animation-play-state: paused;
+}
+
+.marquee-row-clip.is-ready .marquee-track {
+  animation-play-state: running;
 }
 
 @media (min-width: 720px) {
@@ -631,8 +632,8 @@ footer p {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .marquee-track.track-1,
-  .marquee-track.track-2 {
+  .marquee-track.marquee-left,
+  .marquee-track.marquee-right {
     animation: none;
   }
 
