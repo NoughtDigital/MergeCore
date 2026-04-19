@@ -5,7 +5,7 @@
   "locale": "en-GB",
   "title": "MergeCore Filament Rules",
   "description": "Filament admin: resources, tables, tenancy, actions, forms, policies.",
-  "rubric_schema": "https://mergecore.dev/schemas/laravel-rules.schema.json",
+  "rubric_schema": "https://www.mergecore.dev/schemas/laravel-rules.schema.json",
   "artifacts": {
     "rubric": "rubric.json",
     "smells": "smells.json",

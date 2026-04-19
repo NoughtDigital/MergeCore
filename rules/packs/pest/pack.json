@@ -5,7 +5,7 @@
   "locale": "en-GB",
   "title": "MergeCore Pest Rules",
   "description": "Pest-focused: assertions, brittleness, factories, auth and failure-path coverage.",
-  "rubric_schema": "https://mergecore.dev/schemas/laravel-rules.schema.json",
+  "rubric_schema": "https://www.mergecore.dev/schemas/laravel-rules.schema.json",
   "artifacts": {
     "rubric": "rubric.json",
     "smells": "smells.json",

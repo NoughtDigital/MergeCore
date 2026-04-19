@@ -5,7 +5,7 @@
   "locale": "en-GB",
   "title": "MergeCore Alpine.js Rules",
   "description": "Alpine.js in Blade and assets: safe initial state, lists, effects, and maintainable client behaviour.",
-  "rubric_schema": "https://mergecore.dev/schemas/laravel-rules.schema.json",
+  "rubric_schema": "https://www.mergecore.dev/schemas/laravel-rules.schema.json",
   "artifacts": {
     "rubric": "rubric.json",
     "smells": "smells.json",

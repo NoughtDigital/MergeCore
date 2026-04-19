@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://mergecore.dev/schemas/laravel-rules.schema.json",
+  "$id": "https://www.mergecore.dev/schemas/laravel-rules.schema.json",
   "title": "MergeCore Laravel rules pack",
   "type": "object",
   "required": ["meta", "severity_levels", "scoring", "rules"],

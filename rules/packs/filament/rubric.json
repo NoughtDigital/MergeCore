@@ -1,5 +1,5 @@
 {
-  "$schema": "https://mergecore.dev/schemas/laravel-rules.schema.json",
+  "$schema": "https://www.mergecore.dev/schemas/laravel-rules.schema.json",
   "meta": {
     "pack_id": "mergecore-filament-rules",
     "pack_version": "1.0.0",

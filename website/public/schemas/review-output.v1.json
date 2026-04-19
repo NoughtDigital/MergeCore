@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://mergecore.dev/schemas/review-output.v1.json",
+  "$id": "https://www.mergecore.dev/schemas/review-output.v1.json",
   "title": "MergeCore AI review output v1",
   "type": "object",
   "additionalProperties": false,
