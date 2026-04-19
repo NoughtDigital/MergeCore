@@ -1,0 +1,227 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "meta": {
+    "pack_id": "laravel-core-rules",
+    "version": "1.0.0",
+    "locale": "en-GB",
+    "description": "Human-facing smell index for triage. Each smell maps to a canonical rule in rubric.json via rule_ref."
+  },
+  "smells": [
+    {
+      "id": "SMELL-CTRL-FAT",
+      "name": "Overgrown controller action",
+      "rule_ref": "CTRL-001",
+      "summary": "HTTP layer doing persistence, mail, and domain rules in one method.",
+      "layers": ["http", "architecture"],
+      "typical_fix": "Extract a Form Request, action/service, and return a thin response."
+    },
+    {
+      "id": "SMELL-VAL-MASS",
+      "name": "Mass assignment from raw request",
+      "rule_ref": "VAL-001",
+      "summary": "fill/create/update driven by $request->all() or unvalidated arrays.",
+      "layers": ["validation", "security"],
+      "typical_fix": "Use validated() data, Form Requests, or an explicit DTO."
+    },
+    {
+      "id": "SMELL-VAL-INLINE",
+      "name": "Scattered inline validation",
+      "rule_ref": "VAL-002",
+      "summary": "Controllers call $request->validate repeatedly instead of centralising rules.",
+      "layers": ["validation", "maintainability"],
+      "typical_fix": "Introduce Form Request classes shared with other entry points."
+    },
+    {
+      "id": "SMELL-POL-MISSING",
+      "name": "Unauthorised mutation surface",
+      "rule_ref": "POL-001",
+      "summary": "Destructive routes without policy, gate, or middleware alignment.",
+      "layers": ["security", "authorisation"],
+      "typical_fix": "Add policy methods, $this->authorize, or route middleware with abilities."
+    },
+    {
+      "id": "SMELL-POL-DUP",
+      "name": "Duplicated authorisation checks",
+      "rule_ref": "POL-002",
+      "summary": "Role strings and ownership logic copied across controllers.",
+      "layers": ["authorisation", "maintainability"],
+      "typical_fix": "Move to policies and reuse across HTTP and CLI."
+    },
+    {
+      "id": "SMELL-ELOQ-N1",
+      "name": "N+1 queries",
+      "rule_ref": "ELOQ-001",
+      "summary": "Relations accessed inside loops without eager loading.",
+      "layers": ["eloquent", "performance"],
+      "typical_fix": "with(), load(), or reshape queries at the boundary."
+    },
+    {
+      "id": "SMELL-ELOQ-UNBOUND",
+      "name": "Unbounded result set",
+      "rule_ref": "ELOQ-002",
+      "summary": "all()/get() for potentially large user-driven lists.",
+      "layers": ["eloquent", "performance", "reliability"],
+      "typical_fix": "paginate(), simplePaginate(), or cursorPaginate() as appropriate."
+    },
+    {
+      "id": "SMELL-SQL-RAW",
+      "name": "Unsafe raw SQL",
+      "rule_ref": "ELOQ-003",
+      "summary": "Raw SQL built with string concatenation instead of bindings.",
+      "layers": ["security", "database"],
+      "typical_fix": "Use the query builder or parameter binding for dynamic fragments."
+    },
+    {
+      "id": "SMELL-JOB-NONIDEM",
+      "name": "Non-idempotent queued work",
+      "rule_ref": "JOB-001",
+      "summary": "Side effects that duplicate on retry (payments, e-mails, inserts).",
+      "layers": ["queues", "reliability"],
+      "typical_fix": "Idempotency keys, unique constraints, ShouldBeUnique, or dedupe table."
+    },
+    {
+      "id": "SMELL-HTTP-BLOCK",
+      "name": "Blocking I/O in the request",
+      "rule_ref": "JOB-002",
+      "summary": "Long HTTP calls or sleeps inline in controller flow.",
+      "layers": ["http", "performance"],
+      "typical_fix": "Dispatch a job with timeouts/backoff and user-visible progress if needed."
+    },
+    {
+      "id": "SMELL-QUE-FAIL",
+      "name": "Job without failure handling",
+      "rule_ref": "QUE-001",
+      "summary": "ShouldQueue work with no clear failed path or retry tuning.",
+      "layers": ["queues", "observability"],
+      "typical_fix": "failed(), structured logging, backoff, and alerts on poison messages."
+    },
+    {
+      "id": "SMELL-TXN-MONEY",
+      "name": "Split financial writes",
+      "rule_ref": "TXN-001",
+      "summary": "Multiple balance or ledger writes without atomicity.",
+      "layers": ["database", "correctness"],
+      "typical_fix": "DB::transaction with invariant checks inside the same unit of work."
+    },
+    {
+      "id": "SMELL-TXN-LONG",
+      "name": "Long transaction",
+      "rule_ref": "TXN-002",
+      "summary": "Network or mail inside a transaction holding row locks.",
+      "layers": ["database", "reliability"],
+      "typical_fix": "Short transaction for writes; I/O after commit."
+    },
+    {
+      "id": "SMELL-RES-N1",
+      "name": "Resource-driven N+1",
+      "rule_ref": "N1-001",
+      "summary": "API resources touching relations not eager loaded by the controller/query.",
+      "layers": ["api", "performance"],
+      "typical_fix": "Eager load at the query or split resource shaping."
+    },
+    {
+      "id": "SMELL-TEN-BYPASS",
+      "name": "Tenant leak risk",
+      "rule_ref": "TEN-001",
+      "summary": "Queries missing tenant constraints in multi-tenant schemas.",
+      "layers": ["security", "tenancy"],
+      "typical_fix": "Global scopes, policies, or explicit tenant predicates."
+    },
+    {
+      "id": "SMELL-TEN-INPUT",
+      "name": "Tenant ID from client",
+      "rule_ref": "TEN-002",
+      "summary": "Trusting tenant identifiers from the request body or query alone.",
+      "layers": ["security", "tenancy"],
+      "typical_fix": "Resolve tenant from auth context, subdomain, or verified membership."
+    },
+    {
+      "id": "SMELL-WEBHOOK-RETRY",
+      "name": "Webhook side effects without dedupe",
+      "rule_ref": "IDEM-001",
+      "summary": "Provider retries cause duplicate financial or inventory updates.",
+      "layers": ["integrations", "reliability"],
+      "typical_fix": "Store external event IDs; return 200 only after durable record."
+    },
+    {
+      "id": "SMELL-UNIQUE-JOB",
+      "name": "Positive: unique queue execution",
+      "rule_ref": "IDEM-002",
+      "summary": "Signals good practice when concurrency could duplicate work.",
+      "layers": ["queues"],
+      "typical_fix": "N/A — reinforcement signal."
+    },
+    {
+      "id": "SMELL-FIL-SCOPE",
+      "name": "Filament query scope risk",
+      "rule_ref": "FIL-001",
+      "summary": "Admin tables that widen or drop global scopes unintentionally.",
+      "layers": ["filament", "security"],
+      "typical_fix": "Deliberate getEloquentQuery with tenant/auth alignment."
+    },
+    {
+      "id": "SMELL-FIL-FAT-CB",
+      "name": "Fat Filament callbacks",
+      "rule_ref": "FIL-002",
+      "summary": "Large work inside form field lifecycle hooks.",
+      "layers": ["filament", "maintainability"],
+      "typical_fix": "Actions, services, or queued jobs with clear inputs."
+    },
+    {
+      "id": "SMELL-TEST-AUTH",
+      "name": "Tests skip authorisation",
+      "rule_ref": "PEST-001",
+      "summary": "Feature tests hit protected routes without negative cases.",
+      "layers": ["testing", "security"],
+      "typical_fix": "assertForbidden, guest redirects, and policy-backed scenarios."
+    },
+    {
+      "id": "SMELL-TEST-DB",
+      "name": "Flaky database tests",
+      "rule_ref": "PEST-002",
+      "summary": "Tests mutate shared database state without isolation.",
+      "layers": ["testing", "reliability"],
+      "typical_fix": "RefreshDatabase, database transactions, or parallel-safe factories."
+    },
+    {
+      "id": "SMELL-SEC-MODEL",
+      "name": "Model mass-assignment risk",
+      "rule_ref": "SEC-001",
+      "summary": "Sensitive attributes exposed via guarded/fillable misconfiguration.",
+      "layers": ["security", "eloquent"],
+      "typical_fix": "Tight fillable, DTOs, or explicit property sets per use case."
+    },
+    {
+      "id": "SMELL-SEC-LOG",
+      "name": "Sensitive data in logs",
+      "rule_ref": "SEC-002",
+      "summary": "Passwords, tokens, or full payloads logged.",
+      "layers": ["security", "observability"],
+      "typical_fix": "Redact fields; structured logging with allow-lists."
+    },
+    {
+      "id": "SMELL-API-RATE",
+      "name": "Abusable route without throttle",
+      "rule_ref": "API-001",
+      "summary": "Sensitive mutation endpoints missing rate limits.",
+      "layers": ["api", "security"],
+      "typical_fix": "throttle middleware, gateway limits, or user-scoped quotas."
+    },
+    {
+      "id": "SMELL-ELOQ-WITH",
+      "name": "Positive: eager loads at boundary",
+      "rule_ref": "SR-001",
+      "summary": "Deliberate with() usage mitigating N+1.",
+      "layers": ["eloquent", "performance"],
+      "typical_fix": "N/A — reinforcement signal."
+    },
+    {
+      "id": "SMELL-OVER-ABS",
+      "name": "Over-abstracted simple flow",
+      "rule_ref": "OE-001",
+      "summary": "Too many layers for straightforward CRUD with no extra invariants.",
+      "layers": ["architecture"],
+      "typical_fix": "Collapse to action + model until complexity warrants repositories."
+    }
+  ]
+}

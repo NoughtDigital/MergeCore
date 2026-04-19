@@ -1,0 +1,357 @@
+{
+  "$schema": "https://mergecore.dev/schemas/laravel-rules.schema.json",
+  "meta": {
+    "pack_id": "mergecore-pest-rules",
+    "pack_version": "1.0.0",
+    "locale": "en-GB",
+    "title": "MergeCore Pest Rules",
+    "description": "Pest-first rules for Laravel feature, HTTP, and unit tests: assertions, stability, factories, authorisation, and failure paths. Compatible with PHPUnit-style tests when patterns overlap.",
+    "notes": "Gate with pest: true when the project uses Pest; hosts may still apply analogous rules to PHPUnit tests."
+  },
+  "severity_levels": {
+    "info": { "rank": 1, "label": "Informational", "default_penalty": 0.15 },
+    "hint": { "rank": 2, "label": "Style or maintainability", "default_penalty": 0.25 },
+    "warning": { "rank": 3, "label": "Likely gap or flaky risk", "default_penalty": 0.55 },
+    "error": { "rank": 4, "label": "Serious test gap (security or correctness)", "default_penalty": 0.85 },
+    "critical": { "rank": 5, "label": "Critical gap (auth or invariant untested)", "default_penalty": 1.2 }
+  },
+  "scoring": {
+    "scale_max": 10,
+    "initial_score": 10,
+    "aggregation": "subtract_penalties_with_cap",
+    "penalty_source": "rule.penalty overrides severity_levels[severity].default_penalty when present",
+    "max_total_penalty_per_file": 10,
+    "normalisation": "Per review unit (one test file or scoped diff), sum penalties for matched rules after optional quality_signal multiplier, then score = max(0, min(10, initial_score - min(sum_penalties, max_total_penalty_per_file))).",
+    "quality_signal_adjustment": {
+      "junior": 1.0,
+      "risky": 1.15,
+      "overengineered": 0.85,
+      "senior_positive": -0.35
+    },
+    "pest_specific": {
+      "description": "Optional host tuning: multiply penalties for rules in categories 'assertions' or 'authorization' when the file uses it()/test() without datasets where multiple cases are clearly needed.",
+      "assertion_focus_multiplier": 1.05
+    },
+    "interpretation": {
+      "9_to_10": "Tests meaningfully exercise behaviour: strong assertions, auth and failure paths, stable factories.",
+      "7_to_8": "Good baseline; tighten weak expects, add negative cases, reduce brittleness.",
+      "5_to_6": "Flaky or shallow: missing auth/failure coverage, vague assertions.",
+      "0_to_4": "Unsafe to rely on: critical paths or authorisation effectively untested."
+    }
+  },
+  "rules": [
+    {
+      "id": "PESTR-001",
+      "category": "assertions",
+      "severity": "warning",
+      "quality_signal": "junior",
+      "title": "Weak assertion: boolean tautology or no behavioural check",
+      "description": "expect(true)->toBeTrue(), empty expect(), or assertions that cannot fail when production code breaks do not validate behaviour.",
+      "penalty": 0.55,
+      "pest": true,
+      "detection": {
+        "file_globs": ["tests/**/*.php"],
+        "patterns": [
+          "/expect\\(true\\)->toBeTrue/",
+          "/expect\\(1\\)->toBe\\(1\\)/",
+          "/->assertTrue\\(\\s*true\\s*\\)/"
+        ],
+        "heuristics": ["Assertion does not reference outcome of act"]
+      },
+      "examples": {
+        "before": "it('works', function () { doThing(); expect(true)->toBeTrue(); });",
+        "after": "it('persists order', function () { doThing(); expect(Order::where('ref', 'ABC')->exists())->toBeTrue(); });"
+      }
+    },
+    {
+      "id": "PESTR-002",
+      "category": "assertions",
+      "severity": "hint",
+      "quality_signal": "junior",
+      "title": "Weak assertion: HTTP status only",
+      "description": "assertOk() without asserting JSON shape, database state, or side effects misses regressions in payloads and permissions.",
+      "penalty": 0.35,
+      "pest": true,
+      "detection": {
+        "file_globs": ["tests/**/*.php"],
+        "patterns": ["/->assertOk\\(\\)\\s*;/", "/->assertSuccessful\\(\\)\\s*;/"],
+        "heuristics": ["Same test has no assertJson, assertDatabaseHas, or Event::assertDispatched"]
+      },
+      "examples": {
+        "before": "$this->getJson('/api/me')->assertOk();",
+        "after": "$this->getJson('/api/me')->assertOk()->assertJson(fn (AssertableJson $j) => $j->has('email'));",
+        "after_db": "assertDatabaseHas('users', ['id' => $user->id, 'last_seen_at' => ...]);"
+      }
+    },
+    {
+      "id": "PESTR-003",
+      "category": "brittle",
+      "severity": "warning",
+      "quality_signal": "risky",
+      "title": "Brittle test: hard-coded database ids or ordering",
+      "description": "Asserting id === 1 or assuming row order without orderBy breaks across parallel runs and fresh databases.",
+      "penalty": 0.5,
+      "pest": true,
+      "detection": {
+        "patterns": [
+          "/->id\\s*===\\s*1/",
+          "/assertDatabaseHas\\([^)]*'id'\\s*=>\\s*1/",
+          "/expect\\(\\$\\w+\\[0\\]\\)/"
+        ],
+        "heuristics": ["Asserts on auto-increment without factory reference"]
+      },
+      "examples": {
+        "before": "expect(User::first()->id)->toBe(1);",
+        "after": "$u = User::factory()->create(); expect(User::find($u->id)->email)->toBe($u->email);"
+      }
+    },
+    {
+      "id": "PESTR-004",
+      "category": "brittle",
+      "severity": "hint",
+      "quality_signal": "risky",
+      "title": "Brittle test: time without freezing",
+      "description": "Assertions against now(), today, or expiries without Carbon::setTestNow or travel helpers flake near midnight and in CI timezones.",
+      "penalty": 0.4,
+      "pest": true,
+      "detection": {
+        "patterns": [
+          "/now\\(\\)/",
+          "/Carbon::now/",
+          "/today\\(\\)/"
+        ],
+        "absence_preferred": ["travel(", "travelTo(", "Carbon::setTestNow"]
+      },
+      "examples": {
+        "before": "expect($token->expires_at->isToday())->toBeTrue();",
+        "after": "travelTo(now()->addDay()); // or Carbon::setTestNow(...) before act"
+      }
+    },
+    {
+      "id": "PESTR-005",
+      "category": "edge_cases",
+      "severity": "warning",
+      "quality_signal": "junior",
+      "title": "Missing edge case: empty or boundary input",
+      "description": "Happy path only for list/create/update leaves max length, zero quantity, and empty collection behaviour unverified.",
+      "penalty": 0.5,
+      "pest": true,
+      "detection": {
+        "heuristics": [
+          "Single it() for complex action with no dataset",
+          "No assert for empty array, zero, or null where API accepts them"
+        ],
+        "file_globs": ["tests/Feature/**/*.php"]
+      },
+      "examples": {
+        "before": "it('creates invoice', fn () => post('/invoices', validPayload())->assertCreated());",
+        "after": "it('rejects zero lines', fn () => post('/invoices', [... 'lines' => []])->assertUnprocessable());"
+      }
+    },
+    {
+      "id": "PESTR-006",
+      "category": "edge_cases",
+      "severity": "error",
+      "quality_signal": "risky",
+      "title": "Missing edge case: validation errors not asserted",
+      "description": "Mutation endpoints should assert 422 (or project convention) with field errors when input is invalid.",
+      "penalty": 0.8,
+      "pest": true,
+      "detection": {
+        "patterns": ["/post\\(/", "/put\\(/", "/patch\\(/"],
+        "heuristics": [
+          "Feature test hits POST/PUT with only valid payload cases",
+          "No assertUnprocessable/assertInvalid/assertStatus(422)"
+        ]
+      },
+      "examples": {
+        "before": "post('/register', [...])->assertRedirect(); // only valid",
+        "after": "post('/register', ['email' => 'bad'])->assertSessionHasErrors('email');"
+      }
+    },
+    {
+      "id": "PESTR-007",
+      "category": "factories",
+      "severity": "hint",
+      "quality_signal": "junior",
+      "title": "Poor factory: missing states for important invariants",
+      "description": "Factories that always produce valid rows but never model suspended users, failed payments, or draft status miss realistic scenarios.",
+      "penalty": 0.35,
+      "pest": true,
+      "detection": {
+        "file_globs": ["database/factories/**/*.php"],
+        "heuristics": [
+          "Large model factory with only definition(), no suspended/inactive states",
+          "Required enum columns always same value"
+        ]
+      },
+      "examples": {
+        "before": "return ['status' => 'active']; // only",
+        "after": "public function suspended(): static { return $this->state(fn () => ['status' => 'suspended']); }"
+      }
+    },
+    {
+      "id": "PESTR-008",
+      "category": "factories",
+      "severity": "warning",
+      "quality_signal": "risky",
+      "title": "Poor factory: uniqueness collisions under parallel test",
+      "description": "Fixed strings for unique columns (email, slug) cause random failures when tests run in parallel.",
+      "penalty": 0.45,
+      "pest": true,
+      "detection": {
+        "file_globs": ["database/factories/**/*.php"],
+        "patterns": [
+          "/['\"]test@example\\.com['\"]/",
+          "/['\"]user@test\\.com['\"]/",
+          "/['\"]slug['\"]\\s*=>\\s*['\"][^'\"]+['\"](?!.*fake)/"
+        ],
+        "prefer": ["fake()->unique()->safeEmail()", "Str::uuid()", "fake()->slug()"]
+      },
+      "examples": {
+        "before": "'email' => 'a@a.com',",
+        "after": "'email' => fake()->unique()->safeEmail(),"
+      }
+    },
+    {
+      "id": "PESTR-009",
+      "category": "authorization",
+      "severity": "error",
+      "quality_signal": "risky",
+      "title": "No authorization coverage: protected route only tested as authorised user",
+      "description": "Feature tests that always actingAs() and assertOk miss guest redirects and forbidden responses.",
+      "penalty": 0.9,
+      "pest": true,
+      "detection": {
+        "file_globs": ["tests/Feature/**/*.php"],
+        "patterns": ["/get\\(/", "/post\\(/", "/delete\\(/"],
+        "heuristics": [
+          "File uses actingAs or signIn but never assertForbidden/assertRedirectToLogin",
+          "Deletes/updates with no guest test"
+        ]
+      },
+      "examples": {
+        "before": "it('deletes', function () { actingAs($u)->delete('/posts/1')->assertOk(); });",
+        "after": "it('forbids guest', fn () => delete('/posts/1')->assertRedirect('/login'));"
+      }
+    },
+    {
+      "id": "PESTR-010",
+      "category": "authorization",
+      "severity": "error",
+      "quality_signal": "risky",
+      "title": "No authorization coverage: wrong role not tested",
+      "description": "Policy-driven actions need a user who lacks the ability, not only a user who has it.",
+      "penalty": 0.85,
+      "pest": true,
+      "detection": {
+        "heuristics": [
+          "Resource known to use policies",
+          "Only 'admin' or owner path tested; no peer user denied case"
+        ]
+      },
+      "examples": {
+        "before": "actingAs($owner)->patch(...)->assertOk(); // only",
+        "after": "actingAs($other)->patch(...)->assertForbidden();"
+      }
+    },
+    {
+      "id": "PESTR-011",
+      "category": "failure_paths",
+      "severity": "warning",
+      "quality_signal": "junior",
+      "title": "No failure path: only happy path exercised",
+      "description": "Services and jobs should be tested when dependencies throw, validation fails, or external APIs return errors.",
+      "penalty": 0.55,
+      "pest": true,
+      "detection": {
+        "heuristics": [
+          "Multiple it() blocks all assert success only",
+          "Job test never Http::fake sequence with 500",
+          "No expectException or assertThrows"
+        ]
+      },
+      "examples": {
+        "before": "Http::fake([ '*' => Http::response('ok', 200) ]); // always success",
+        "after": "Http::fake([ '*' => Http::response('err', 503) ]); expect(fn () => $s->sync())->toThrow();"
+      }
+    },
+    {
+      "id": "PESTR-012",
+      "category": "failure_paths",
+      "severity": "warning",
+      "quality_signal": "risky",
+      "title": "No failure path: domain exception not expected",
+      "description": "Invalid state transitions should assert the project exception type or message, not only generic failure.",
+      "penalty": 0.5,
+      "pest": true,
+      "detection": {
+        "patterns": ["/->handle\\(/", "/->process\\(/"],
+        "heuristics": ["Service method with guard clauses but tests only call valid transitions"]
+      },
+      "examples": {
+        "before": "// only calls refund on paid order",
+        "after": "expect(fn () => $s->refund($draft))->toThrow(InvalidOrderState::class);"
+      }
+    },
+    {
+      "id": "PESTR-013",
+      "category": "assertions",
+      "severity": "hint",
+      "quality_signal": "junior",
+      "title": "Weak outbound test: Http::fake without assertSent",
+      "description": "Faking HTTP without asserting URL, method, or payload allows silent contract drift.",
+      "penalty": 0.3,
+      "pest": true,
+      "detection": {
+        "patterns": ["/Http::fake\\(/"],
+        "absence_preferred": ["Http::assertSent", "Http::assertSentCount"]
+      },
+      "examples": {
+        "before": "Http::fake(); $service->sync(); expect(true)->toBeTrue();",
+        "after": "Http::assertSent(fn ($r) => $r->url() === config('partner.url').'/sync');"
+      }
+    },
+    {
+      "id": "PESTR-014",
+      "category": "brittle",
+      "severity": "warning",
+      "quality_signal": "risky",
+      "title": "Database mutation without isolation strategy",
+      "description": "Tests that create models without RefreshDatabase, LazilyRefreshDatabase, or a documented alternative risk order-dependent failures.",
+      "penalty": 0.45,
+      "pest": true,
+      "detection": {
+        "file_globs": ["tests/**/*.php"],
+        "patterns": ["/::factory\\(\\)->create/", "/User::create/"],
+        "absence_preferred": ["uses\\(RefreshDatabase", "uses\\(LazilyRefreshDatabase", "RefreshDatabase::class"]
+      },
+      "examples": {
+        "before": "it('counts users', function () { User::factory()->create(); expect(User::count())->toBe(1); });",
+        "after": "uses(RefreshDatabase::class); // at file top"
+      }
+    },
+    {
+      "id": "PESTR-015",
+      "category": "assertions",
+      "severity": "hint",
+      "quality_signal": "senior_positive",
+      "title": "Strong pattern: datasets or table-driven cases",
+      "description": "with() datasets or it()->with() for validation matrices reduce duplication and document edge cases explicitly.",
+      "penalty": -0.3,
+      "pest": true,
+      "detection": {
+        "patterns": [
+          "/->with\\(\\s*\\[/",
+          "/it\\([^)]*\\)->with\\(/",
+          "/dataset\\(/"
+        ],
+        "file_globs": ["tests/**/*.php"]
+      },
+      "examples": {
+        "before": "N/A — positive signal",
+        "after": "it('rejects invalid emails', function ($email) { ... })->with(['a', 'b@c']);"
+      }
+    }
+  ]
+}

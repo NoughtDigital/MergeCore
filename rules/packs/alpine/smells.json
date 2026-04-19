@@ -1,0 +1,66 @@
+{
+  "meta": {
+    "pack_id": "mergecore-alpine-rules",
+    "version": "1.0.0",
+    "locale": "en-GB",
+    "description": "Smell index for Alpine.js. Maps to rubric.json rule_ref."
+  },
+  "smells": [
+    {
+      "id": "SMELL-ALP-XSS-DATA",
+      "name": "Unsafe x-data initialisation",
+      "rule_ref": "ALP-001",
+      "summary": "User or HTML content interpolated into Alpine state without @js or encoding.",
+      "focus": "security"
+    },
+    {
+      "id": "SMELL-ALP-FOR-KEY",
+      "name": "x-for without stable key",
+      "rule_ref": "ALP-002",
+      "summary": "template x-for lacks :key where items reorder or mutate.",
+      "focus": "correctness"
+    },
+    {
+      "id": "SMELL-ALP-INLINE-JS",
+      "name": "Large inline script in Blade",
+      "rule_ref": "ALP-003",
+      "summary": "Hundreds of lines of JS in view instead of module or Alpine.data.",
+      "focus": "maintainability"
+    },
+    {
+      "id": "SMELL-ALP-DUP-BIND",
+      "name": "Parallel x-model and wire:model",
+      "rule_ref": "ALP-004",
+      "summary": "Same field bound in Alpine and Livewire without @entangle.",
+      "focus": "correctness"
+    },
+    {
+      "id": "SMELL-ALP-INIT-FETCH",
+      "name": "x-init fetch without handling",
+      "rule_ref": "ALP-005",
+      "summary": "Async load in x-init without loading or error state.",
+      "focus": "correctness"
+    },
+    {
+      "id": "SMELL-ALP-EFFECT-LEAK",
+      "name": "x-effect side effects",
+      "rule_ref": "ALP-006",
+      "summary": "x-effect mutates external state or DOM without clear scope.",
+      "focus": "maintainability"
+    },
+    {
+      "id": "SMELL-ALP-WIRE-NULL",
+      "name": "$wire used without guard",
+      "rule_ref": "ALP-007",
+      "summary": "$wire calls before Livewire hydrates or without optional chaining.",
+      "focus": "correctness"
+    },
+    {
+      "id": "SMELL-ALP-SR-DATA",
+      "name": "Reusable Alpine.data",
+      "rule_ref": "ALP-008",
+      "summary": "Logic extracted to Alpine.data or a small module.",
+      "focus": "maintainability"
+    }
+  ]
+}

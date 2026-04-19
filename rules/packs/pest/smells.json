@@ -1,0 +1,115 @@
+{
+  "meta": {
+    "pack_id": "mergecore-pest-rules",
+    "version": "1.0.0",
+    "locale": "en-GB",
+    "description": "Smell index for Pest/Laravel tests. Maps to rubric.json rule_ref."
+  },
+  "smells": [
+    {
+      "id": "SMELL-PEST-WEAK-BOOL",
+      "name": "Tautological or empty assertion",
+      "rule_ref": "PESTR-001",
+      "summary": "expect(true), or assertions unrelated to system outcome.",
+      "focus": "weak_assertions"
+    },
+    {
+      "id": "SMELL-PEST-WEAK-HTTP",
+      "name": "Status-only HTTP assertion",
+      "rule_ref": "PESTR-002",
+      "summary": "assertOk without JSON, DB, or event checks.",
+      "focus": "weak_assertions"
+    },
+    {
+      "id": "SMELL-PEST-BRIT-ID",
+      "name": "Hard-coded ids or order",
+      "rule_ref": "PESTR-003",
+      "summary": "Asserts fixed ids or first-row order without stable setup.",
+      "focus": "brittle_tests"
+    },
+    {
+      "id": "SMELL-PEST-BRIT-TIME",
+      "name": "Wall-clock time without freeze",
+      "rule_ref": "PESTR-004",
+      "summary": "now()/today() in expectations without travel helpers.",
+      "focus": "brittle_tests"
+    },
+    {
+      "id": "SMELL-PEST-EDGE-BOUND",
+      "name": "Missing boundary / empty case",
+      "rule_ref": "PESTR-005",
+      "summary": "Only happy-path data; no empty or edge inputs.",
+      "focus": "missing_edge_cases"
+    },
+    {
+      "id": "SMELL-PEST-EDGE-VAL",
+      "name": "Validation failure not tested",
+      "rule_ref": "PESTR-006",
+      "summary": "Mutations never assert invalid payload responses.",
+      "focus": "missing_edge_cases"
+    },
+    {
+      "id": "SMELL-PEST-FAC-STATE",
+      "name": "Factory lacks important states",
+      "rule_ref": "PESTR-007",
+      "summary": "No suspended, failed, or draft states when domain needs them.",
+      "focus": "poor_factories"
+    },
+    {
+      "id": "SMELL-PEST-FAC-UNIQ",
+      "name": "Factory unique collisions",
+      "rule_ref": "PESTR-008",
+      "summary": "Fixed email/slug in factory breaks parallel runs.",
+      "focus": "poor_factories"
+    },
+    {
+      "id": "SMELL-PEST-AUTH-GUEST",
+      "name": "No guest / unauthenticated negative test",
+      "rule_ref": "PESTR-009",
+      "summary": "Protected actions only tested when signed in.",
+      "focus": "no_authorization_coverage"
+    },
+    {
+      "id": "SMELL-PEST-AUTH-DENY",
+      "name": "No wrong-role forbidden test",
+      "rule_ref": "PESTR-010",
+      "summary": "Peer or stranger not denied for policy-bound action.",
+      "focus": "no_authorization_coverage"
+    },
+    {
+      "id": "SMELL-PEST-FAIL-HAPPY",
+      "name": "Only happy paths",
+      "rule_ref": "PESTR-011",
+      "summary": "No error HTTP, throws, or faked failure paths.",
+      "focus": "no_failure_path_coverage"
+    },
+    {
+      "id": "SMELL-PEST-FAIL-EX",
+      "name": "Invalid transition not asserted",
+      "rule_ref": "PESTR-012",
+      "summary": "Domain guard paths never expect exceptions.",
+      "focus": "no_failure_path_coverage"
+    },
+    {
+      "id": "SMELL-PEST-HTTP-FAKE",
+      "name": "Http::fake without assertSent",
+      "rule_ref": "PESTR-013",
+      "summary": "Outbound contract not verified.",
+      "focus": "weak_assertions"
+    },
+    {
+      "id": "SMELL-PEST-DB-ISO",
+      "name": "DB tests without isolation",
+      "rule_ref": "PESTR-014",
+      "summary": "Mutates DB without RefreshDatabase or equivalent.",
+      "focus": "brittle_tests"
+    },
+    {
+      "id": "SMELL-PEST-SR-DATASET",
+      "name": "Positive: datasets / table-driven tests",
+      "rule_ref": "PESTR-015",
+      "summary": "Explicit matrix of cases — good signal.",
+      "focus": "weak_assertions"
+    }
+  ]
+}

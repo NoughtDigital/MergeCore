@@ -1,0 +1,129 @@
+{
+  "meta": {
+    "pack_id": "mergecore-filament-rules",
+    "version": "1.0.0",
+    "locale": "en-GB",
+    "description": "Smell index for Filament admin panels. Each smell references rubric.json by rule_ref."
+  },
+  "smells": [
+    {
+      "id": "SMELL-FIL-BLOAT-RES",
+      "name": "Bloated Filament resource",
+      "rule_ref": "FIL-RES-001",
+      "summary": "One class owns enormous table, form, pages, and relation managers.",
+      "focus": "resources"
+    },
+    {
+      "id": "SMELL-FIL-NAV-POLICY",
+      "name": "Navigation vs policy mismatch",
+      "rule_ref": "FIL-RES-002",
+      "summary": "Hidden navigation but permissive policy or the reverse.",
+      "focus": "resources"
+    },
+    {
+      "id": "SMELL-FIL-TBL-N1-COL",
+      "name": "Per-cell database queries",
+      "rule_ref": "FIL-TBL-001",
+      "summary": "Column formatters run queries per row.",
+      "focus": "slow_tables"
+    },
+    {
+      "id": "SMELL-FIL-TBL-EAGER",
+      "name": "Missing eager loads for relation columns",
+      "rule_ref": "FIL-TBL-002",
+      "summary": "Dot-notation columns without with() on the table query.",
+      "focus": "slow_tables"
+    },
+    {
+      "id": "SMELL-FIL-TBL-PAGE",
+      "name": "Table defaults weak for large data",
+      "rule_ref": "FIL-TBL-003",
+      "summary": "No default sort or pagination strategy for big tables.",
+      "focus": "slow_tables"
+    },
+    {
+      "id": "SMELL-FIL-TEN-SCOPE",
+      "name": "Tenancy leak: scope removal",
+      "rule_ref": "FIL-TEN-001",
+      "summary": "withoutGlobalScopes or missing tenant predicate on panel query.",
+      "focus": "tenancy_leaks"
+    },
+    {
+      "id": "SMELL-FIL-TEN-INPUT",
+      "name": "Tenancy leak: tenant from request",
+      "rule_ref": "FIL-TEN-002",
+      "summary": "Tenant id taken from unvalidated request input.",
+      "focus": "tenancy_leaks"
+    },
+    {
+      "id": "SMELL-FIL-ACT-HEAVY",
+      "name": "Heavy synchronous action",
+      "rule_ref": "FIL-ACT-001",
+      "summary": "HTTP, mail, or long work inside Filament action closure.",
+      "focus": "poor_actions"
+    },
+    {
+      "id": "SMELL-FIL-ACT-AUTH",
+      "name": "Unauthorised custom action",
+      "rule_ref": "FIL-ACT-002",
+      "summary": "Mutating action without policy or gate check.",
+      "focus": "poor_actions"
+    },
+    {
+      "id": "SMELL-FIL-ACT-DUP",
+      "name": "Duplicated action logic",
+      "rule_ref": "FIL-ACT-003",
+      "summary": "Same bulk/table action copied across resources.",
+      "focus": "poor_actions"
+    },
+    {
+      "id": "SMELL-FIL-FRM-FAT",
+      "name": "Fat form schema / side effects",
+      "rule_ref": "FIL-FRM-001",
+      "summary": "Huge form() or afterStateUpdated doing I/O or many writes.",
+      "focus": "form_schema_abuse"
+    },
+    {
+      "id": "SMELL-FIL-FRM-LIVE",
+      "name": "Excessive live fields",
+      "rule_ref": "FIL-FRM-002",
+      "summary": "Many live() fields without debounce or blur strategy.",
+      "focus": "form_schema_abuse"
+    },
+    {
+      "id": "SMELL-FIL-FRM-REP",
+      "name": "Unbounded repeater / relationship form",
+      "rule_ref": "FIL-FRM-003",
+      "summary": "Repeater or relationship UI can load unbounded children.",
+      "focus": "form_schema_abuse"
+    },
+    {
+      "id": "SMELL-FIL-POL-MISSING",
+      "name": "Incomplete model policy for Filament",
+      "rule_ref": "FIL-POL-001",
+      "summary": "Policy missing viewAny/view/create/update/delete used by Filament.",
+      "focus": "policy_mistakes"
+    },
+    {
+      "id": "SMELL-FIL-POL-RES",
+      "name": "Resource can* vs Policy drift",
+      "rule_ref": "FIL-POL-002",
+      "summary": "Resource overrides canCreate/canEdit out of sync with Policy.",
+      "focus": "policy_mistakes"
+    },
+    {
+      "id": "SMELL-FIL-POL-VIEWANY",
+      "name": "viewAny too open",
+      "rule_ref": "FIL-POL-003",
+      "summary": "Sensitive resources listable too widely.",
+      "focus": "policy_mistakes"
+    },
+    {
+      "id": "SMELL-FIL-SR-TABLE",
+      "name": "Positive: deliberate eager loads",
+      "rule_ref": "FIL-SR-001",
+      "summary": "with()/withCount() on table query — good practice signal.",
+      "focus": "slow_tables"
+    }
+  ]
+}

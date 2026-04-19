@@ -1,0 +1,17 @@
+{
+  "pack_id": "laravel-core-rules",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "locale": "en-GB",
+  "title": "Laravel Core Rules",
+  "description": "Senior production standards for Laravel applications.",
+  "rubric_schema": "https://mergecore.dev/schemas/laravel-rules.schema.json",
+  "artifacts": {
+    "rubric": "rubric.json",
+    "smells": "smells.json",
+    "agents": "agents.md",
+    "rewrite_guidelines": "rewrite-guidelines.md"
+  },
+  "tags": ["laravel", "php", "core"],
+  "extends": []
+}

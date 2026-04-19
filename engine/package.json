@@ -1,0 +1,12 @@
+{
+  "name": "@mergecore/engine",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "tsc -p ./tsconfig.json"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "typescript": "^5.4.0"
+  }
+}

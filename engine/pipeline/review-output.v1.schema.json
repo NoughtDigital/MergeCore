@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mergecore.dev/schemas/review-output.v1.json",
+  "title": "MergeCore AI review output v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "score", "findings", "summary"],
+  "properties": {
+    "schema_version": { "const": "1.0" },
+    "score": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 10,
+      "description": "Overall quality score after merging deterministic and model findings."
+    },
+    "summary": {
+      "type": "string",
+      "maxLength": 1200,
+      "description": "Short, factual summary. No invented metrics."
+    },
+    "findings": {
+      "type": "array",
+      "maxItems": 25,
+      "items": { "$ref": "#/$defs/finding" }
+    },
+    "suggested_rewrite": {
+      "type": ["string", "null"],
+      "description": "Full replacement PHP when scope is a single file or selection; null if unsafe or out of scope."
+    },
+    "patch": {
+      "type": ["string", "null"],
+      "description": "Unified diff against reviewed content, or null if not applicable."
+    },
+    "insufficient_context": {
+      "type": "boolean",
+      "description": "True when input was too small or ambiguous to score reliably."
+    },
+    "deterministic_rule_hits": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Rule ids supplied by the server from the rules engine; echoed for traceability."
+    }
+  },
+  "$defs": {
+    "finding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "severity", "title", "why_it_matters", "evidence"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9\\-]{4,64}$"
+        },
+        "severity": {
+          "type": "string",
+          "enum": ["info", "hint", "warning", "error", "critical"]
+        },
+        "title": { "type": "string", "maxLength": 200 },
+        "why_it_matters": { "type": "string", "maxLength": 800 },
+        "rule_id": {
+          "type": ["string", "null"],
+          "description": "MergeCore engine rule id when aligned to project rules."
+        },
+        "category": {
+          "type": "string",
+          "description": "e.g. validation, eloquent, tenancy."
+        },
+        "evidence": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "snippet"],
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": ["code_snippet", "diff_hunk", "file_level"]
+            },
+            "snippet": {
+              "type": "string",
+              "maxLength": 2000,
+              "description": "Must be copied verbatim from input (code or diff)."
+            },
+            "start_line": { "type": ["integer", "null"], "minimum": 1 },
+            "end_line": { "type": ["integer", "null"], "minimum": 1 }
+          }
+        },
+        "fix_hint": {
+          "type": ["string", "null"],
+          "maxLength": 600,
+          "description": "Concrete next step; avoid large speculative refactors."
+        }
+      }
+    }
+  }
+}

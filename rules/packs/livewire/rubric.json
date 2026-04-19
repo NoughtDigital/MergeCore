@@ -1,0 +1,246 @@
+{
+  "$schema": "https://mergecore.dev/schemas/laravel-rules.schema.json",
+  "meta": {
+    "pack_id": "mergecore-livewire-rules",
+    "pack_version": "1.0.0",
+    "locale": "en-GB",
+    "title": "MergeCore Livewire Rules",
+    "description": "Rules for Livewire v3 components and wire:* views: authorisation, payloads, performance, uploads, and dispatches.",
+    "notes": "Gate with livewire: true when the host supports project metadata. Rules marked livewire: true are Livewire-specific."
+  },
+  "severity_levels": {
+    "info": { "rank": 1, "label": "Informational", "default_penalty": 0.15 },
+    "hint": { "rank": 2, "label": "Style or maintainability", "default_penalty": 0.25 },
+    "warning": { "rank": 3, "label": "Likely defect or performance risk", "default_penalty": 0.55 },
+    "error": { "rank": 4, "label": "High risk (security or data leak)", "default_penalty": 0.85 },
+    "critical": { "rank": 5, "label": "Critical (unauthorised mutation)", "default_penalty": 1.2 }
+  },
+  "scoring": {
+    "scale_max": 10,
+    "initial_score": 10,
+    "aggregation": "subtract_penalties_with_cap",
+    "penalty_source": "rule.penalty overrides severity_levels[severity].default_penalty when present",
+    "max_total_penalty_per_file": 10,
+    "normalisation": "Per review unit (one PHP component class or one Blade file using wire:*), sum penalties for matched rules after optional quality_signal multiplier, then score = max(0, min(10, initial_score - min(sum_penalties, max_total_penalty_per_file))).",
+    "quality_signal_adjustment": {
+      "junior": 1.0,
+      "risky": 1.15,
+      "overengineered": 0.85,
+      "senior_positive": -0.35
+    },
+    "livewire_overrides": {
+      "form_heavy_multiplier": 1.08,
+      "description": "Optional host tuning: multiply penalties for category 'performance' when the Blade file contains several wire:model bindings."
+    },
+    "interpretation": {
+      "9_to_10": "Authorised actions, bounded payloads, eager loads, sensible wire:model usage.",
+      "7_to_8": "Shippable; fix a few hot paths or payload leaks.",
+      "5_to_6": "Risky: missing gates, chatty live bindings, or N+1 in views.",
+      "0_to_4": "Block: unauthenticated mutations or unsafe uploads."
+    }
+  },
+  "rules": [
+    {
+      "id": "LW-001",
+      "category": "authorisation",
+      "severity": "error",
+      "quality_signal": "risky",
+      "title": "Livewire action without authorisation",
+      "description": "Public methods that change persisted state or trigger side effects should call $this->authorize(), use #[Authorize], or an equivalent gate. Relying on hidden buttons is not sufficient.",
+      "penalty": 0.85,
+      "livewire": true,
+      "detection": {
+        "file_globs": ["app/Livewire/**/*.php"],
+        "patterns": [
+          "/function\\s+\\w+\\s*\\([^)]*\\)\\s*\\{[^}]*\\$this->\\w+->(save|update|delete)\\(/",
+          "/function\\s+\\w+\\s*\\([^)]*\\)\\s*:\\s*void/"
+        ],
+        "absence_preferred": ["authorize\\(", "#\\[Authorize", "Gate::authorize", "->authorize\\("],
+        "heuristics": ["Method name matches save|delete|toggle|approve but no authorisation call in body"]
+      },
+      "examples": {
+        "before": "public function approve(): void { $this->order->update(['status' => 'approved']); }",
+        "after": "public function approve(): void { $this->authorize('update', $this->order); $this->order->update(['status' => 'approved']); }"
+      }
+    },
+    {
+      "id": "LW-002",
+      "category": "data_exposure",
+      "severity": "warning",
+      "quality_signal": "risky",
+      "title": "Whole Eloquent model in a public Livewire property",
+      "description": "Serialising full models to the client increases payload size and leaks hidden attributes unless carefully configured. Prefer ids with fresh queries, API resources, or small arrays.",
+      "penalty": 0.55,
+      "livewire": true,
+      "detection": {
+        "file_globs": ["app/Livewire/**/*.php"],
+        "patterns": [
+          "/public\\s+\\??\\s*\\w+\\s+\\$\\w+\\s*;/",
+          "/#\\[Validate\\]/"
+        ],
+        "heuristics": ["Property type hints Model or ?User and is assigned from ::find without Arrayable shaping"]
+      },
+      "examples": {
+        "before": "public Order $order;",
+        "after": "public int $orderId; // resolve Order inside authorised methods or use OrderApiResource"
+      }
+    },
+    {
+      "id": "LW-003",
+      "category": "performance",
+      "severity": "warning",
+      "quality_signal": "risky",
+      "title": "Blocking outbound call or mail in a Livewire action",
+      "description": "Http::timeout(), Mail::send(), and similar work runs on the Livewire request thread and freezes the UI. Dispatch a job or return quickly with a queued follow-up.",
+      "penalty": 0.65,
+      "livewire": true,
+      "detection": {
+        "file_globs": ["app/Livewire/**/*.php"],
+        "patterns": [
+          "/Http::(get|post|put|patch|delete)\\(/",
+          "/Mail::(to|send)\\(/",
+          "/->notify\\(/",
+          "/sleep\\(\\s*\\d+\\s*\\)/"
+        ],
+        "heuristics": ["Inside public component method, not inside dispatch or ShouldQueue class"]
+      },
+      "examples": {
+        "before": "public function sync(): void { Http::post(config('crm.url'), $this->payload); }",
+        "after": "public function sync(): void { SyncCrmJob::dispatch($this->accountId); $this->dispatch('sync-queued'); }"
+      }
+    },
+    {
+      "id": "LW-004",
+      "category": "performance",
+      "severity": "hint",
+      "quality_signal": "junior",
+      "title": "wire:model.live without debounce on chatty inputs",
+      "description": "Search boxes and textareas with wire:model.live fire a round-trip on every keystroke unless debounced or switched to wire:model.blur.",
+      "penalty": 0.35,
+      "livewire": true,
+      "detection": {
+        "file_globs": ["resources/views/**/*.blade.php"],
+        "patterns": [
+          "/wire:model\\.live(?!\\.debounce)/",
+          "/wire:model\\.live=\"\\$\\w+\"/"
+        ],
+        "heuristics": ["Bound to query or notes fields", "Same element is input type search or textarea"]
+      },
+      "examples": {
+        "before": "<input type=\"search\" wire:model.live=\"q\" />",
+        "after": "<input type=\"search\" wire:model.live.debounce.300ms=\"q\" />"
+      }
+    },
+    {
+      "id": "LW-005",
+      "category": "correctness",
+      "severity": "warning",
+      "quality_signal": "risky",
+      "title": "Dynamic @foreach without wire:key",
+      "description": "Lists that reorder, filter, or append items need stable wire:key values so Livewire can reconcile DOM nodes correctly.",
+      "penalty": 0.5,
+      "livewire": true,
+      "detection": {
+        "file_globs": ["resources/views/**/*.blade.php"],
+        "patterns": ["/@foreach\\s*\\(/"],
+        "absence_preferred": ["wire:key"],
+        "heuristics": ["Loop variable is model or array row with id"]
+      },
+      "examples": {
+        "before": "@foreach ($items as $item) <tr>",
+        "after": "@foreach ($items as $item) <tr wire:key=\"item-{{ $item->id }}\">"
+      }
+    },
+    {
+      "id": "LW-006",
+      "category": "performance",
+      "severity": "warning",
+      "quality_signal": "risky",
+      "title": "Relation accessed in view without eager load",
+      "description": "Accessing $model->relation in Blade or a computed while the component query did not with() causes N+1 queries during render.",
+      "penalty": 0.55,
+      "livewire": true,
+      "detection": {
+        "file_globs": ["resources/views/livewire/**/*.blade.php", "app/Livewire/**/*.php"],
+        "patterns": [
+          "/\\$\\w+->\\w+->\\w+/",
+          "/@foreach\\s*\\(\\s*\\$\\w+->\\w+\\s+as/"
+        ],
+        "heuristics": ["Component render() returns model without ->with(", "Blade dereferences nested relation"]
+      },
+      "examples": {
+        "before": "return view('livewire.order', ['order' => Order::find($this->orderId)]);",
+        "after": "return view('livewire.order', ['order' => Order::with('lines')->find($this->orderId)]);"
+      }
+    },
+    {
+      "id": "LW-007",
+      "category": "security",
+      "severity": "error",
+      "quality_signal": "risky",
+      "title": "File upload without validation or WithFileUploads",
+      "description": "Temporary uploads must use Livewire's file helpers, size and mime rules, and storage policies. Missing validation invites oversized or malicious files.",
+      "penalty": 0.9,
+      "livewire": true,
+      "detection": {
+        "file_globs": ["app/Livewire/**/*.php"],
+        "patterns": [
+          "/function\\s+updated\\w+\\(.*TemporaryUploadedFile/",
+          "/TemporaryUploadedFile/"
+        ],
+        "absence_preferred": ["WithFileUploads", "validate\\(\\s*\\[", "#\\[Validate\\]"],
+        "heuristics": ["Property typed as TemporaryUploadedFile without rules array nearby"]
+      },
+      "examples": {
+        "before": "public function save(): void { Storage::put('x', $this->file); }",
+        "after": "use WithFileUploads; validate ['file' => 'required|file|max:10240|mimes:pdf'];"
+      }
+    },
+    {
+      "id": "LW-008",
+      "category": "security",
+      "severity": "warning",
+      "quality_signal": "risky",
+      "title": "Livewire dispatch with unbounded or sensitive payload",
+      "description": "dispatch('$event', ...) to the browser or other components should not send full models, tokens, or large blobs. Send ids and reload server-side.",
+      "penalty": 0.5,
+      "livewire": true,
+      "detection": {
+        "file_globs": ["app/Livewire/**/*.php"],
+        "patterns": [
+          "/\\$this->dispatch\\([^)]*::class/",
+          "/\\$this->dispatch\\([^)]*\\$this->\\w+\\s*\\)/"
+        ],
+        "heuristics": ["Second argument is entire $this->user or model"]
+      },
+      "examples": {
+        "before": "$this->dispatch('selected', user: $this->user);",
+        "after": "$this->dispatch('selected', userId: $this->user->id);"
+      }
+    },
+    {
+      "id": "LW-009",
+      "category": "performance",
+      "severity": "hint",
+      "quality_signal": "senior_positive",
+      "title": "Strong pattern: eager loading in render or query",
+      "description": "Explicit with(), load(), or scoped queries in the component show awareness of N+1 and payload size.",
+      "penalty": -0.3,
+      "livewire": true,
+      "detection": {
+        "file_globs": ["app/Livewire/**/*.php"],
+        "patterns": [
+          "/->with\\(\\s*\\[/",
+          "/->with\\(['\"][^'\"]+['\"]/",
+          "/->load\\(/",
+          "/->loadMissing\\(/"
+        ],
+        "heuristics": ["Inside render() or mount() returning data to the view"]
+      },
+      "examples": {
+        "before": "N/A — positive signal",
+        "after": "return ['items' => Item::query()->with('category')->paginate(20)];"
+      }
+    }
+  ]
+}

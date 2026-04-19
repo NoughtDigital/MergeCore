@@ -1,0 +1,7 @@
+.next
+.next-dev
+.next-prod
+.next-webpack
+out
+node_modules
+*.tsbuildinfo

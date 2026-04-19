@@ -1,0 +1,73 @@
+{
+  "meta": {
+    "pack_id": "mergecore-livewire-rules",
+    "version": "1.0.0",
+    "locale": "en-GB",
+    "description": "Smell index for Livewire. Maps to rubric.json rule_ref."
+  },
+  "smells": [
+    {
+      "id": "SMELL-LW-AUTH-ACTION",
+      "name": "Action without authorisation",
+      "rule_ref": "LW-001",
+      "summary": "Public Livewire method mutates state without Gate or Authorize attribute.",
+      "focus": "authorisation"
+    },
+    {
+      "id": "SMELL-LW-EXPOSE-MODEL",
+      "name": "Whole model on the wire",
+      "rule_ref": "LW-002",
+      "summary": "Public property holds full Eloquent model or sensitive columns.",
+      "focus": "data_exposure"
+    },
+    {
+      "id": "SMELL-LW-BLOCK-IO",
+      "name": "Blocking I/O on request thread",
+      "rule_ref": "LW-003",
+      "summary": "Http::, Mail::, or long loop inside Livewire action.",
+      "focus": "performance"
+    },
+    {
+      "id": "SMELL-LW-LIVE-NODEB",
+      "name": "Live binding without debounce",
+      "rule_ref": "LW-004",
+      "summary": "wire:model.live on chatty inputs with no debounce or blur.",
+      "focus": "performance"
+    },
+    {
+      "id": "SMELL-LW-NO-KEY",
+      "name": "Loop without wire:key",
+      "rule_ref": "LW-005",
+      "summary": "@foreach without wire:key in dynamic lists.",
+      "focus": "correctness"
+    },
+    {
+      "id": "SMELL-LW-NPLUS",
+      "name": "N+1 in component output",
+      "rule_ref": "LW-006",
+      "summary": "Relations accessed in Blade or computed without eager load.",
+      "focus": "performance"
+    },
+    {
+      "id": "SMELL-LW-FILE-UP",
+      "name": "Uploads without validation",
+      "rule_ref": "LW-007",
+      "summary": "Temporary upload path without rules or WithFileUploads.",
+      "focus": "security"
+    },
+    {
+      "id": "SMELL-LW-EVENT-PAYLOAD",
+      "name": "Heavy dispatch payload",
+      "rule_ref": "LW-008",
+      "summary": "dispatch sends whole models or large blobs to the client.",
+      "focus": "security"
+    },
+    {
+      "id": "SMELL-LW-SR-EAGER",
+      "name": "Explicit eager loading",
+      "rule_ref": "LW-009",
+      "summary": "with() or load() in component shows performance awareness.",
+      "focus": "performance"
+    }
+  ]
+}

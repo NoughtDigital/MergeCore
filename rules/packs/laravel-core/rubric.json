@@ -1,0 +1,402 @@
+{
+  "$schema": "https://mergecore.dev/schemas/laravel-rules.schema.json",
+  "meta": {
+    "pack_id": "laravel-core-rules",
+    "pack_version": "1.0.0",
+    "locale": "en-GB",
+    "title": "Laravel Core Rules",
+    "description": "Senior production standards for Laravel applications. Compatible with MergeCore deterministic and LLM-assisted review.",
+    "notes": "Confirm each finding against framework version, installed packages, and project conventions. Penalties are applied by the host engine; this file defines intent and traceability."
+  },
+  "severity_levels": {
+    "info": { "rank": 1, "label": "Informational", "default_penalty": 0.15 },
+    "hint": { "rank": 2, "label": "Style or maintainability", "default_penalty": 0.25 },
+    "warning": { "rank": 3, "label": "Likely defect or security risk", "default_penalty": 0.55 },
+    "error": { "rank": 4, "label": "High risk or incorrect framework use", "default_penalty": 0.85 },
+    "critical": { "rank": 5, "label": "Exploitable or data-loss class risk", "default_penalty": 1.2 }
+  },
+  "scoring": {
+    "scale_max": 10,
+    "initial_score": 10,
+    "aggregation": "subtract_penalties_with_cap",
+    "penalty_source": "rule.penalty overrides severity_levels[severity].default_penalty when present",
+    "max_total_penalty_per_file": 10,
+    "normalisation": "After summing penalties for matched rules in one review unit, score = max(0, min(10, initial_score - min(sum_penalties, max_total_penalty_per_file))).",
+    "quality_signal_adjustment": {
+      "junior": 1.0,
+      "risky": 1.15,
+      "overengineered": 0.85,
+      "senior_positive": -0.35
+    },
+    "interpretation": {
+      "9_to_10": "Production-ready for the reviewed surface: clear boundaries, safe queries, and operable failure modes.",
+      "7_to_8": "Mergeable with targeted follow-ups: tighten validation, policies, or query shape.",
+      "5_to_6": "Risky merge: likely bugs, authorisation gaps, or performance traps.",
+      "0_to_4": "Do not merge without rework: security, correctness, or operational risk."
+    }
+  },
+  "rules": [
+    {
+      "id": "CTRL-001",
+      "category": "controllers",
+      "severity": "hint",
+      "quality_signal": "junior",
+      "title": "Bloated controller action",
+      "description": "Controllers should orchestrate HTTP concerns. Heavy domain logic belongs in actions, services, or domain classes to keep requests testable and cohesive.",
+      "penalty": 0.25,
+      "detection": {
+        "file_globs": ["app/Http/Controllers/**/*.php"],
+        "heuristics": ["Method exceeds ~40 lines", "Multiple database writes in one action", "Nested condition depth > 3"]
+      },
+      "examples": {
+        "before": "public function store(Request $request) { /* validation, persistence, mail, analytics in one block */ }",
+        "after": "public function store(StoreThingRequest $request, CreateThing $action) { return $action->handle($request->user(), $request->validated()); }"
+      }
+    },
+    {
+      "id": "VAL-001",
+      "category": "validation",
+      "severity": "error",
+      "quality_signal": "risky",
+      "title": "Mass assignment from all input",
+      "description": "Using $request->all() or unvalidated arrays for mass assignment is a common source of privilege escalation and unintended column updates.",
+      "penalty": 0.85,
+      "detection": {
+        "patterns": [
+          "/->fill\\(\\$request->all\\(\\)\\)/",
+          "/::create\\(\\$request->all\\(\\)\\)/",
+          "/::update\\(\\$request->all\\(\\)\\)/"
+        ],
+        "prefer": ["Form Request", "$request->validated()", "explicit DTO mapping"]
+      }
+    },
+    {
+      "id": "VAL-002",
+      "category": "validation",
+      "severity": "warning",
+      "quality_signal": "junior",
+      "title": "Inline validation only in controller",
+      "description": "Repeated $request->validate([...]) scatters rules and blocks reuse from jobs, commands, and CLI entry points.",
+      "penalty": 0.45,
+      "detection": {
+        "patterns": ["/\\$request->validate\\s*\\(/"],
+        "prefer": ["FormRequest type-hint"]
+      }
+    },
+    {
+      "id": "POL-001",
+      "category": "policies",
+      "severity": "error",
+      "quality_signal": "risky",
+      "title": "Authorisation missing on mutation",
+      "description": "Destructive routes should be gated by policies, gates, or middleware that map to explicit abilities.",
+      "penalty": 0.9,
+      "detection": {
+        "file_globs": ["app/Http/Controllers/**/*.php", "routes/*.php"],
+        "heuristics": ["Delete/put/patch without authorisation middleware or $this->authorize"]
+      }
+    },
+    {
+      "id": "POL-002",
+      "category": "policies",
+      "severity": "hint",
+      "quality_signal": "overengineered",
+      "title": "Authorisation logic duplicated in controllers",
+      "description": "Repeated role or ownership checks drift from policies and make refactors hazardous.",
+      "penalty": 0.25,
+      "detection": {
+        "patterns": ["/\\$request->user\\(\\)->role\\s*===/"],
+        "prefer": ["Policy", "@can", "Gate::authorize"]
+      }
+    },
+    {
+      "id": "ELOQ-001",
+      "category": "eloquent",
+      "severity": "warning",
+      "quality_signal": "risky",
+      "title": "N+1 query risk in loops",
+      "description": "Accessing lazy-loaded relations inside a loop causes N+1 queries and unstable latency under load.",
+      "penalty": 0.55,
+      "detection": {
+        "patterns": ["/foreach\\s*\\([^)]*\\)\\s*\\{[^}]*->\\w+/"],
+        "prefer": ["with(", "load(", "loadMissing("]
+      }
+    },
+    {
+      "id": "ELOQ-002",
+      "category": "eloquent",
+      "severity": "warning",
+      "quality_signal": "risky",
+      "title": "Unbounded query for user-facing lists",
+      "description": "Missing pagination or limits risks memory exhaustion and slow responses.",
+      "penalty": 0.5,
+      "detection": {
+        "patterns": ["/::all\\(\\)/", "/::get\\(\\)\\s*;/"],
+        "context": ["Controller or query returning large tables"]
+      }
+    },
+    {
+      "id": "ELOQ-003",
+      "category": "eloquent",
+      "severity": "error",
+      "quality_signal": "risky",
+      "title": "Raw SQL without safe bindings",
+      "description": "DB::raw / whereRaw with string concatenation invites SQL injection.",
+      "penalty": 1.0,
+      "detection": {
+        "patterns": ["/DB::raw\\s*\\(\\s*[\"'].*\\$/", "/whereRaw\\s*\\(\\s*[\"'][^?]*\\$/"],
+        "prefer": ["parameter binding", "query builder"]
+      }
+    },
+    {
+      "id": "JOB-001",
+      "category": "jobs",
+      "severity": "warning",
+      "quality_signal": "risky",
+      "title": "Non-idempotent job side effects",
+      "description": "Retries can duplicate charges, e-mails, or rows unless the handler is idempotent or guarded by unique constraints.",
+      "penalty": 0.6,
+      "detection": {
+        "file_globs": ["app/Jobs/**/*.php"],
+        "heuristics": ["External side effects without idempotency key"]
+      }
+    },
+    {
+      "id": "JOB-002",
+      "category": "jobs",
+      "severity": "hint",
+      "quality_signal": "junior",
+      "title": "Heavy work on the request thread",
+      "description": "Long outbound calls in HTTP requests hurt tail latency; queue with explicit failure handling where appropriate.",
+      "penalty": 0.3,
+      "detection": {
+        "file_globs": ["app/Http/Controllers/**/*.php"],
+        "patterns": ["/Http::(timeout\\()?\\d{2,}/", "/sleep\\(/"]
+      }
+    },
+    {
+      "id": "QUE-001",
+      "category": "queues",
+      "severity": "warning",
+      "quality_signal": "risky",
+      "title": "Queue job without failure strategy",
+      "description": "Jobs should define sensible retries/backoff and failed handling; silent loss is a production incident waiting to happen.",
+      "penalty": 0.45,
+      "detection": {
+        "file_globs": ["app/Jobs/**/*.php"],
+        "patterns": ["/implements\\s+ShouldQueue/"],
+        "heuristics": ["Missing failed() or logging on terminal failure"]
+      }
+    },
+    {
+      "id": "TXN-001",
+      "category": "transactions",
+      "severity": "error",
+      "quality_signal": "risky",
+      "title": "Multi-step monetary movement without transaction",
+      "description": "Ledger-like updates spanning multiple writes should be atomic.",
+      "penalty": 0.95,
+      "detection": {
+        "heuristics": ["Multiple balance writes without DB::transaction"],
+        "context_keywords": ["balance", "wallet", "ledger", "stock"]
+      }
+    },
+    {
+      "id": "TXN-002",
+      "category": "transactions",
+      "severity": "warning",
+      "quality_signal": "risky",
+      "title": "Long transaction holding locks",
+      "description": "Outbound HTTP or slow I/O inside DB::transaction increases deadlock risk.",
+      "penalty": 0.55,
+      "detection": {
+        "patterns": ["/DB::transaction\\s*\\(/"],
+        "nested_risk": ["/Http::/", "/Mail::/", "/sleep\\(/"]
+      }
+    },
+    {
+      "id": "N1-001",
+      "category": "n_plus_1",
+      "severity": "warning",
+      "quality_signal": "risky",
+      "title": "Implicit lazy loading in API resources",
+      "description": "Resources touching relations without eager loading cause N+1 in production.",
+      "penalty": 0.55,
+      "detection": {
+        "file_globs": ["app/Http/Resources/**/*.php"],
+        "patterns": ["/\\$this->(\\w+)->/"]
+      }
+    },
+    {
+      "id": "TEN-001",
+      "category": "tenancy",
+      "severity": "error",
+      "quality_signal": "risky",
+      "title": "Tenant scope bypass",
+      "description": "Queries without a tenant constraint can leak data across organisations when the schema is multi-tenant.",
+      "penalty": 1.1,
+      "tenancy": true,
+      "detection": {
+        "heuristics": ["Global query without tenant guard where tenant_id exists"]
+      }
+    },
+    {
+      "id": "TEN-002",
+      "category": "tenancy",
+      "severity": "warning",
+      "quality_signal": "risky",
+      "title": "Tenant identifier from untrusted input",
+      "description": "Client-supplied tenant identifiers must not replace membership resolution from authentication context.",
+      "penalty": 0.65,
+      "tenancy": true,
+      "detection": {
+        "patterns": ["/tenant_id\\s*=>\\s*\\$request->input\\(/"]
+      }
+    },
+    {
+      "id": "IDEM-001",
+      "category": "idempotency",
+      "severity": "warning",
+      "quality_signal": "risky",
+      "title": "Webhook handler not idempotent",
+      "description": "Providers retry webhooks; dedupe by event id or stored delivery state before applying side effects.",
+      "penalty": 0.7,
+      "detection": {
+        "file_globs": ["app/Http/Controllers/**/*Webhook*.php", "routes/*.php"],
+        "patterns": ["/webhook/i"]
+      }
+    },
+    {
+      "id": "IDEM-002",
+      "category": "idempotency",
+      "severity": "hint",
+      "quality_signal": "senior_positive",
+      "title": "Explicit uniqueness for queue work",
+      "description": "ShouldBeUnique or WithoutOverlapping reduces duplicate side effects under concurrency.",
+      "penalty": -0.35,
+      "detection": {
+        "patterns": ["/ShouldBeUnique/", "/WithoutOverlapping/", "/uniqueId\\(/"],
+        "file_globs": ["app/Jobs/**/*.php"]
+      }
+    },
+    {
+      "id": "FIL-001",
+      "category": "filament",
+      "severity": "warning",
+      "quality_signal": "risky",
+      "title": "Filament query without intended scoping",
+      "description": "Admin tables must respect tenant and authorisation scopes; accidental global queries leak rows.",
+      "penalty": 0.75,
+      "filament": true,
+      "detection": {
+        "file_globs": ["app/Filament/**/*.php"],
+        "patterns": ["/getEloquentQuery/", "/withoutGlobalScopes\\(/"]
+      }
+    },
+    {
+      "id": "FIL-002",
+      "category": "filament",
+      "severity": "hint",
+      "quality_signal": "junior",
+      "title": "Heavy side effects in Filament form callbacks",
+      "description": "Large work in afterStateUpdated is hard to test and blocks the UI; prefer actions or queued jobs.",
+      "penalty": 0.3,
+      "filament": true,
+      "detection": {
+        "patterns": ["/afterStateUpdated\\s*\\(/"],
+        "heuristics": ["HTTP or multi-write in callback"]
+      }
+    },
+    {
+      "id": "PEST-001",
+      "category": "pest",
+      "severity": "warning",
+      "quality_signal": "risky",
+      "title": "Feature test missing auth expectations",
+      "description": "Protected routes need guest/forbidden assertions; happy-path-only tests miss authorisation regressions.",
+      "penalty": 0.55,
+      "pest": true,
+      "detection": {
+        "file_globs": ["tests/**/*.php"],
+        "heuristics": ["HTTP test without actingAs/assertForbidden/assertUnauthorized"]
+      }
+    },
+    {
+      "id": "PEST-002",
+      "category": "pest",
+      "severity": "hint",
+      "quality_signal": "junior",
+      "title": "Database tests without isolation strategy",
+      "description": "Use RefreshDatabase or an equivalent strategy to avoid order-dependent failures.",
+      "penalty": 0.35,
+      "pest": true,
+      "detection": {
+        "file_globs": ["tests/**/*.php"],
+        "heuristics": ["Mutates models without RefreshDatabase"]
+      }
+    },
+    {
+      "id": "SEC-001",
+      "category": "security",
+      "severity": "error",
+      "quality_signal": "risky",
+      "title": "Mass assignment of guarded attributes",
+      "description": "Ensure $fillable/$guarded and DTOs align; never rely on obscurity for sensitive columns.",
+      "penalty": 0.9,
+      "detection": {
+        "heuristics": ["User-controlled keys merged into models without validated subset"]
+      }
+    },
+    {
+      "id": "SEC-002",
+      "category": "security",
+      "severity": "warning",
+      "quality_signal": "risky",
+      "title": "Secrets or tokens in logs",
+      "description": "Logging request payloads or tokens breaches compliance and aids attackers.",
+      "penalty": 0.7,
+      "detection": {
+        "patterns": ["/Log::(info|debug|error)\\([^)]*password/", "/\\$request->all\\(\\)/"],
+        "context": ["Inside Log::"]
+      }
+    },
+    {
+      "id": "API-001",
+      "category": "api",
+      "severity": "hint",
+      "quality_signal": "junior",
+      "title": "Public mutation route without throttling",
+      "description": "Sensitive POST/PUT/PATCH endpoints should use rate limiting middleware where abuse is plausible.",
+      "penalty": 0.25,
+      "detection": {
+        "file_globs": ["routes/*.php"],
+        "heuristics": ["Route::post without throttle middleware in high-risk contexts"]
+      }
+    },
+    {
+      "id": "SR-001",
+      "category": "eloquent",
+      "severity": "hint",
+      "quality_signal": "senior_positive",
+      "title": "Explicit eager loads at the boundary",
+      "description": "with() for rendered relations is a strong signal of deliberate N+1 mitigation.",
+      "penalty": -0.25,
+      "detection": {
+        "patterns": ["/::with\\(\\[/", "/::with\\(['\"]/"],
+        "file_globs": ["app/Http/Controllers/**/*.php"]
+      }
+    },
+    {
+      "id": "OE-001",
+      "category": "architecture",
+      "severity": "hint",
+      "quality_signal": "overengineered",
+      "title": "Excessive indirection for trivial flows",
+      "description": "Many layers for simple CRUD slows change without adding invariants; match abstraction to complexity.",
+      "penalty": 0.2,
+      "detection": {
+        "heuristics": ["Many classes for a single-field update", "Empty interfaces"]
+      }
+    }
+  ]
+}

@@ -1,0 +1,657 @@
+/* MergeCore sidebar — VS Code theme tokens + compact utility-style blocks (Tailwind-like naming) */
+
+.mc-body {
+  margin: 0;
+  padding: 0;
+  font-family: var(--vscode-font-family);
+  font-size: var(--vscode-font-size);
+  color: var(--vscode-foreground);
+  background: var(--vscode-sideBar-background);
+}
+
+.mc-root {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  padding: 0 12px 20px;
+  gap: 0;
+}
+
+/* --- Header (premium strip) --- */
+.mc-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 0 12px;
+  margin: 0 -12px;
+  padding-left: 12px;
+  padding-right: 12px;
+  border-bottom: 1px solid color-mix(in srgb, var(--vscode-widget-border) 70%, transparent);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--vscode-editor-background) 40%, var(--vscode-sideBar-background)) 0%,
+    var(--vscode-sideBar-background) 100%
+  );
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+.mc-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.mc-brand-mark {
+  width: 10px;
+  height: 28px;
+  border-radius: 3px;
+  background: linear-gradient(
+    180deg,
+    var(--vscode-focusBorder) 0%,
+    color-mix(in srgb, var(--vscode-focusBorder) 55%, var(--vscode-sideBar-background)) 100%
+  );
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--vscode-focusBorder) 35%, transparent);
+}
+
+.mc-brand-name {
+  font-size: 13px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+}
+
+.mc-brand-text {
+  min-width: 0;
+}
+
+.mc-brand-sub {
+  font-size: 11px;
+  color: var(--vscode-descriptionForeground);
+  line-height: 1.25;
+}
+
+.mc-brand-file {
+  font-size: 10px;
+  color: color-mix(in srgb, var(--vscode-descriptionForeground) 88%, transparent);
+  line-height: 1.2;
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.mc-btn-ghost {
+  flex: 0 0 auto;
+  appearance: none;
+  border: 1px solid color-mix(in srgb, var(--vscode-widget-border) 85%, transparent);
+  background: color-mix(in srgb, var(--vscode-editor-background) 55%, transparent);
+  color: var(--vscode-foreground);
+  border-radius: 6px;
+  padding: 5px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+}
+
+.mc-btn-ghost:hover {
+  background: color-mix(in srgb, var(--vscode-toolbar-hoverBackground) 80%, transparent);
+}
+
+.mc-btn-ghost:active {
+  transform: translateY(0.5px);
+}
+
+/* --- Score badge --- */
+.mc-hero {
+  padding: 16px 0 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.mc-score-ring {
+  --mc-ring: color-mix(in srgb, var(--vscode-widget-border) 75%, transparent);
+  width: 112px;
+  height: 112px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: radial-gradient(
+    circle at 30% 25%,
+    color-mix(in srgb, var(--vscode-editor-background) 70%, transparent),
+    var(--vscode-sideBar-background)
+  );
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--vscode-foreground) 6%, transparent),
+    0 12px 28px color-mix(in srgb, #000 28%, transparent);
+  border: 2px solid var(--mc-ring);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.mc-score-ring.is-excellent {
+  --mc-ring: color-mix(in srgb, var(--vscode-charts-green) 65%, var(--vscode-widget-border));
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--vscode-charts-green) 22%, transparent),
+    0 12px 32px color-mix(in srgb, #000 30%, transparent);
+}
+
+.mc-score-ring.is-good {
+  --mc-ring: color-mix(in srgb, var(--vscode-charts-blue) 55%, var(--vscode-widget-border));
+}
+
+.mc-score-ring.is-mixed {
+  --mc-ring: color-mix(in srgb, var(--vscode-charts-yellow) 55%, var(--vscode-widget-border));
+}
+
+.mc-score-ring.is-poor {
+  --mc-ring: color-mix(in srgb, var(--vscode-charts-red) 55%, var(--vscode-widget-border));
+}
+
+.mc-score-inner {
+  display: flex;
+  align-items: baseline;
+  gap: 2px;
+}
+
+.mc-score-value {
+  font-size: 36px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+
+.mc-score-denom {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--vscode-descriptionForeground);
+  opacity: 0.85;
+}
+
+.mc-score-caption {
+  margin: 0;
+  text-align: center;
+  font-size: 12px;
+  line-height: 1.35;
+  max-width: 22rem;
+}
+
+.mc-score-breakdown {
+  margin-top: 12px;
+}
+
+.mc-score-why {
+  margin: 0 0 10px;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.mc-dimension-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mc-dimension-item {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: baseline;
+  gap: 8px 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--vscode-widget-border) 80%, transparent);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.mc-dimension-label {
+  font-weight: 600;
+  color: var(--vscode-foreground);
+}
+
+.mc-dimension-level {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--vscode-descriptionForeground);
+}
+
+.mc-dimension-sub {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--vscode-descriptionForeground);
+}
+
+.mc-score-split {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.mc-score-split-title {
+  margin: 0 0 6px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--vscode-descriptionForeground);
+}
+
+.mc-bullet-list,
+.mc-numbered-list {
+  margin: 0;
+  padding-left: 1.1rem;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.mc-bullet-list li,
+.mc-numbered-list li {
+  margin-bottom: 4px;
+}
+
+.mc-score-residual {
+  margin: 10px 0 0;
+  font-size: 11px;
+  line-height: 1.4;
+  font-style: italic;
+}
+
+.mc-muted {
+  color: var(--vscode-descriptionForeground);
+}
+
+/* --- Sections --- */
+.mc-section {
+  margin-top: 14px;
+}
+
+.mc-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.mc-section-title {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--vscode-descriptionForeground);
+}
+
+.mc-pill {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--vscode-widget-border) 80%, transparent);
+}
+
+.mc-pill-muted {
+  color: var(--vscode-descriptionForeground);
+  background: color-mix(in srgb, var(--vscode-badge-background) 35%, transparent);
+}
+
+.mc-summary {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+/* --- Findings --- */
+.mc-findings-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.mc-empty {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px dashed color-mix(in srgb, var(--vscode-widget-border) 85%, transparent);
+  color: var(--vscode-descriptionForeground);
+  font-size: 12px;
+}
+
+.mc-finding-card {
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--vscode-widget-border) 85%, transparent);
+  background: color-mix(in srgb, var(--vscode-editor-background) 58%, var(--vscode-sideBar-background));
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--vscode-foreground) 5%, transparent);
+  padding: 10px 10px 8px;
+}
+
+.mc-finding-top {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.mc-finding-title {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.35;
+  flex: 1;
+  min-width: 0;
+}
+
+.mc-finding-meta {
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--vscode-descriptionForeground);
+}
+
+.mc-sub {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid color-mix(in srgb, var(--vscode-widget-border) 65%, transparent);
+}
+
+.mc-sub-fix {
+  border-top-color: color-mix(in srgb, var(--vscode-focusBorder) 25%, var(--vscode-widget-border));
+}
+
+.mc-sub-title {
+  margin: 0 0 4px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--vscode-descriptionForeground);
+}
+
+.mc-sub-copy {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: color-mix(in srgb, var(--vscode-foreground) 92%, var(--vscode-descriptionForeground));
+}
+
+.mc-sub-fix .mc-sub-copy {
+  color: color-mix(in srgb, var(--vscode-foreground) 95%, var(--vscode-descriptionForeground));
+}
+
+/* Severity colours (native-adjacent) */
+.mc-sev {
+  flex: 0 0 auto;
+  font-size: 10px;
+  padding: 3px 7px;
+  border-radius: 999px;
+  text-transform: uppercase;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  line-height: 1;
+  border: 1px solid transparent;
+}
+
+.mc-sev-critical {
+  background: color-mix(in srgb, var(--vscode-inputValidation-errorBackground) 92%, transparent);
+  color: var(--vscode-errorForeground);
+  border-color: color-mix(in srgb, var(--vscode-errorForeground) 22%, transparent);
+}
+
+.mc-sev-error {
+  background: color-mix(in srgb, var(--vscode-inputValidation-errorBackground) 78%, transparent);
+  color: var(--vscode-errorForeground);
+}
+
+.mc-sev-warning {
+  background: color-mix(in srgb, var(--vscode-inputValidation-warningBackground) 78%, transparent);
+  color: var(--vscode-editorWarning-foreground);
+}
+
+.mc-sev-info {
+  background: color-mix(in srgb, var(--vscode-inputValidation-infoBackground) 70%, transparent);
+  color: var(--vscode-editorInfo-foreground);
+}
+
+.mc-sev-hint {
+  background: color-mix(in srgb, var(--vscode-badge-background) 45%, transparent);
+  color: var(--vscode-descriptionForeground);
+  border-color: color-mix(in srgb, var(--vscode-widget-border) 70%, transparent);
+}
+
+/* --- Code block --- */
+.mc-code-block {
+  margin: 0;
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--vscode-widget-border) 90%, transparent);
+  background: var(--vscode-textCodeBlock-background);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 280px;
+  overflow: auto;
+  font-family: var(--vscode-editor-font-family);
+  font-size: calc(var(--vscode-editor-font-size) * 0.95);
+  line-height: 1.45;
+}
+
+.mc-hidden {
+  display: none !important;
+}
+
+.mc-rewrite-summary {
+  margin: 0 0 10px;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.mc-amends-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mc-amend-item {
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--vscode-widget-border) 88%, transparent);
+  background: color-mix(in srgb, var(--vscode-editor-background) 45%, var(--vscode-sideBar-background));
+  padding: 8px 10px;
+}
+
+.mc-amend-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.mc-amend-range {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--vscode-descriptionForeground);
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid color-mix(in srgb, var(--vscode-widget-border) 75%, transparent);
+  background: color-mix(in srgb, var(--vscode-badge-background) 30%, transparent);
+}
+
+.mc-amend-label {
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.mc-amend-rationale {
+  margin: 6px 0 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: color-mix(in srgb, var(--vscode-foreground) 93%, var(--vscode-descriptionForeground));
+}
+
+.mc-cross-file-panel {
+  margin: 0 0 10px;
+  padding: 10px 10px 8px;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--vscode-inputValidation-warningBorder) 35%, var(--vscode-widget-border));
+  background: color-mix(in srgb, var(--vscode-inputValidation-warningBackground) 22%, transparent);
+}
+
+.mc-cross-file-title {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--vscode-editorWarning-foreground);
+}
+
+.mc-cross-file-hint {
+  margin: 6px 0 10px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--vscode-descriptionForeground);
+}
+
+.mc-cross-file-card {
+  margin-bottom: 8px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid color-mix(in srgb, var(--vscode-widget-border) 80%, transparent);
+  background: var(--vscode-sideBar-background);
+}
+
+.mc-cross-file-path {
+  font-family: var(--vscode-editor-font-family);
+  font-size: 11px;
+  font-weight: 650;
+  word-break: break-all;
+}
+
+.mc-cross-file-why {
+  margin: 6px 0 0;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.mc-cross-file-snippet {
+  margin: 8px 0 0;
+  padding: 8px;
+  border-radius: 6px;
+  font-family: var(--vscode-editor-font-family);
+  font-size: calc(var(--vscode-editor-font-size) * 0.88);
+  line-height: 1.4;
+  max-height: 140px;
+  overflow: auto;
+  border: 1px solid color-mix(in srgb, var(--vscode-widget-border) 85%, transparent);
+  background: var(--vscode-textCodeBlock-background);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.mc-rewrite-container {
+  margin-top: 4px;
+}
+
+.mc-rewrite-lines.mc-code-block {
+  padding: 0;
+  white-space: normal;
+}
+
+.mc-code-row {
+  display: flex;
+  align-items: stretch;
+  min-height: 1.45em;
+}
+
+.mc-code-row:nth-child(even) {
+  background: color-mix(in srgb, var(--vscode-foreground) 2.5%, transparent);
+}
+
+.mc-code-gutter {
+  flex: 0 0 2.35rem;
+  text-align: right;
+  padding: 3px 8px;
+  user-select: none;
+  color: var(--vscode-descriptionForeground);
+  font-variant-numeric: tabular-nums;
+  border-right: 1px solid color-mix(in srgb, var(--vscode-widget-border) 65%, transparent);
+  background: color-mix(in srgb, var(--vscode-sideBar-background) 55%, var(--vscode-textCodeBlock-background));
+}
+
+.mc-code-text {
+  flex: 1;
+  padding: 3px 10px 3px 10px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.mc-code-row--amend {
+  background: color-mix(in srgb, var(--vscode-editor-wordHighlightBackground) 55%, transparent) !important;
+  box-shadow: inset 3px 0 0 var(--vscode-focusBorder);
+}
+
+.mc-apply-note {
+  margin: 8px 0 0;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+/* --- Footer actions --- */
+.mc-footer {
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 4px;
+}
+
+.mc-btn {
+  appearance: none;
+  border-radius: 8px;
+  padding: 9px 10px;
+  font-size: 12px;
+  font-weight: 650;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+
+.mc-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.mc-btn-primary {
+  background: var(--vscode-button-background);
+  color: var(--vscode-button-foreground);
+  border-color: var(--vscode-button-border, transparent);
+  box-shadow: 0 10px 22px color-mix(in srgb, #000 22%, transparent);
+}
+
+.mc-btn-primary:hover:not(:disabled) {
+  filter: brightness(1.04);
+}
+
+.mc-btn-secondary {
+  background: var(--vscode-button-secondaryBackground);
+  color: var(--vscode-button-secondaryForeground);
+  border-color: color-mix(in srgb, var(--vscode-widget-border) 85%, transparent);
+}
+
+.mc-btn-secondary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--vscode-toolbar-hoverBackground) 65%, var(--vscode-button-secondaryBackground));
+}

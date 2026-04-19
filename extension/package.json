@@ -1,0 +1,185 @@
+{
+  "name": "mergecore",
+  "displayName": "MergeCore",
+  "description": "Laravel-focused AI review: a senior-style second opinion so you can compare code that works against code that would hold up to scrutiny.",
+  "version": "0.1.0",
+  "publisher": "mergecore",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Linters",
+    "Other"
+  ],
+  "keywords": [
+    "laravel",
+    "php",
+    "ai",
+    "review",
+    "merge"
+  ],
+  "activationEvents": [
+    "onStartupFinished",
+    "onLanguage:php",
+    "onLanguage:blade",
+    "onCommand:mergecore.showSidebar",
+    "onCommand:mergecore.reviewFile",
+    "onCommand:mergecore.reviewSelection",
+    "onCommand:mergecore.reviewGitDiff",
+    "onCommand:mergecore.reviewStagedDiff",
+    "onCommand:mergecore.applyImprovedCode",
+    "onCommand:mergecore.applyPatch",
+    "onCommand:mergecore.exportReviewMarkdown"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "mergecore.reviewSelection",
+        "title": "MergeCore: Review Selection"
+      },
+      {
+        "command": "mergecore.reviewFile",
+        "title": "MergeCore: Review Active File"
+      },
+      {
+        "command": "mergecore.reviewGitDiff",
+        "title": "MergeCore: Review Git Diff (working tree)"
+      },
+      {
+        "command": "mergecore.reviewStagedDiff",
+        "title": "MergeCore: Review Staged Diff"
+      },
+      {
+        "command": "mergecore.showSidebar",
+        "title": "MergeCore: Open Review Panel"
+      },
+      {
+        "command": "mergecore.applyImprovedCode",
+        "title": "MergeCore: Apply Improved Code to Active Editor",
+        "enablement": "mergecore.canApplyImproved"
+      },
+      {
+        "command": "mergecore.applyPatch",
+        "title": "MergeCore: Apply Patch to Active Editor",
+        "enablement": "mergecore.canApplyPatch"
+      },
+      {
+        "command": "mergecore.exportReviewMarkdown",
+        "title": "MergeCore: Copy Review Report as Markdown"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "mergecore.reviewSelection",
+          "when": "editorHasSelection",
+          "group": "mergecore@1"
+        },
+        {
+          "command": "mergecore.reviewFile",
+          "when": "editorLangId == php",
+          "group": "mergecore@2"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "mergecore.reviewFile",
+          "when": "editorLangId == php && resourceScheme == file",
+          "group": "navigation@mergecore"
+        },
+        {
+          "command": "mergecore.showSidebar",
+          "when": "editorLangId == php && resourceScheme == file",
+          "group": "navigation@mergecore2"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "mergecore.reviewSelection"
+        },
+        {
+          "command": "mergecore.reviewFile"
+        },
+        {
+          "command": "mergecore.reviewGitDiff"
+        },
+        {
+          "command": "mergecore.reviewStagedDiff"
+        },
+        {
+          "command": "mergecore.showSidebar"
+        },
+        {
+          "command": "mergecore.exportReviewMarkdown"
+        }
+      ]
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "mergecore",
+          "title": "MergeCore",
+          "icon": "resources/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "mergecore": [
+        {
+          "type": "webview",
+          "id": "mergecore.sidebar",
+          "name": "Review",
+          "icon": "resources/icon.svg",
+          "contextualTitle": "MergeCore"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "MergeCore",
+      "properties": {
+        "mergecore.apiBaseUrl": {
+          "type": "string",
+          "default": "https://api.mergecore.example",
+          "description": "Base URL for the MergeCore API."
+        },
+        "mergecore.apiToken": {
+          "type": "string",
+          "default": "",
+          "description": "Bearer token for the MergeCore API (stored in settings)."
+        },
+        "mergecore.useMockReviewer": {
+          "type": "boolean",
+          "default": true,
+          "description": "When no API token is set, use a lightweight mock instead of the full senior-style review. Add a token and turn this off for production depth."
+        },
+        "mergecore.reviewPanel.automation": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "When **enabled**, after a review completes MergeCore focuses the Review panel, opens it if needed, and re-applies the last result when you return to the MergeCore tab. Disable to keep your current editor/tab and update the panel in the background only."
+        },
+        "mergecore.reviewPanel.editorTabFallback": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "If the activity-bar Review view cannot be opened (e.g. some Cursor builds), open the same review UI in a **beside editor tab** automatically."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "npm run build --prefix ../engine/intelligence && tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "package": "vsce package"
+  },
+  "dependencies": {
+    "@mergecore/intelligence": "file:../engine/intelligence",
+    "diff": "^5.2.0"
+  },
+  "devDependencies": {
+    "@types/diff": "^5.2.0",
+    "@types/node": "^20.11.0",
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.4.0"
+  }
+}

@@ -1,0 +1,211 @@
+{
+  "$schema": "https://mergecore.dev/schemas/laravel-rules.schema.json",
+  "meta": {
+    "pack_id": "mergecore-alpine-rules",
+    "pack_version": "1.0.0",
+    "locale": "en-GB",
+    "title": "MergeCore Alpine.js Rules",
+    "description": "Rules for Alpine.js in Blade and front-end assets: safe state, lists, async, effects, and Livewire interop.",
+    "notes": "Gate with alpine: true when the host supports project metadata. Rules marked alpine: true are Alpine-specific."
+  },
+  "severity_levels": {
+    "info": { "rank": 1, "label": "Informational", "default_penalty": 0.15 },
+    "hint": { "rank": 2, "label": "Style or maintainability", "default_penalty": 0.25 },
+    "warning": { "rank": 3, "label": "Likely defect or performance risk", "default_penalty": 0.55 },
+    "error": { "rank": 4, "label": "High risk (security or data leak)", "default_penalty": 0.85 },
+    "critical": { "rank": 5, "label": "Critical (XSS in client state)", "default_penalty": 1.2 }
+  },
+  "scoring": {
+    "scale_max": 10,
+    "initial_score": 10,
+    "aggregation": "subtract_penalties_with_cap",
+    "penalty_source": "rule.penalty overrides severity_levels[severity].default_penalty when present",
+    "max_total_penalty_per_file": 10,
+    "normalisation": "Per review unit (one Blade file or one JS module with Alpine), sum penalties for matched rules after optional quality_signal multiplier, then score = max(0, min(10, initial_score - min(sum_penalties, max_total_penalty_per_file))).",
+    "quality_signal_adjustment": {
+      "junior": 1.0,
+      "risky": 1.15,
+      "overengineered": 0.85,
+      "senior_positive": -0.35
+    },
+    "alpine_overrides": {
+      "interactive_view_multiplier": 1.08,
+      "description": "Optional host tuning: multiply penalties for category 'security' and 'correctness' when the file has many x-on or x-model bindings."
+    },
+    "interpretation": {
+      "9_to_10": "Safe x-data, keyed lists, handled async, clear $wire usage.",
+      "7_to_8": "Shippable; tighten a few client boundaries or extract scripts.",
+      "5_to_6": "Risky: unsafe initial state, missing keys, or fragile effects.",
+      "0_to_4": "Block: injectable x-data, or broken interop with Livewire."
+    }
+  },
+  "rules": [
+    {
+      "id": "ALP-001",
+      "category": "security",
+      "severity": "critical",
+      "quality_signal": "risky",
+      "title": "Alpine x-data built from unescaped user input",
+      "description": "Concatenating `{!! !!}` output or raw JSON from users into x-data can break out of the string context and execute code. Use @js() on server-shaped data or static Alpine initialisers.",
+      "penalty": 1.1,
+      "alpine": true,
+      "detection": {
+        "file_globs": ["resources/views/**/*.blade.php"],
+        "patterns": [
+          "/x-data=\"\\{\\{[^}]*\\$\\w+[^}]*\\}\\}\"/",
+          "/x-data='\\{!!/",
+          "/x-data=\"\\{!!/"
+        ],
+        "heuristics": ["User model field inside x-data without @js"]
+      },
+      "examples": {
+        "before": "<div x-data=\"{ note: '{{ $user->bio }}' }\">",
+        "after": "<div x-data=\"@js(['note' => $user->bio])\">"
+      }
+    },
+    {
+      "id": "ALP-002",
+      "category": "correctness",
+      "severity": "warning",
+      "quality_signal": "risky",
+      "title": "x-for without stable :key",
+      "description": "When lists reorder, filter, or replace items, Alpine needs a :key on the template so the DOM reconciles correctly. Omitting :key causes duplicate UI and lost focus.",
+      "penalty": 0.5,
+      "alpine": true,
+      "detection": {
+        "file_globs": ["resources/views/**/*.blade.php", "resources/js/**/*.js"],
+        "patterns": ["/x-for\\s*=\\s*[\"'][^\"']+[\"']/"],
+        "absence_preferred": [":key="],
+        "heuristics": ["template x-for over dynamic collections"]
+      },
+      "examples": {
+        "before": "<template x-for=\"item in items\"><tr>...</tr></template>",
+        "after": "<template x-for=\"item in items\" :key=\"item.id\"><tr>...</tr></template>"
+      }
+    },
+    {
+      "id": "ALP-003",
+      "category": "maintainability",
+      "severity": "hint",
+      "quality_signal": "overengineered",
+      "title": "Very large inline script in a Blade view",
+      "description": "Hundreds of lines of JavaScript in a Blade file is hard to test and lint. Prefer Vite modules, Alpine.data(), or dedicated JS files.",
+      "penalty": 0.3,
+      "alpine": true,
+      "detection": {
+        "file_globs": ["resources/views/**/*.blade.php"],
+        "patterns": ["<script", "x-data="],
+        "heuristics": ["Single Blade file exceeds ~300 lines with most content inside script tags"]
+      },
+      "examples": {
+        "before": "@verbatim large block @endverbatim inside view",
+        "after": "Alpine.data('orderPanel', () => ({ ... })); import from Vite"
+      }
+    },
+    {
+      "id": "ALP-004",
+      "category": "correctness",
+      "severity": "hint",
+      "quality_signal": "junior",
+      "title": "Parallel x-model and wire:model without @entangle",
+      "description": "Two-way binding the same conceptual value with x-model and wire:model leads to drift and lost updates. Use @entangle('field').live or a single owner.",
+      "penalty": 0.4,
+      "alpine": true,
+      "detection": {
+        "file_globs": ["resources/views/**/*.blade.php"],
+        "patterns": [
+          "/x-model\\s*=\\s*[\"']\\w+[\"'][\\s\\S]*wire:model/",
+          "/wire:model[\\s\\S]*x-model/"
+        ],
+        "heuristics": ["Same variable name in both directives", "No @entangle in file"]
+      },
+      "examples": {
+        "before": "<input x-model=\"open\" /> ... <select wire:model=\"open\">",
+        "after": "<div x-data=\"{ open: @entangle('open').live }\">"
+      }
+    },
+    {
+      "id": "ALP-005",
+      "category": "correctness",
+      "severity": "warning",
+      "quality_signal": "risky",
+      "title": "x-init async work without loading or error state",
+      "description": "fetch() or other promises in x-init without setting loading/error flags leaves the UI stuck or silent on failure.",
+      "penalty": 0.45,
+      "alpine": true,
+      "detection": {
+        "file_globs": ["resources/views/**/*.blade.php", "resources/js/**/*.js"],
+        "patterns": [
+          "/x-init\\s*=\\s*[\"'][^\"']*fetch\\(/",
+          "/x-init=\"[^\"]*\\$wire/"
+        ],
+        "heuristics": ["No loading =", "x-init contains await fetch without catch UI"]
+      },
+      "examples": {
+        "before": "x-init=\"items = await (await fetch('/api/items')).json()\"",
+        "after": "x-init=\"loading=true; fetch('/api/items').then(r=>r.json()).then(d=>items=d).catch(e=>err=e).finally(()=>loading=false)\""
+      }
+    },
+    {
+      "id": "ALP-006",
+      "category": "maintainability",
+      "severity": "hint",
+      "quality_signal": "junior",
+      "title": "x-effect with unclear or leaky side effects",
+      "description": "x-effect that mutates unrelated DOM, global state, or fires network calls on every reactive tick is hard to reason about. Prefer explicit events or narrow dependencies.",
+      "penalty": 0.35,
+      "alpine": true,
+      "detection": {
+        "file_globs": ["resources/views/**/*.blade.php", "resources/js/**/*.js"],
+        "patterns": ["/x-effect\\s*=/"],
+        "heuristics": ["Body calls fetch or document.querySelector without guard"]
+      },
+      "examples": {
+        "before": "x-effect=\"fetch('/track')\"",
+        "after": "Call tracking from x-on:click or a dedicated method with a single trigger"
+      }
+    },
+    {
+      "id": "ALP-007",
+      "category": "correctness",
+      "severity": "hint",
+      "quality_signal": "junior",
+      "title": "$wire used without defensive checks",
+      "description": "Calling $wire methods before Livewire has mounted or without optional chaining can throw in SSR or during teardown. Guard with $wire existence or use @entangle when possible.",
+      "penalty": 0.3,
+      "alpine": true,
+      "detection": {
+        "file_globs": ["resources/views/**/*.blade.php"],
+        "patterns": ["/\\$wire\\.\\w+\\s*\\(/"],
+        "absence_preferred": ["\\$wire\\?\\.", "typeof\\s+\\$wire"],
+        "heuristics": ["Runs in x-on without @click on Livewire-managed element"]
+      },
+      "examples": {
+        "before": "x-on:click=\"$wire.save()\"",
+        "after": "x-on:click=\"$wire && $wire.save()\" or ensure element is inside @livewire component"
+      }
+    },
+    {
+      "id": "ALP-008",
+      "category": "maintainability",
+      "severity": "hint",
+      "quality_signal": "senior_positive",
+      "title": "Strong pattern: Alpine.data or module for behaviour",
+      "description": "Registering Alpine.data('name', factory) or importing a small module keeps behaviour testable and reusable across Blade partials.",
+      "penalty": -0.3,
+      "alpine": true,
+      "detection": {
+        "file_globs": ["resources/js/**/*.js", "resources/views/**/*.blade.php"],
+        "patterns": [
+          "/Alpine\\.data\\s*\\(/",
+          "/document\\.addEventListener\\s*\\(\\s*['\"]alpine:init['\"]"
+        ],
+        "heuristics": ["Factory returns object with clear methods"]
+      },
+      "examples": {
+        "before": "N/A — positive signal",
+        "after": "Alpine.data('dropdown', () => ({ open: false, toggle() { this.open = !this.open } }));"
+      }
+    }
+  ]
+}

@@ -1,0 +1,29 @@
+# macOS
+.DS_Store
+
+# Logs
+*.log
+npm-debug.log*
+
+# Environment / local overrides
+.env
+.env.local
+.env.*.local
+
+# Dependencies
+node_modules/
+
+# TypeScript
+*.tsbuildinfo
+
+# Next.js
+.next/
+.next-*/
+
+# Build outputs
+dist/
+out/
+coverage/
+
+# VS Code extension packaging
+*.vsix

@@ -1,0 +1,416 @@
+{
+  "$schema": "https://mergecore.dev/schemas/laravel-rules.schema.json",
+  "meta": {
+    "pack_id": "mergecore-filament-rules",
+    "pack_version": "1.0.0",
+    "locale": "en-GB",
+    "title": "MergeCore Filament Rules",
+    "description": "Production-focused rules for Filament v3 resources, tables, forms, actions, policies, and multi-tenant panels. Use with project metadata indicating Filament is installed.",
+    "notes": "Heuristic detection: confirm against your Filament version, panel provider, and tenancy package. Rules marked filament: true may be gated by the host when the stack is present."
+  },
+  "severity_levels": {
+    "info": { "rank": 1, "label": "Informational", "default_penalty": 0.15 },
+    "hint": { "rank": 2, "label": "Style or maintainability", "default_penalty": 0.25 },
+    "warning": { "rank": 3, "label": "Likely defect or performance risk", "default_penalty": 0.55 },
+    "error": { "rank": 4, "label": "High risk (security or data leak)", "default_penalty": 0.85 },
+    "critical": { "rank": 5, "label": "Critical (cross-tenant data exposure)", "default_penalty": 1.2 }
+  },
+  "scoring": {
+    "scale_max": 10,
+    "initial_score": 10,
+    "aggregation": "subtract_penalties_with_cap",
+    "penalty_source": "rule.penalty overrides severity_levels[severity].default_penalty when present",
+    "max_total_penalty_per_file": 10,
+    "normalisation": "For each review unit (typically one PHP file or one git diff hunk set), sum applicable rule penalties, apply quality_signal multiplier to each rule where host supports it, then: score = max(0, min(10, initial_score - min(sum_penalties, max_total_penalty_per_file))). Cap prevents a single file from driving the whole review to zero unless the host uses multi-file aggregation.",
+    "quality_signal_adjustment": {
+      "junior": 1.0,
+      "risky": 1.15,
+      "overengineered": 0.85,
+      "senior_positive": -0.35
+    },
+    "filament_overrides": {
+      "table_hot_path_multiplier": 1.1,
+      "description": "Optional host tuning: multiply penalties for rules in category 'tables' when the file is *Table.php or contains table() by >400 lines—reflects user-visible latency impact."
+    },
+    "interpretation": {
+      "9_to_10": "Panel-safe: queries scoped, tables eager-loaded, forms bounded, policies aligned with navigation.",
+      "7_to_8": "Shippable with fixes: occasional N+1 or heavy form; address before high-traffic pages.",
+      "5_to_6": "Risky: visible latency, authorisation drift, or tenancy ambiguity.",
+      "0_to_4": "Block: tenancy leak, missing policy gates, or unbounded data exposure in admin."
+    }
+  },
+  "rules": [
+    {
+      "id": "FIL-RES-001",
+      "category": "resources",
+      "severity": "hint",
+      "quality_signal": "overengineered",
+      "title": "Bloated resource class",
+      "description": "A single Resource carrying huge table(), form(), infolist(), and many custom pages becomes hard to review and merge. Split concerns into dedicated classes, traits, or sub-resources.",
+      "penalty": 0.3,
+      "filament": true,
+      "detection": {
+        "file_globs": ["app/Filament/**/*.php"],
+        "heuristics": [
+          "Single class file exceeds ~400–500 lines",
+          "Multiple unrelated concerns (table + form + many Page::make) in one file",
+          "More than ~8 relation managers without extraction"
+        ]
+      },
+      "examples": {
+        "before": "class OrderResource extends Resource { public static function table(Table $table): Table { /* 200 lines */ } public static function form(Form $form): Form { /* 200 lines */ } /* + 5 inline Page classes */ }",
+        "after": "Extract OrderTable, OrderForm, or dedicated ListOrders page classes; keep Resource as wiring only."
+      }
+    },
+    {
+      "id": "FIL-RES-002",
+      "category": "resources",
+      "severity": "hint",
+      "quality_signal": "junior",
+      "title": "Navigation and model policy drift",
+      "description": "Resource shouldRegisterNavigation, canViewAny, and model policies should agree; hidden resources still reachable via direct URL if policies are wrong.",
+      "penalty": 0.35,
+      "filament": true,
+      "detection": {
+        "patterns": ["/shouldRegisterNavigation\\s*\\(\\s*\\)\\s*:\\s*bool/", "/\\$navigationItems/"],
+        "heuristics": ["shouldRegisterNavigation false but no policy denial on viewAny"]
+      },
+      "examples": {
+        "before": "public static function shouldRegisterNavigation(): bool { return false; } // but Policy::viewAny returns true for all admins",
+        "after": "Align Policy::viewAny with who may list; use cluster grouping instead of hiding nav while leaving routes open."
+      }
+    },
+    {
+      "id": "FIL-TBL-001",
+      "category": "tables",
+      "severity": "warning",
+      "quality_signal": "risky",
+      "title": "Slow table: per-row queries in columns",
+      "description": "TextColumn::formatStateUsing, badge(), or custom components that query the database per record cause N+1 and admin timeouts.",
+      "penalty": 0.65,
+      "filament": true,
+      "detection": {
+        "file_globs": ["app/Filament/**/*Resource.php", "app/Filament/**/*/*Table.php"],
+        "patterns": [
+          "/formatStateUsing\\s*\\([^)]*::query\\(/",
+          "/formatStateUsing\\s*\\([^)]*->where\\(/",
+          "/->formatStateUsing\\(.*Model::/"
+        ],
+        "heuristics": ["Closure body contains ::find(", "first()", "count() inside column definition"]
+      },
+      "examples": {
+        "before": "TextColumn::make('x')->formatStateUsing(fn ($record) => OrderItem::where('order_id', $record->id)->count())",
+        "after": "withCount('items') on getEloquentQuery() or selectSub for aggregates; eager load what columns need."
+      }
+    },
+    {
+      "id": "FIL-TBL-002",
+      "category": "tables",
+      "severity": "warning",
+      "quality_signal": "risky",
+      "title": "Slow table: missing eager loads for displayed relations",
+      "description": "Listing related labels without with() on the table query forces lazy loads for every row.",
+      "penalty": 0.55,
+      "filament": true,
+      "detection": {
+        "patterns": [
+          "/TextColumn::make\\(['\"][^'\"]+\\.[^'\"]+['\"]\\)/",
+          "/->relationship\\(/"
+        ],
+        "absence_preferred": ["modifyQueryUsing(fn ($q) => $q->with(", "->with(["],
+        "heuristics": ["Column uses dot notation or relationship() without eager load in getEloquentQuery/modifyQueryUsing"]
+      },
+      "examples": {
+        "before": "TextColumn::make('customer.name') // Customer:: queried per row",
+        "after": "return parent::getEloquentQuery()->with(['customer']); or modifyQueryUsing(fn ($q) => $q->with('customer'));"
+      }
+    },
+    {
+      "id": "FIL-TBL-003",
+      "category": "tables",
+      "severity": "hint",
+      "quality_signal": "junior",
+      "title": "Table without sensible default pagination or sort",
+      "description": "Large datasets without default sort on an indexed column and without pagination defaults stress the database and UX.",
+      "penalty": 0.28,
+      "filament": true,
+      "detection": {
+        "heuristics": [
+          "Big model behind resource",
+          "No ->defaultSort(",
+          "No ->paginated([...]) or default page size tuned for data volume"
+        ]
+      },
+      "examples": {
+        "before": "public static function table(Table $table): Table { return $table->columns([...]); } // millions of rows possible",
+        "after": "->defaultSort('created_at', 'desc')->paginated([10, 25, 50, 100])"
+      }
+    },
+    {
+      "id": "FIL-TEN-001",
+      "category": "tenancy",
+      "severity": "critical",
+      "quality_signal": "risky",
+      "title": "Tenancy leak: broadened Eloquent query",
+      "description": "Overriding getEloquentQuery to remove global scopes or omit tenant predicates exposes other organisations’ rows in the panel.",
+      "penalty": 1.25,
+      "filament": true,
+      "tenancy": true,
+      "detection": {
+        "patterns": [
+          "/function\\s+getEloquentQuery\\s*\\([^)]*\\)\\s*:\\s*Builder[^{]*\\{[^}]*withoutGlobalScopes/",
+          "/withoutGlobalScopes\\s*\\(/",
+          "/->where\\(\\s*['\"]tenant_id['\"]\\s*,\\s*request\\(/"
+        ],
+        "heuristics": ["Parent getEloquentQuery not called", "Tenant filter only from unvalidated request input"]
+      },
+      "examples": {
+        "before": "public static function getEloquentQuery(): Builder { return parent::getEloquentQuery()->withoutGlobalScopes(); }",
+        "after": "Keep tenant scopes; if you must relax, constrain with an explicit where('tenant_id', Filament::getTenant()?->id) from trusted context."
+      }
+    },
+    {
+      "id": "FIL-TEN-002",
+      "category": "tenancy",
+      "severity": "error",
+      "quality_signal": "risky",
+      "title": "Tenancy leak: tenant id from raw input",
+      "description": "Using request()->input('tenant_id') or similar inside Filament queries lets clients pivot across tenants unless the value is cryptographically bound to the session.",
+      "penalty": 0.95,
+      "filament": true,
+      "tenancy": true,
+      "detection": {
+        "patterns": [
+          "/\\$request->input\\(\\s*['\"]tenant/",
+          "/request\\(\\)->.*tenant_id/",
+          "/getEloquentQuery[\\s\\S]*tenant_id[\\s\\S]*request\\(/"
+        ]
+      },
+      "examples": {
+        "before": "return parent::getEloquentQuery()->where('team_id', request('team_id'));",
+        "after": "Resolve current team from Filament tenant, authenticated membership, or route binding validated against the user."
+      }
+    },
+    {
+      "id": "FIL-ACT-001",
+      "category": "actions",
+      "severity": "warning",
+      "quality_signal": "risky",
+      "title": "Poor action: heavy side effects in handle",
+      "description": "Filament table/header actions that perform synchronous HTTP, long loops, or mail sends block the Livewire request and feel broken to admins.",
+      "penalty": 0.6,
+      "filament": true,
+      "detection": {
+        "file_globs": ["app/Filament/**/*.php"],
+        "patterns": [
+          "/Actions\\\\Action::make/",
+          "/TableAction::make/",
+          "/Http::(get|post|put|delete)/",
+          "/Mail::/",
+          "/sleep\\(/"
+        ],
+        "heuristics": ["action closure > 40 lines", "nested DB without transaction where money involved"]
+      },
+      "examples": {
+        "before": "Action::make('sync')->action(fn () => Http::timeout(120)->post('https://partner...'))",
+        "after": "dispatch(new PartnerSyncJob($records)); notify()->success('Queued');"
+      }
+    },
+    {
+      "id": "FIL-ACT-002",
+      "category": "actions",
+      "severity": "error",
+      "quality_signal": "risky",
+      "title": "Poor action: missing authorisation",
+      "description": "Destructive or sensitive actions must call policies or $user->can() explicitly; Filament does not guess your domain permissions for custom actions.",
+      "penalty": 0.9,
+      "filament": true,
+      "detection": {
+        "patterns": [
+          "/->action\\(\\s*function/",
+          "/->action\\(\\s*fn\\s*\\(/",
+          "/->action\\(\\s*\\[/"
+        ],
+        "heuristics": [
+          "Action mutates models or calls APIs",
+          "No authorize(), Gate::, or $this->authorize in same block"
+        ],
+        "absence_preferred": ["->authorize(", "->visible(fn ($user)", "->hidden(fn ($user)"]
+      },
+      "examples": {
+        "before": "Tables\\Actions\\DeleteAction::make()->action(fn (Model $r) => $r->forceDelete())",
+        "after": "Use built-in delete with policy, or ->authorize('delete', $record) before mutate."
+      }
+    },
+    {
+      "id": "FIL-ACT-003",
+      "category": "actions",
+      "severity": "hint",
+      "quality_signal": "overengineered",
+      "title": "Duplicated action logic across resources",
+      "description": "Copy-pasted bulk actions diverge; centralise in invokable classes, traits, or domain services.",
+      "penalty": 0.25,
+      "filament": true,
+      "detection": {
+        "heuristics": [
+          "Same BulkAction string label in multiple files",
+          "Identical closure bodies across OrderResource and InvoiceResource"
+        ]
+      },
+      "examples": {
+        "before": "Two resources each define 'Recalculate totals' with 30-line closures",
+        "after": "RecalculateTotalsAction as invokable + single line ->action(fn ($records) => app(RecalculateTotalsAction::class)($records))"
+      }
+    },
+    {
+      "id": "FIL-FRM-001",
+      "category": "forms",
+      "severity": "warning",
+      "quality_signal": "risky",
+      "title": "Form schema abuse: fat closures and side effects",
+      "description": "Huge form() methods and afterStateUpdated hooks that hit APIs or mutate unrelated models are hard to test and cause surprise writes.",
+      "penalty": 0.58,
+      "filament": true,
+      "detection": {
+        "patterns": [
+          "/afterStateUpdated\\s*\\(/",
+          "/->live\\(\\s*\\)/",
+          "/function\\s+form\\s*\\(\\s*Form\\s+\\$form\\s*\\)\\s*:\\s*Form[^{]*\\{[\\s\\S]{2500,}\\}/m"
+        ],
+        "heuristics": [
+          "afterStateUpdated contains Http::, Mail::, or multiple DB writes",
+          "form() exceeds ~200 lines without extraction"
+        ]
+      },
+      "examples": {
+        "before": "->afterStateUpdated(fn ($state) => Http::post(...)) on a text field",
+        "after": "Dispatch job on save, or debounced custom Livewire step with clear UX feedback."
+      }
+    },
+    {
+      "id": "FIL-FRM-002",
+      "category": "forms",
+      "severity": "hint",
+      "quality_signal": "overengineered",
+      "title": "Form schema abuse: excessive live() without debounce",
+      "description": "Marking many fields live() triggers round-trips on every keystroke; combine fields, use debounce, or validate on submit.",
+      "penalty": 0.3,
+      "filament": true,
+      "detection": {
+        "patterns": ["/->live\\(\\s*\\)/", "/->live\\(\\s*true\\s*\\)/"],
+        "heuristics": ["More than ~6 live fields in one form", "No ->debounce("]
+      },
+      "examples": {
+        "before": "Ten TextInputs each ->live() for a simple create form",
+        "after": "live(onBlur: true) or a single Section::make()->live() with debounce(500)."
+      }
+    },
+    {
+      "id": "FIL-FRM-003",
+      "category": "forms",
+      "severity": "warning",
+      "quality_signal": "risky",
+      "title": "Repeater / relationship builder loading unbounded children",
+      "description": "Relationship repeaters without limits or pagination can load thousands of related models into the form.",
+      "penalty": 0.55,
+      "filament": true,
+      "detection": {
+        "patterns": [
+          "/Forms\\\\Components\\\\Repeater::make/",
+          "/RelationshipRepeater::make/",
+          "/MorphToSelect::make/"
+        ],
+        "heuristics": ["No ->maxItems(", "No query scoping on relationship options"]
+      },
+      "examples": {
+        "before": "Repeater::make('lineItems')->relationship() on orders with hundreds of lines",
+        "after": "maxItems, lazy loading via separate relation manager, or dedicated edit page per child."
+      }
+    },
+    {
+      "id": "FIL-POL-001",
+      "category": "policies",
+      "severity": "error",
+      "quality_signal": "risky",
+      "title": "Policy mistake: missing Filament model policy methods",
+      "description": "Filament checks viewAny, create, update, delete on the model policy. Missing methods default to deny or allow depending on Laravel version and gate setup—explicit methods prevent accidents.",
+      "penalty": 0.85,
+      "filament": true,
+      "detection": {
+        "file_globs": ["app/Policies/**/*.php"],
+        "heuristics": [
+          "Policy exists for model used in Resource",
+          "Resource registered but Policy lacks viewAny/view/create/update/delete"
+        ]
+      },
+      "examples": {
+        "before": "class OrderPolicy { public function delete(User $u, Order $o): bool { ... } // no viewAny",
+        "after": "Add viewAny, view, create, update mirroring your roles and tenant membership."
+      }
+    },
+    {
+      "id": "FIL-POL-002",
+      "category": "policies",
+      "severity": "warning",
+      "quality_signal": "risky",
+      "title": "Policy mistake: Resource can* out of sync with Policy",
+      "description": "Overriding canCreate, canEdit, canDelete on the Resource while Policy returns different answers confuses maintainers and can leave holes for direct route access.",
+      "penalty": 0.5,
+      "filament": true,
+      "detection": {
+        "patterns": [
+          "/function\\s+canCreate\\s*\\(/",
+          "/function\\s+canEdit\\s*\\(/",
+          "/function\\s+canDelete\\s*\\(/"
+        ],
+        "heuristics": ["Resource overrides can* without delegating to Gate or parent policy"]
+      },
+      "examples": {
+        "before": "public static function canCreate(): bool { return auth()->user()->isAdmin; } // Policy::create says editors OK",
+        "after": "Delegate: return Gate::forUser(auth()->user())->allows('create', Order::class);"
+      }
+    },
+    {
+      "id": "FIL-POL-003",
+      "category": "policies",
+      "severity": "warning",
+      "quality_signal": "junior",
+      "title": "Policy mistake: viewAny too permissive for sensitive resources",
+      "description": "Listing resources exposes metadata; viewAny true for every authenticated user is often wrong for billing, HR, or tenant data.",
+      "penalty": 0.45,
+      "filament": true,
+      "detection": {
+        "heuristics": [
+          "viewAny returns true unconditionally",
+          "Sensitive model names in Resource (Invoice, Salary, ApiToken)"
+        ]
+      },
+      "examples": {
+        "before": "public function viewAny(User $user): bool { return true; }",
+        "after": "Gate on role, permission, or tenant role; align with navigation clusters."
+      }
+    },
+    {
+      "id": "FIL-SR-001",
+      "category": "tables",
+      "severity": "hint",
+      "quality_signal": "senior_positive",
+      "title": "Strong table query: explicit with() and constrained counts",
+      "description": "modifyQueryUsing or getEloquentQuery with with() and withCount() shows deliberate performance awareness.",
+      "penalty": -0.3,
+      "filament": true,
+      "detection": {
+        "patterns": [
+          "/modifyQueryUsing\\s*\\(\\s*fn\\s*\\([^)]*\\)\\s*=>[^)]*->with\\(/",
+          "/getEloquentQuery[\\s\\S]*->with\\(/",
+          "/->withCount\\(/"
+        ],
+        "file_globs": ["app/Filament/**/*.php"]
+      },
+      "examples": {
+        "before": "N/A — positive signal",
+        "after": "return parent::getEloquentQuery()->with(['organisation'])->withCount('items');"
+      }
+    }
+  ]
+}

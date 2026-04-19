@@ -1,0 +1,41 @@
+{
+  "registry_version": "1",
+  "title": "MergeCore rules pack index",
+  "description": "Canonical list of first-party packs. Hosts should resolve paths relative to this file's directory.",
+  "packs": [
+    {
+      "id": "laravel-core-rules",
+      "path": "packs/laravel-core",
+      "version": "1.0.0",
+      "tags": ["laravel", "php", "core", "production"]
+    },
+    {
+      "id": "mergecore-filament-rules",
+      "path": "packs/filament",
+      "version": "1.0.0",
+      "tags": ["laravel", "filament", "admin", "livewire"],
+      "suggested_when": ["filament"]
+    },
+    {
+      "id": "mergecore-pest-rules",
+      "path": "packs/pest",
+      "version": "1.0.0",
+      "tags": ["laravel", "pest", "phpunit", "testing"],
+      "suggested_when": ["pest"]
+    },
+    {
+      "id": "mergecore-livewire-rules",
+      "path": "packs/livewire",
+      "version": "1.0.0",
+      "tags": ["laravel", "livewire", "blade"],
+      "suggested_when": ["livewire"]
+    },
+    {
+      "id": "mergecore-alpine-rules",
+      "path": "packs/alpine",
+      "version": "1.0.0",
+      "tags": ["alpine", "javascript", "blade", "frontend"],
+      "suggested_when": ["alpine"]
+    }
+  ]
+}
