@@ -62,6 +62,11 @@ export type HomepageCopy = {
   };
   footer: {
     tagline: string;
+    madeBy: {
+      prefix: string;
+      linkLabel: string;
+      href: string;
+    };
   };
 };
 
@@ -173,5 +178,10 @@ export const homepageCopy: HomepageCopy = {
   footer: {
     tagline:
       "MergeCore helps you catch the stuff that would otherwise get flagged in review.",
+    madeBy: {
+      prefix: "Made by",
+      linkLabel: "nought.digital",
+      href: "https://nought.digital",
+    },
   },
 };

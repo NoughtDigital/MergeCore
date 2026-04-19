@@ -631,6 +631,10 @@ footer p {
   margin: 0;
 }
 
+footer .footer-credit {
+  margin-top: 0.65rem;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .marquee-track.marquee-left,
   .marquee-track.marquee-right {

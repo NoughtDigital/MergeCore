@@ -288,6 +288,17 @@ export default function HomePage() {
       <footer>
         <div className="wrap">
           <p>{c.footer.tagline}</p>
+          <p className="footer-credit">
+            {c.footer.madeBy.prefix}{" "}
+            <a
+              href={c.footer.madeBy.href}
+              rel="noopener noreferrer"
+              target="_blank"
+            >
+              {c.footer.madeBy.linkLabel}
+            </a>
+            .
+          </p>
         </div>
       </footer>
     </>
