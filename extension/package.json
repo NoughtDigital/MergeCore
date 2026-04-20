@@ -29,7 +29,10 @@
     "onCommand:mergecore.reviewStagedDiff",
     "onCommand:mergecore.applyImprovedCode",
     "onCommand:mergecore.applyPatch",
-    "onCommand:mergecore.exportReviewMarkdown"
+    "onCommand:mergecore.exportReviewMarkdown",
+    "onCommand:mergecore.setApiToken",
+    "onCommand:mergecore.clearApiToken",
+    "onCommand:mergecore.showLogs"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -67,6 +70,18 @@
       {
         "command": "mergecore.exportReviewMarkdown",
         "title": "MergeCore: Copy Review Report as Markdown"
+      },
+      {
+        "command": "mergecore.setApiToken",
+        "title": "MergeCore: Set API Token"
+      },
+      {
+        "command": "mergecore.clearApiToken",
+        "title": "MergeCore: Clear API Token"
+      },
+      {
+        "command": "mergecore.showLogs",
+        "title": "MergeCore: Show Output Channel"
       }
     ],
     "menus": {
@@ -95,24 +110,15 @@
         }
       ],
       "commandPalette": [
-        {
-          "command": "mergecore.reviewSelection"
-        },
-        {
-          "command": "mergecore.reviewFile"
-        },
-        {
-          "command": "mergecore.reviewGitDiff"
-        },
-        {
-          "command": "mergecore.reviewStagedDiff"
-        },
-        {
-          "command": "mergecore.showSidebar"
-        },
-        {
-          "command": "mergecore.exportReviewMarkdown"
-        }
+        { "command": "mergecore.reviewSelection" },
+        { "command": "mergecore.reviewFile" },
+        { "command": "mergecore.reviewGitDiff" },
+        { "command": "mergecore.reviewStagedDiff" },
+        { "command": "mergecore.showSidebar" },
+        { "command": "mergecore.exportReviewMarkdown" },
+        { "command": "mergecore.setApiToken" },
+        { "command": "mergecore.clearApiToken" },
+        { "command": "mergecore.showLogs" }
       ]
     },
     "viewsContainers": {
@@ -141,17 +147,24 @@
         "mergecore.apiBaseUrl": {
           "type": "string",
           "default": "https://api.mergecore.example",
-          "description": "Base URL for the MergeCore API."
+          "description": "Base URL for the MergeCore API. Must use https:// unless mergecore.allowInsecureLocalApi is enabled for localhost development."
         },
-        "mergecore.apiToken": {
-          "type": "string",
-          "default": "",
-          "description": "Bearer token for the MergeCore API (stored in settings)."
+        "mergecore.allowInsecureLocalApi": {
+          "type": "boolean",
+          "default": false,
+          "description": "Allow http:// when the API base URL points at localhost (development only). Leave off in production."
+        },
+        "mergecore.apiTimeoutMs": {
+          "type": "number",
+          "default": 60000,
+          "minimum": 5000,
+          "maximum": 300000,
+          "description": "Hard timeout (ms) for review requests before the client aborts them."
         },
         "mergecore.useMockReviewer": {
           "type": "boolean",
           "default": true,
-          "description": "When no API token is set, use a lightweight mock instead of the full senior-style review. Add a token and turn this off for production depth."
+          "description": "When no API token is set, use a lightweight mock instead of the full senior-style review. Add a token via 'MergeCore: Set API Token' and turn this off for production depth."
         },
         "mergecore.reviewPanel.automation": {
           "type": "boolean",
@@ -167,10 +180,14 @@
     }
   },
   "scripts": {
-    "vscode:prepublish": "npm run compile",
-    "compile": "npm run build --prefix ../engine/intelligence && tsc -p ./",
+    "vscode:prepublish": "npm run bundle",
+    "build:engine": "npm run build --prefix ../engine/intelligence",
+    "compile": "npm run build:engine && tsc -p ./",
+    "bundle": "npm run build:engine && node ./build.mjs",
     "watch": "tsc -watch -p ./",
-    "package": "vsce package"
+    "lint": "tsc --noEmit -p ./",
+    "test": "tsx --test src/infrastructure/__tests__/*.test.ts",
+    "package": "npm run bundle && vsce package"
   },
   "dependencies": {
     "@mergecore/intelligence": "file:../engine/intelligence",
@@ -180,6 +197,8 @@
     "@types/diff": "^5.2.0",
     "@types/node": "^20.11.0",
     "@types/vscode": "^1.85.0",
+    "esbuild": "^0.20.0",
+    "tsx": "^4.7.0",
     "typescript": "^5.4.0"
   }
 }

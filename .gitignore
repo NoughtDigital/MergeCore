@@ -27,3 +27,10 @@ coverage/
 
 # VS Code extension packaging
 *.vsix
+
+# Local editor overrides — never commit personal settings (may contain tokens)
+.vscode/settings.json
+.vscode/launch.json.local
+
+# Secret scan snapshots
+.gitleaks-report.*

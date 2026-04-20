@@ -4,6 +4,9 @@ import type { ReviewDisplayInfo } from './review-display-context';
 import { buildReviewPanelHtml } from './review-webview-html';
 import { showReviewFallbackPanel, type ReviewWebviewPayload } from './review-fallback-panel';
 import { buildScoreInsight } from './score-insight';
+import { registerReviewWebviewMessages } from './webview-messages';
+
+type PendingResolver = (view: vscode.WebviewView | undefined) => void;
 
 export class MergeCoreSidebarProvider implements vscode.WebviewViewProvider {
   static readonly viewId = 'mergecore.sidebar';
@@ -13,6 +16,9 @@ export class MergeCoreSidebarProvider implements vscode.WebviewViewProvider {
   private lastReviewPayload: ReviewWebviewPayload | undefined;
   /** Set when a review finishes before the webview has been created (sidebar never opened). */
   private pendingReviewPayload: ReviewWebviewPayload | undefined;
+  /** Resolvers waiting for the webview to attach; resolved from `resolveWebviewView`. */
+  private readonly viewReadyResolvers: PendingResolver[] = [];
+  private readonly disposables: vscode.Disposable[] = [];
 
   constructor(
     private readonly extensionUri: vscode.Uri,
@@ -34,31 +40,36 @@ export class MergeCoreSidebarProvider implements vscode.WebviewViewProvider {
     webviewView.webview.html = buildReviewPanelHtml(webviewView.webview, this.extensionUri, this.assetVersion);
 
     this.flushPendingReview(webviewView);
+    this.flushViewReadyResolvers(webviewView);
 
-    webviewView.onDidChangeVisibility(() => {
-      if (!this.isReviewPanelAutomationEnabled()) {
-        return;
-      }
-      if (!webviewView.visible || !this.lastReviewPayload) {
-        return;
-      }
-      void webviewView.webview.postMessage({
-        type: 'review',
-        payload: this.lastReviewPayload,
-      });
-    });
+    webviewView.onDidDispose(
+      () => {
+        if (this.view === webviewView) {
+          this.view = undefined;
+        }
+      },
+      undefined,
+      this.disposables
+    );
 
-    webviewView.webview.onDidReceiveMessage(async (msg) => {
-      if (msg?.type === 'applyImproved') {
-        await vscode.commands.executeCommand('mergecore.applyImprovedCode');
-      }
-      if (msg?.type === 'applyPatch') {
-        await vscode.commands.executeCommand('mergecore.applyPatch');
-      }
-      if (msg?.type === 'exportMarkdown') {
-        await vscode.commands.executeCommand('mergecore.exportReviewMarkdown');
-      }
-    });
+    webviewView.onDidChangeVisibility(
+      () => {
+        if (!this.isReviewPanelAutomationEnabled()) {
+          return;
+        }
+        if (!webviewView.visible || !this.lastReviewPayload) {
+          return;
+        }
+        void webviewView.webview.postMessage({
+          type: 'review',
+          payload: this.lastReviewPayload,
+        });
+      },
+      undefined,
+      this.disposables
+    );
+
+    registerReviewWebviewMessages(webviewView.webview, this.disposables);
   }
 
   async showResult(result: ReviewResult, display: ReviewDisplayInfo): Promise<void> {
@@ -75,58 +86,23 @@ export class MergeCoreSidebarProvider implements vscode.WebviewViewProvider {
 
     this.pendingReviewPayload = payload;
     const auto = this.isReviewPanelAutomationEnabled();
-    if (auto) {
-      await this.revealMergeCoreActivity();
+
+    if (!auto) {
+      this.promptUserToOpenPanel();
+      return;
     }
 
-    if (this.view && this.pendingReviewPayload) {
-      this.flushPendingReview(this.view);
-    } else if (this.pendingReviewPayload && auto) {
-      setTimeout(() => {
-        if (this.view && this.pendingReviewPayload) {
-          this.flushPendingReview(this.view);
-        }
-      }, 200);
-    }
-    if (this.pendingReviewPayload) {
-      void this.ensurePendingDelivered();
-    }
-  }
-
-  /**
-   * If the activity view still did not attach after a review, reveal again and prompt once.
-   */
-  private async ensurePendingDelivered(): Promise<void> {
-    await new Promise((r) => setTimeout(r, 450));
-    if (!this.pendingReviewPayload) {
-      return;
-    }
-    if (this.view) {
-      this.flushPendingReview(this.view);
-      return;
-    }
-    if (!this.isReviewPanelAutomationEnabled()) {
-      void vscode.window
-        .showInformationMessage(
-          'MergeCore: review finished. Open the MergeCore icon in the activity bar (left) to see results.',
-          'Open MergeCore'
-        )
-        .then((choice) => {
-          if (choice === 'Open MergeCore') {
-            void this.revealMergeCoreActivity();
-          }
-        });
-      return;
-    }
     await this.revealMergeCoreActivity();
-    if (this.view && this.pendingReviewPayload) {
-      this.flushPendingReview(this.view);
+    const view = await this.waitForView(700);
+
+    if (view && this.pendingReviewPayload) {
+      this.flushPendingReview(view);
       return;
     }
-    const stuck = this.pendingReviewPayload;
-    this.pendingReviewPayload = undefined;
 
-    if (this.isEditorTabFallbackEnabled()) {
+    if (this.pendingReviewPayload && this.isEditorTabFallbackEnabled()) {
+      const stuck = this.pendingReviewPayload;
+      this.pendingReviewPayload = undefined;
       showReviewFallbackPanel(this.extensionUri, this.assetVersion, stuck);
       void vscode.window.showInformationMessage(
         'MergeCore: opened this review in a beside tab (activity-bar Review view was not available).'
@@ -134,9 +110,58 @@ export class MergeCoreSidebarProvider implements vscode.WebviewViewProvider {
       return;
     }
 
-    void vscode.window.showWarningMessage(
-      'MergeCore: Review panel did not open. Click the MergeCore icon in the activity bar, or run "MergeCore: Open Review Panel".'
-    );
+    if (this.pendingReviewPayload) {
+      void vscode.window.showWarningMessage(
+        'MergeCore: Review panel did not open. Click the MergeCore icon in the activity bar, or run "MergeCore: Open Review Panel".'
+      );
+    }
+  }
+
+  dispose(): void {
+    while (this.disposables.length > 0) {
+      this.disposables.pop()?.dispose();
+    }
+    this.viewReadyResolvers.splice(0).forEach((r) => r(undefined));
+  }
+
+  private waitForView(timeoutMs: number): Promise<vscode.WebviewView | undefined> {
+    if (this.view) {
+      return Promise.resolve(this.view);
+    }
+    return new Promise((resolve) => {
+      const timer = setTimeout(() => {
+        const idx = this.viewReadyResolvers.indexOf(resolver);
+        if (idx >= 0) {
+          this.viewReadyResolvers.splice(idx, 1);
+        }
+        resolve(undefined);
+      }, timeoutMs);
+      const resolver: PendingResolver = (view) => {
+        clearTimeout(timer);
+        resolve(view);
+      };
+      this.viewReadyResolvers.push(resolver);
+    });
+  }
+
+  private flushViewReadyResolvers(view: vscode.WebviewView): void {
+    const resolvers = this.viewReadyResolvers.splice(0);
+    for (const r of resolvers) {
+      r(view);
+    }
+  }
+
+  private promptUserToOpenPanel(): void {
+    void vscode.window
+      .showInformationMessage(
+        'MergeCore: review finished. Open the MergeCore icon in the activity bar (left) to see results.',
+        'Open MergeCore'
+      )
+      .then((choice) => {
+        if (choice === 'Open MergeCore') {
+          void this.revealMergeCoreActivity();
+        }
+      });
   }
 
   private async revealMergeCoreActivity(): Promise<void> {

@@ -123,7 +123,7 @@ export class MockReviewEngine implements ReviewEngine {
     const baseSummary =
       request.scope === 'git-diff'
         ? 'This is a mock review of your git diff. Add your MergeCore API token in settings for a full senior-style pass against your packs.'
-        : 'This is a mock review so you can try the flow without an account. Add mergecore.apiToken in settings and set mergecore.useMockReviewer to false for the real senior-style reviewer.';
+        : 'This is a mock review so you can try the flow without an account. Run "MergeCore: Set API Token" and set mergecore.useMockReviewer to false for the real senior-style reviewer.';
     const stackPhrase = request.projectProfile?.fingerprint
       ? formatFingerprintForSummary(request.projectProfile.fingerprint)
       : '';

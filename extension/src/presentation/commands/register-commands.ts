@@ -2,53 +2,90 @@ import * as vscode from 'vscode';
 import { ReviewCodeUseCase } from '../../application/review-code.use-case';
 import type { ReviewRequest, ReviewResult } from '../../domain/review-types';
 import { GitDiffService } from '../../infrastructure/git-diff.service';
+import { MergeCoreLogger } from '../../infrastructure/logger';
 import { getProjectProfileCached } from '../../infrastructure/project-profile-cache';
 import { PatchApplier } from '../../infrastructure/patch-applier';
+import { DEFAULT_CLIENT_QUOTA, quotaFor } from '../../infrastructure/quotas';
+import { RequestThrottle } from '../../infrastructure/request-throttle';
+import { scanForSecrets, redactSecrets } from '../../infrastructure/secret-scrubber';
+import type { MergeCoreSecretStore } from '../../infrastructure/secret-store';
 import { buildReviewDisplayInfo } from '../webview/review-display-context';
 import { formatReviewAsMarkdown } from '../webview/review-markdown';
 import { FindingDiagnostics } from '../diagnostics/finding-diagnostics';
 import { ReviewSessionState } from '../state/review-session.state';
 import type { MergeCoreSidebarProvider } from '../webview/mergecore-sidebar.provider';
+import { confirmApplyWithDiff } from '../apply-confirmation';
 
-export function registerMergeCoreCommands(
-  context: vscode.ExtensionContext,
-  deps: {
-    review: ReviewCodeUseCase;
-    gitDiff: GitDiffService;
-    diagnostics: FindingDiagnostics;
-    session: ReviewSessionState;
-    sidebar: MergeCoreSidebarProvider;
-    patchApplier: PatchApplier;
-  }
-): void {
-  const { review, gitDiff, session, patchApplier } = deps;
+interface Deps {
+  review: ReviewCodeUseCase;
+  gitDiff: GitDiffService;
+  diagnostics: FindingDiagnostics;
+  session: ReviewSessionState;
+  sidebar: MergeCoreSidebarProvider;
+  patchApplier: PatchApplier;
+  secrets: MergeCoreSecretStore;
+  throttle: RequestThrottle;
+  abortSignals: { current: AbortController | undefined };
+}
 
-  const run = async (factory: () => Promise<{ request: ReviewRequest; document: vscode.TextDocument } | undefined>) => {
+export function registerMergeCoreCommands(context: vscode.ExtensionContext, deps: Deps): void {
+  const { review, gitDiff, session, patchApplier, secrets, throttle, abortSignals } = deps;
+
+  const run = async (
+    key: string,
+    factory: () => Promise<{ request: ReviewRequest; document: vscode.TextDocument } | undefined>
+  ): Promise<void> => {
     try {
       const built = await factory();
       if (!built) {
         return;
       }
-      await vscode.window.withProgress(
-        {
-          location: vscode.ProgressLocation.Notification,
-          title: 'MergeCore: reviewing…',
-          cancellable: false,
-        },
-        async () => {
-          const result = await review.execute(built.request);
-          await publishResult(result, built.document, built.request, deps);
+
+      const scrubbed = await preflightScrubAndGuard(built.request);
+      if (!scrubbed.proceed) {
+        return;
+      }
+      const safeRequest: ReviewRequest = scrubbed.request;
+
+      const rejection = throttle.check(key);
+      if (rejection) {
+        void vscode.window.showWarningMessage(`MergeCore: ${rejection}`);
+        return;
+      }
+      const release = throttle.begin(key);
+
+      const controller = new AbortController();
+      abortSignals.current = controller;
+
+      try {
+        await vscode.window.withProgress(
+          {
+            location: vscode.ProgressLocation.Notification,
+            title: 'MergeCore: reviewing…',
+            cancellable: true,
+          },
+          async (_progress, token) => {
+            token.onCancellationRequested(() => controller.abort(new Error('cancelled')));
+            const result = await review.execute(safeRequest);
+            await publishResult(result, built.document, safeRequest, deps);
+          }
+        );
+      } finally {
+        release();
+        if (abortSignals.current === controller) {
+          abortSignals.current = undefined;
         }
-      );
+      }
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
+      MergeCoreLogger.shared.error(`Command failed: ${key}`, e);
       void vscode.window.showErrorMessage(`MergeCore: ${message}`);
     }
   };
 
   context.subscriptions.push(
     vscode.commands.registerCommand('mergecore.reviewSelection', () =>
-      run(async () => {
+      run('reviewSelection', async () => {
         const editor = vscode.window.activeTextEditor;
         if (!editor) {
           void vscode.window.showWarningMessage('MergeCore: no active editor.');
@@ -65,7 +102,7 @@ export function registerMergeCoreCommands(
       })
     ),
     vscode.commands.registerCommand('mergecore.reviewFile', () =>
-      run(async () => {
+      run('reviewFile', async () => {
         const editor = vscode.window.activeTextEditor;
         if (!editor) {
           void vscode.window.showWarningMessage('MergeCore: no active editor.');
@@ -77,7 +114,7 @@ export function registerMergeCoreCommands(
       })
     ),
     vscode.commands.registerCommand('mergecore.reviewGitDiff', () =>
-      run(async () => {
+      run('reviewGitDiff', async () => {
         const editor = vscode.window.activeTextEditor;
         const folder = vscode.workspace.workspaceFolders?.[0];
         if (!folder) {
@@ -96,7 +133,7 @@ export function registerMergeCoreCommands(
       })
     ),
     vscode.commands.registerCommand('mergecore.reviewStagedDiff', () =>
-      run(async () => {
+      run('reviewStagedDiff', async () => {
         const editor = vscode.window.activeTextEditor;
         const folder = vscode.workspace.workspaceFolders?.[0];
         if (!folder) {
@@ -116,6 +153,31 @@ export function registerMergeCoreCommands(
     ),
     vscode.commands.registerCommand('mergecore.showSidebar', async () => {
       await vscode.commands.executeCommand('workbench.view.extension.mergecore');
+    }),
+    vscode.commands.registerCommand('mergecore.showLogs', () => {
+      MergeCoreLogger.shared.show();
+    }),
+    vscode.commands.registerCommand('mergecore.setApiToken', async () => {
+      const existing = await secrets.getApiToken();
+      const token = await vscode.window.showInputBox({
+        prompt: 'Paste your MergeCore API token. It is stored in the OS keychain (SecretStorage) and never written to settings.json.',
+        placeHolder: existing ? 'A token is already stored. Paste a new one to replace it.' : 'sk-… or your provider token',
+        password: true,
+        ignoreFocusOut: true,
+      });
+      if (token === undefined) {
+        return;
+      }
+      await secrets.setApiToken(token);
+      if (token.trim().length === 0) {
+        void vscode.window.showInformationMessage('MergeCore: API token cleared.');
+      } else {
+        void vscode.window.showInformationMessage('MergeCore: API token stored in the OS keychain.');
+      }
+    }),
+    vscode.commands.registerCommand('mergecore.clearApiToken', async () => {
+      await secrets.clearApiToken();
+      void vscode.window.showInformationMessage('MergeCore: API token cleared from the OS keychain.');
     }),
     vscode.commands.registerCommand('mergecore.exportReviewMarkdown', async () => {
       const snap = session.getSnapshot();
@@ -138,11 +200,22 @@ export function registerMergeCoreCommands(
       if (!doc) {
         return;
       }
+      const label = shortenLabel(doc.uri.fsPath);
+      const confirmed = await confirmApplyWithDiff({
+        target: doc,
+        proposedContent: snap.result.improvedCode,
+        label,
+        kind: 'improved',
+      });
+      if (!confirmed) {
+        return;
+      }
       try {
-        await patchApplier.replaceFullDocument(doc, snap.result.improvedCode);
-        void vscode.window.showInformationMessage('MergeCore: applied improved code.');
+        await patchApplier.commitText(doc, snap.result.improvedCode);
+        void vscode.window.showInformationMessage('MergeCore: applied improved code. Use Cmd/Ctrl+Z to revert.');
       } catch (e) {
         const message = e instanceof Error ? e.message : String(e);
+        MergeCoreLogger.shared.error('applyImprovedCode failed', e);
         void vscode.window.showErrorMessage(message);
       }
     }),
@@ -157,11 +230,31 @@ export function registerMergeCoreCommands(
       if (!doc) {
         return;
       }
+      let next: string;
       try {
-        await patchApplier.applyUnifiedPatch(doc, snap.result.patch);
-        void vscode.window.showInformationMessage('MergeCore: applied patch.');
+        next = patchApplier.previewUnifiedPatch(doc, snap.result.patch);
       } catch (e) {
         const message = e instanceof Error ? e.message : String(e);
+        MergeCoreLogger.shared.error('applyPatch preview failed', e);
+        void vscode.window.showErrorMessage(message);
+        return;
+      }
+      const label = shortenLabel(doc.uri.fsPath);
+      const confirmed = await confirmApplyWithDiff({
+        target: doc,
+        proposedContent: next,
+        label,
+        kind: 'patch-result',
+      });
+      if (!confirmed) {
+        return;
+      }
+      try {
+        await patchApplier.commitText(doc, next);
+        void vscode.window.showInformationMessage('MergeCore: applied patch. Use Cmd/Ctrl+Z to revert.');
+      } catch (e) {
+        const message = e instanceof Error ? e.message : String(e);
+        MergeCoreLogger.shared.error('applyPatch commit failed', e);
         void vscode.window.showErrorMessage(message);
       }
     })
@@ -240,4 +333,81 @@ async function pickTargetDocument(
   const doc = await vscode.workspace.openTextDocument(preferred);
   await vscode.window.showTextDocument(doc);
   return doc;
+}
+
+interface ScrubDecision {
+  readonly proceed: boolean;
+  readonly request: ReviewRequest;
+}
+
+/**
+ * Size-check and secret-scrub the request *before* it reaches any adapter. If
+ * secrets are detected the user gets a modal with three choices: redact and
+ * continue, abort, or view the output channel. We never upload the raw match.
+ */
+async function preflightScrubAndGuard(request: ReviewRequest): Promise<ScrubDecision> {
+  const limit = quotaFor(request.scope);
+  if (request.content.length > limit) {
+    void vscode.window.showErrorMessage(
+      `MergeCore: input is ${request.content.length.toLocaleString()} characters, over the ${limit.toLocaleString()} limit for this scope. Narrow the selection or split the diff.`
+    );
+    return { proceed: false, request };
+  }
+  if ((request.selectionSnippet?.length ?? 0) > DEFAULT_CLIENT_QUOTA.maxInputChars) {
+    void vscode.window.showErrorMessage(
+      'MergeCore: selection snippet exceeds the per-selection size limit.'
+    );
+    return { proceed: false, request };
+  }
+
+  const contentHits = scanForSecrets(request.content);
+  const snippetHits = request.selectionSnippet ? scanForSecrets(request.selectionSnippet) : [];
+  const totalHits = contentHits.length + snippetHits.length;
+
+  if (totalHits === 0) {
+    return { proceed: true, request };
+  }
+
+  const uniqueRules = new Set<string>();
+  for (const h of contentHits) uniqueRules.add(h.rule);
+  for (const h of snippetHits) uniqueRules.add(h.rule);
+  const ruleList = [...uniqueRules].join(', ');
+
+  MergeCoreLogger.shared.warn(
+    `Secret scan found ${totalHits} match(es) before upload: ${ruleList}.`
+  );
+
+  const redactAction = 'Redact & continue';
+  const cancelAction = 'Cancel';
+  const showLogs = 'Show details';
+  const choice = await vscode.window.showWarningMessage(
+    `MergeCore: detected ${totalHits} potential secret(s) (${ruleList}) in the review input. Upload cannot proceed with them intact.`,
+    { modal: true, detail: 'Redact & continue replaces each match with <REDACTED:rule-id> locally before the request is sent.' },
+    redactAction,
+    showLogs,
+    cancelAction
+  );
+
+  if (choice === showLogs) {
+    MergeCoreLogger.shared.show();
+    return { proceed: false, request };
+  }
+  if (choice !== redactAction) {
+    return { proceed: false, request };
+  }
+
+  const redactedRequest: ReviewRequest = {
+    ...request,
+    content: redactSecrets(request.content, contentHits),
+    selectionSnippet: request.selectionSnippet
+      ? redactSecrets(request.selectionSnippet, snippetHits)
+      : request.selectionSnippet,
+  };
+  return { proceed: true, request: redactedRequest };
+}
+
+function shortenLabel(fsPath: string): string {
+  const parts = fsPath.split(/[/\\]/);
+  const tail = parts.slice(-2).join('/');
+  return tail || fsPath;
 }

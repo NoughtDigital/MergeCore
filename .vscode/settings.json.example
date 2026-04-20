@@ -1,0 +1,9 @@
+{
+  "//": "Copy to .vscode/settings.json for local development. Never store the API token here — use the 'MergeCore: Set API Token' command so it lives in the OS keychain instead.",
+  "mergecore.apiBaseUrl": "https://api.mergecore.dev",
+  "mergecore.useMockReviewer": false,
+  "mergecore.apiTimeoutMs": 60000,
+  "mergecore.allowInsecureLocalApi": false,
+  "mergecore.reviewPanel.automation": true,
+  "mergecore.reviewPanel.editorTabFallback": true
+}

@@ -1,10 +1,10 @@
 /**
  * MergeCore AI review pipeline orchestration (server-side).
- * Order: validate -> deterministic rules -> cache lookup -> LLM (structured) -> merge -> validate JSON -> score normalise.
+ * Order: validate -> deterministic rules -> cache lookup -> LLM (structured) -> (optional) escalation -> merge -> validate JSON -> score normalise.
  */
 
 import type { ModelProfile } from './models.js';
-import { PRIMARY_EDITOR } from './models.js';
+import { ESCALATION, PRIMARY_EDITOR } from './models.js';
 import { buildSystemPrompt, buildUserPrompt, type ReviewPromptInput } from './prompts.js';
 import { contentSha256, buildReviewCacheKey, normaliseDiffForCache } from './cache.js';
 import { DEFAULT_QUOTA, estimateBillableTokensRough, shouldEscalate } from './cost-controls.js';
@@ -35,16 +35,32 @@ export interface LlmPort {
   }): Promise<string>;
 }
 
+export interface BudgetPort {
+  /**
+   * Called before an escalation call so the API layer can veto based on daily
+   * spend, per-tenant caps, or provider health. Returning false skips the
+   * escalation call silently.
+   */
+  allowEscalation(input: PipelineInput): Promise<boolean>;
+}
+
+export interface PipelineResult {
+  readonly rawJson: string;
+  readonly cacheHit: boolean;
+  readonly escalated: boolean;
+}
+
 /**
- * Pseudocode-style pipeline: wire implementations for Redis, OpenAI responses.parse, etc.
+ * Concrete pipeline: callers provide cache + llm + budget implementations.
  */
 export async function runReviewPipeline(
   input: PipelineInput,
   deps: {
     cache: CachePort;
     llm: LlmPort;
+    budget?: BudgetPort;
   }
-): Promise<{ rawJson: string; cacheHit: boolean }> {
+): Promise<PipelineResult> {
   const text =
     input.scope === 'git-diff' ? normaliseDiffForCache(input.text) : input.text;
 
@@ -54,9 +70,7 @@ export async function runReviewPipeline(
 
   const digest = input.deterministicFindingsJson || '[]';
 
-  const sha = contentSha256(
-    `${input.rulesetVersion}|${digest}|${text}`
-  );
+  const sha = contentSha256(`${input.rulesetVersion}|${digest}|${text}`);
 
   const cacheKey = buildReviewCacheKey({
     tenantId: input.tenantId,
@@ -68,7 +82,7 @@ export async function runReviewPipeline(
 
   const cached = await deps.cache.get(cacheKey);
   if (cached) {
-    return { rawJson: cached, cacheHit: true };
+    return { rawJson: cached, cacheHit: true, escalated: false };
   }
 
   const userPrompt = buildUserPrompt({
@@ -92,15 +106,29 @@ export async function runReviewPipeline(
   });
 
   let merged = primary;
+  let escalated = false;
 
   if (shouldEscalate(parseFindingsSeverities(primary), parseScore(primary))) {
-    // Optional second pass: re-run with ESCALATION model only if budget allows — implement gate in API.
-    merged = primary;
+    const allow = deps.budget ? await deps.budget.allowEscalation(input) : false;
+    if (allow) {
+      try {
+        merged = await deps.llm.completeJson({
+          system,
+          user: userPrompt,
+          model: ESCALATION,
+          schemaName: 'MergeCoreReviewOutputV1',
+        });
+        escalated = true;
+      } catch {
+        // Escalation is best-effort; fall back to the primary output.
+        merged = primary;
+      }
+    }
   }
 
   await deps.cache.set(cacheKey, merged, 86400);
 
-  return { rawJson: merged, cacheHit: false };
+  return { rawJson: merged, cacheHit: false, escalated };
 }
 
 function parseScore(json: string): number {

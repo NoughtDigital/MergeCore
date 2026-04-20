@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import * as vscode from 'vscode';
 
 export function buildReviewPanelHtml(
@@ -12,13 +13,13 @@ export function buildReviewPanelHtml(
   const styleUri = webview.asWebviewUri(
     vscode.Uri.joinPath(extensionUri, 'media', 'sidebar.css').with({ query: `v=${v}` })
   );
-  const nonce = getNonce();
+  const nonce = createNonce();
 
   return `<!DOCTYPE html>
 <html lang="en-GB">
 <head>
   <meta charset="UTF-8" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}';" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource}; script-src 'nonce-${nonce}'; img-src ${webview.cspSource} data:; font-src ${webview.cspSource}; connect-src 'none'; frame-ancestors 'none'; base-uri 'none';" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <link href="${styleUri}" rel="stylesheet" />
   <title>MergeCore</title>
@@ -104,11 +105,10 @@ export function buildReviewPanelHtml(
 </html>`;
 }
 
-function getNonce(): string {
-  let text = '';
-  const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-  for (let i = 0; i < 32; i++) {
-    text += possible.charAt(Math.floor(Math.random() * possible.length));
-  }
-  return text;
+/**
+ * Cryptographically secure nonce. Base64 keeps the byte count compact enough
+ * for the CSP header attribute while remaining unguessable.
+ */
+function createNonce(): string {
+  return randomBytes(16).toString('base64');
 }

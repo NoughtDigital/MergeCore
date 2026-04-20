@@ -61,7 +61,7 @@
       brandFileEl.title = fl;
     }
 
-    const n = normalizeScore(payload.score);
+    const n = normaliseScore(payload.score);
     if (n === null) {
       scoreEl.textContent = '—';
       scoreRing.className = 'mc-score-ring';
@@ -101,14 +101,6 @@
     }
   }
 
-  function escapeHtml(s) {
-    return String(s)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;');
-  }
-
   function renderScoreBreakdown(payload) {
     if (!scoreBreakdownEl || !scoreWhyEl || !scoreDimensionsEl || !scoreStrengthsEl || !scorePathEl) {
       return;
@@ -121,23 +113,27 @@
     scoreBreakdownEl.hidden = false;
     scoreWhyEl.textContent = ins.whyText || '';
 
-    scoreDimensionsEl.innerHTML = '';
+    scoreDimensionsEl.textContent = '';
     (ins.dimensions || []).forEach(function (d) {
       const li = document.createElement('li');
       li.className = 'mc-dimension-item';
       li.setAttribute('role', 'listitem');
       const sub = typeof d.subScore === 'number' ? formatScore(d.subScore) : '—';
-      const lab = d.label || d.key;
-      li.innerHTML =
-        '<span class="mc-dimension-label">' +
-        escapeHtml(lab) +
-        '</span>' +
-        '<span class="mc-dimension-level">' +
-        escapeHtml(d.level || '') +
-        '</span>' +
-        '<span class="mc-dimension-sub">' +
-        escapeHtml(sub) +
-        '/10</span>';
+      const lab = d.label || d.key || '';
+
+      const spLabel = document.createElement('span');
+      spLabel.className = 'mc-dimension-label';
+      spLabel.textContent = String(lab);
+      const spLevel = document.createElement('span');
+      spLevel.className = 'mc-dimension-level';
+      spLevel.textContent = String(d.level || '');
+      const spSub = document.createElement('span');
+      spSub.className = 'mc-dimension-sub';
+      spSub.textContent = String(sub) + '/10';
+
+      li.appendChild(spLabel);
+      li.appendChild(spLevel);
+      li.appendChild(spSub);
       scoreDimensionsEl.appendChild(li);
     });
 
@@ -389,14 +385,14 @@
     return block;
   }
 
-  function normalizeScore(raw) {
+  function normaliseScore(raw) {
     if (typeof raw !== 'number' || isNaN(raw)) {
       return null;
     }
-    if (raw > 10) {
-      return Math.min(10, raw / 10);
+    if (raw < 0 || raw > 10) {
+      return null;
     }
-    return Math.max(0, Math.min(10, raw));
+    return Math.round(raw * 100) / 100;
   }
 
   function formatScore(n) {
