@@ -34,3 +34,6 @@ coverage/
 
 # Secret scan snapshots
 .gitleaks-report.*
+
+# Playwright CLI local artifacts (snapshots, console logs, traces)
+.playwright-cli/

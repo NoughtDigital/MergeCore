@@ -2,8 +2,12 @@ import type { NextConfig } from "next";
 
 /**
  * Security headers shipped with every response. Keep the CSP as tight as the
- * marketing site allows; `'unsafe-inline'` on style-src is only present because
- * Next.js inlines critical CSS during build.
+ * marketing site allows. `'unsafe-inline'` on style-src is present because
+ * Next.js inlines critical CSS during build; `'unsafe-inline'` on script-src is
+ * required because Next.js streams the RSC payload via inline
+ * `self.__next_f.push(...)` scripts. Blocking them aborts hydration and wipes
+ * the server-rendered DOM (blank/black page). Nonce-based CSP would require
+ * per-request middleware which defeats static caching on Vercel.
  */
 const securityHeaders = [
   {
@@ -11,7 +15,7 @@ const securityHeaders = [
     value: [
       "default-src 'self'",
       "base-uri 'self'",
-      "script-src 'self'",
+      "script-src 'self' 'unsafe-inline'",
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: https:",
       "font-src 'self' data:",
