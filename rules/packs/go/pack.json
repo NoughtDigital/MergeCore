@@ -1,0 +1,22 @@
+{
+  "pack_id": "mergecore-go-rules",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "locale": "en-GB",
+  "title": "MergeCore Go Rules",
+  "description": "Senior production Go: error handling, context propagation, concurrency correctness, and idiomatic stdlib use.",
+  "rubric_schema": "https://www.mergecore.dev/schemas/go-rules.schema.json",
+  "artifacts": {
+    "rubric": "rubric.json",
+    "smells": "smells.json",
+    "agents": "agents.md"
+  },
+  "tags": [
+    "go",
+    "golang",
+    "backend",
+    "concurrency"
+  ],
+  "extends": [],
+  "notes": "Gate with go: true when the host detects go.mod or .go files."
+}

@@ -1,0 +1,22 @@
+{
+  "meta": {
+    "pack_id": "mergecore-swift-rules",
+    "version": "1.0.0",
+    "locale": "en-GB",
+    "description": "Smell index for Swift. Maps to rubric.json rule_ref."
+  },
+  "smells": [
+    { "id": "SMELL-SW-FORCE-UNWRAP", "name": "Force unwrap", "rule_ref": "SW-001", "summary": "! applied to a value that can be nil at runtime.", "focus": "correctness" },
+    { "id": "SMELL-SW-FORCE-CAST", "name": "Force cast", "rule_ref": "SW-002", "summary": "as! used where as? plus guard would be safer.", "focus": "correctness" },
+    { "id": "SMELL-SW-RETAIN-CYCLE", "name": "Retain cycle risk", "rule_ref": "SW-003", "summary": "Escaping closure captures self strongly.", "focus": "memory" },
+    { "id": "SMELL-SW-TASK-LEAK", "name": "Unmanaged Task", "rule_ref": "SW-004", "summary": "Task { } without cancellation path.", "focus": "reliability" },
+    { "id": "SMELL-SW-TRY-BANG", "name": "try! on throwing call", "rule_ref": "SW-005", "summary": "try! used where errors must be handled.", "focus": "reliability" },
+    { "id": "SMELL-SW-MAIN-BLOCK", "name": "MainActor blocking", "rule_ref": "SW-006", "summary": "Heavy sync work on the main actor.", "focus": "performance" },
+    { "id": "SMELL-SW-CLASS-VALUE", "name": "Class as value", "rule_ref": "SW-007", "summary": "class used for a type that should be a struct.", "focus": "architecture" },
+    { "id": "SMELL-SW-CB-TWOARG", "name": "(T?, Error?) callback", "rule_ref": "SW-008", "summary": "Legacy callback shape instead of Result or async throws.", "focus": "api" },
+    { "id": "SMELL-SW-DEFAULTS-SECRET", "name": "Secret in UserDefaults", "rule_ref": "SW-009", "summary": "Sensitive data stored outside Keychain.", "focus": "security" },
+    { "id": "SMELL-SW-ACTOR", "name": "Positive: actor isolation", "rule_ref": "SW-010", "summary": "actor used for shared mutable state.", "focus": "concurrency" },
+    { "id": "SMELL-SW-SINGLETON", "name": "Singleton abuse", "rule_ref": "SW-011", "summary": ".shared accessed from business logic.", "focus": "testability" },
+    { "id": "SMELL-SW-PRINT-LOG", "name": "print for logging", "rule_ref": "SW-012", "summary": "print used instead of OSLog/Logger.", "focus": "observability" }
+  ]
+}

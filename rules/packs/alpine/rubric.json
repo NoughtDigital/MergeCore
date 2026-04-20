@@ -1,5 +1,5 @@
 {
-  "$schema": "https://www.mergecore.dev/schemas/laravel-rules.schema.json",
+  "$schema": "https://www.mergecore.dev/schemas/alpine-rules.schema.json",
   "meta": {
     "pack_id": "mergecore-alpine-rules",
     "pack_version": "1.0.0",
@@ -9,11 +9,31 @@
     "notes": "Gate with alpine: true when the host supports project metadata. Rules marked alpine: true are Alpine-specific."
   },
   "severity_levels": {
-    "info": { "rank": 1, "label": "Informational", "default_penalty": 0.15 },
-    "hint": { "rank": 2, "label": "Style or maintainability", "default_penalty": 0.25 },
-    "warning": { "rank": 3, "label": "Likely defect or performance risk", "default_penalty": 0.55 },
-    "error": { "rank": 4, "label": "High risk (security or data leak)", "default_penalty": 0.85 },
-    "critical": { "rank": 5, "label": "Critical (XSS in client state)", "default_penalty": 1.2 }
+    "info": {
+      "rank": 1,
+      "label": "Informational",
+      "default_penalty": 0.15
+    },
+    "hint": {
+      "rank": 2,
+      "label": "Style or maintainability",
+      "default_penalty": 0.25
+    },
+    "warning": {
+      "rank": 3,
+      "label": "Likely defect or performance risk",
+      "default_penalty": 0.55
+    },
+    "error": {
+      "rank": 4,
+      "label": "High risk (security or data leak)",
+      "default_penalty": 0.85
+    },
+    "critical": {
+      "rank": 5,
+      "label": "Critical (XSS in client state)",
+      "default_penalty": 1.2
+    }
   },
   "scoring": {
     "scale_max": 10,
@@ -23,7 +43,7 @@
     "max_total_penalty_per_file": 10,
     "normalisation": "Per review unit (one Blade file or one JS module with Alpine), sum penalties for matched rules after optional quality_signal multiplier, then score = max(0, min(10, initial_score - min(sum_penalties, max_total_penalty_per_file))).",
     "quality_signal_adjustment": {
-      "junior": 1.0,
+      "junior": 1,
       "risky": 1.15,
       "overengineered": 0.85,
       "senior_positive": -0.35
@@ -50,13 +70,17 @@
       "penalty": 1.1,
       "alpine": true,
       "detection": {
-        "file_globs": ["resources/views/**/*.blade.php"],
+        "file_globs": [
+          "resources/views/**/*.blade.php"
+        ],
         "patterns": [
           "/x-data=\"\\{\\{[^}]*\\$\\w+[^}]*\\}\\}\"/",
           "/x-data='\\{!!/",
           "/x-data=\"\\{!!/"
         ],
-        "heuristics": ["User model field inside x-data without @js"]
+        "heuristics": [
+          "User model field inside x-data without @js"
+        ]
       },
       "examples": {
         "before": "<div x-data=\"{ note: '{{ $user->bio }}' }\">",
@@ -73,10 +97,19 @@
       "penalty": 0.5,
       "alpine": true,
       "detection": {
-        "file_globs": ["resources/views/**/*.blade.php", "resources/js/**/*.js"],
-        "patterns": ["/x-for\\s*=\\s*[\"'][^\"']+[\"']/"],
-        "absence_preferred": [":key="],
-        "heuristics": ["template x-for over dynamic collections"]
+        "file_globs": [
+          "resources/views/**/*.blade.php",
+          "resources/js/**/*.js"
+        ],
+        "patterns": [
+          "/x-for\\s*=\\s*[\"'][^\"']+[\"']/"
+        ],
+        "absence_preferred": [
+          ":key="
+        ],
+        "heuristics": [
+          "template x-for over dynamic collections"
+        ]
       },
       "examples": {
         "before": "<template x-for=\"item in items\"><tr>...</tr></template>",
@@ -93,9 +126,16 @@
       "penalty": 0.3,
       "alpine": true,
       "detection": {
-        "file_globs": ["resources/views/**/*.blade.php"],
-        "patterns": ["<script", "x-data="],
-        "heuristics": ["Single Blade file exceeds ~300 lines with most content inside script tags"]
+        "file_globs": [
+          "resources/views/**/*.blade.php"
+        ],
+        "patterns": [
+          "<script",
+          "x-data="
+        ],
+        "heuristics": [
+          "Single Blade file exceeds ~300 lines with most content inside script tags"
+        ]
       },
       "examples": {
         "before": "@verbatim large block @endverbatim inside view",
@@ -112,12 +152,17 @@
       "penalty": 0.4,
       "alpine": true,
       "detection": {
-        "file_globs": ["resources/views/**/*.blade.php"],
+        "file_globs": [
+          "resources/views/**/*.blade.php"
+        ],
         "patterns": [
           "/x-model\\s*=\\s*[\"']\\w+[\"'][\\s\\S]*wire:model/",
           "/wire:model[\\s\\S]*x-model/"
         ],
-        "heuristics": ["Same variable name in both directives", "No @entangle in file"]
+        "heuristics": [
+          "Same variable name in both directives",
+          "No @entangle in file"
+        ]
       },
       "examples": {
         "before": "<input x-model=\"open\" /> ... <select wire:model=\"open\">",
@@ -134,12 +179,18 @@
       "penalty": 0.45,
       "alpine": true,
       "detection": {
-        "file_globs": ["resources/views/**/*.blade.php", "resources/js/**/*.js"],
+        "file_globs": [
+          "resources/views/**/*.blade.php",
+          "resources/js/**/*.js"
+        ],
         "patterns": [
           "/x-init\\s*=\\s*[\"'][^\"']*fetch\\(/",
           "/x-init=\"[^\"]*\\$wire/"
         ],
-        "heuristics": ["No loading =", "x-init contains await fetch without catch UI"]
+        "heuristics": [
+          "No loading =",
+          "x-init contains await fetch without catch UI"
+        ]
       },
       "examples": {
         "before": "x-init=\"items = await (await fetch('/api/items')).json()\"",
@@ -156,9 +207,16 @@
       "penalty": 0.35,
       "alpine": true,
       "detection": {
-        "file_globs": ["resources/views/**/*.blade.php", "resources/js/**/*.js"],
-        "patterns": ["/x-effect\\s*=/"],
-        "heuristics": ["Body calls fetch or document.querySelector without guard"]
+        "file_globs": [
+          "resources/views/**/*.blade.php",
+          "resources/js/**/*.js"
+        ],
+        "patterns": [
+          "/x-effect\\s*=/"
+        ],
+        "heuristics": [
+          "Body calls fetch or document.querySelector without guard"
+        ]
       },
       "examples": {
         "before": "x-effect=\"fetch('/track')\"",
@@ -175,10 +233,19 @@
       "penalty": 0.3,
       "alpine": true,
       "detection": {
-        "file_globs": ["resources/views/**/*.blade.php"],
-        "patterns": ["/\\$wire\\.\\w+\\s*\\(/"],
-        "absence_preferred": ["\\$wire\\?\\.", "typeof\\s+\\$wire"],
-        "heuristics": ["Runs in x-on without @click on Livewire-managed element"]
+        "file_globs": [
+          "resources/views/**/*.blade.php"
+        ],
+        "patterns": [
+          "/\\$wire\\.\\w+\\s*\\(/"
+        ],
+        "absence_preferred": [
+          "\\$wire\\?\\.",
+          "typeof\\s+\\$wire"
+        ],
+        "heuristics": [
+          "Runs in x-on without @click on Livewire-managed element"
+        ]
       },
       "examples": {
         "before": "x-on:click=\"$wire.save()\"",
@@ -195,12 +262,17 @@
       "penalty": -0.3,
       "alpine": true,
       "detection": {
-        "file_globs": ["resources/js/**/*.js", "resources/views/**/*.blade.php"],
+        "file_globs": [
+          "resources/js/**/*.js",
+          "resources/views/**/*.blade.php"
+        ],
         "patterns": [
           "/Alpine\\.data\\s*\\(/",
           "/document\\.addEventListener\\s*\\(\\s*['\"]alpine:init['\"]"
         ],
-        "heuristics": ["Factory returns object with clear methods"]
+        "heuristics": [
+          "Factory returns object with clear methods"
+        ]
       },
       "examples": {
         "before": "N/A — positive signal",

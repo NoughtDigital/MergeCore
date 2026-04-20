@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 /**
  * Validates rule pack JSON files under `rules/packs/` against the schemas
- * under `engine/*.schema.json`. A file is validated if its top-level
- * `$schema` matches the `$id` of a known schema. Files without `$schema`
- * (e.g. pack manifests, smell indexes) are skipped with a note so we do not
- * conflate "unrelated shape" with "invalid".
+ * published at `website/public/schemas/*.schema.json` (the same files that
+ * are served from https://www.mergecore.dev/schemas/). A file is validated
+ * if its top-level `$schema` matches the `$id` of a known schema. Files
+ * without `$schema` (e.g. pack manifests, smell indexes) are skipped with a
+ * note so we do not conflate "unrelated shape" with "invalid".
  *
  * Runs in CI and locally via `npm run validate:packs`.
  */
@@ -15,7 +16,7 @@ import { join, resolve, extname } from 'node:path';
 import process from 'node:process';
 
 const ROOT = resolve(new URL('.', import.meta.url).pathname, '..');
-const ENGINE_DIR = join(ROOT, 'engine');
+const SCHEMAS_DIR = join(ROOT, 'website', 'public', 'schemas');
 const PACKS_DIR = join(ROOT, 'rules', 'packs');
 
 async function walk(dir) {
@@ -34,9 +35,9 @@ async function walk(dir) {
 }
 
 async function loadSchemas() {
-  const candidates = (await readdir(ENGINE_DIR))
+  const candidates = (await readdir(SCHEMAS_DIR))
     .filter((f) => f.endsWith('.schema.json'))
-    .map((f) => join(ENGINE_DIR, f));
+    .map((f) => join(SCHEMAS_DIR, f));
 
   const byId = new Map();
   for (const file of candidates) {
@@ -85,7 +86,7 @@ async function main() {
     }
     const schema = schemas.get(schemaId);
     if (!schema) {
-      console.log(`SKIP ${file} ($schema ${schemaId} not in engine/)`);
+      console.log(`SKIP ${file} ($schema ${schemaId} not in website/public/schemas/)`);
       skipped++;
       continue;
     }

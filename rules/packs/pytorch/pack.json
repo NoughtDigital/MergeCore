@@ -1,0 +1,24 @@
+{
+  "pack_id": "mergecore-pytorch-rules",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "locale": "en-GB",
+  "title": "MergeCore PyTorch Rules",
+  "description": "Production PyTorch: device discipline, gradient correctness, training loop hygiene, memory, and reproducibility.",
+  "rubric_schema": "https://www.mergecore.dev/schemas/pytorch-rules.schema.json",
+  "artifacts": {
+    "rubric": "rubric.json",
+    "smells": "smells.json",
+    "agents": "agents.md"
+  },
+  "tags": [
+    "pytorch",
+    "ml",
+    "deep-learning",
+    "python"
+  ],
+  "extends": [
+    "mergecore-python-rules"
+  ],
+  "notes": "Gate with pytorch: true when torch is imported. Extends mergecore-python-rules; apply alongside it."
+}

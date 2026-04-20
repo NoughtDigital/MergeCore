@@ -1,0 +1,308 @@
+{
+  "$schema": "https://www.mergecore.dev/schemas/swift-rules.schema.json",
+  "meta": {
+    "pack_id": "mergecore-swift-rules",
+    "pack_version": "1.0.0",
+    "locale": "en-GB",
+    "title": "MergeCore Swift Rules",
+    "description": "Rules for Swift code: optionals, concurrency, memory cycles, errors, and idiomatic value types.",
+    "notes": "Gate with swift: true. Assumes Swift 5.9+; flag version-specific patterns explicitly."
+  },
+  "severity_levels": {
+    "info": {
+      "rank": 1,
+      "label": "Informational",
+      "default_penalty": 0.15
+    },
+    "hint": {
+      "rank": 2,
+      "label": "Style or maintainability",
+      "default_penalty": 0.25
+    },
+    "warning": {
+      "rank": 3,
+      "label": "Likely defect or leak",
+      "default_penalty": 0.55
+    },
+    "error": {
+      "rank": 4,
+      "label": "High risk (crash or data race)",
+      "default_penalty": 0.85
+    },
+    "critical": {
+      "rank": 5,
+      "label": "Critical (force-unwrap on production path)",
+      "default_penalty": 1.2
+    }
+  },
+  "scoring": {
+    "scale_max": 10,
+    "initial_score": 10,
+    "aggregation": "subtract_penalties_with_cap",
+    "penalty_source": "rule.penalty overrides severity_levels[severity].default_penalty when present",
+    "max_total_penalty_per_file": 10,
+    "normalisation": "Per review unit (one .swift file), sum penalties after optional quality_signal multiplier, then score = max(0, min(10, initial_score - min(sum_penalties, max_total_penalty_per_file))).",
+    "quality_signal_adjustment": {
+      "junior": 1,
+      "risky": 1.15,
+      "overengineered": 0.85,
+      "senior_positive": -0.35
+    },
+    "interpretation": {
+      "9_to_10": "Safe optionals, clear actor boundaries, no obvious retain cycles.",
+      "7_to_8": "Mergeable; tighten a capture list or narrow a force cast.",
+      "5_to_6": "Risky: force unwraps on data paths or sync work on the main actor.",
+      "0_to_4": "Block: crashes, data races, or unchecked continuations."
+    }
+  },
+  "rules": [
+    {
+      "id": "SW-001",
+      "category": "optionals",
+      "severity": "error",
+      "quality_signal": "risky",
+      "title": "Force unwrap on a non-literal value",
+      "description": "Using ! on a value that can be nil at runtime crashes the app. Use if-let, guard-let, nil coalescing, or meaningful error paths.",
+      "penalty": 0.85,
+      "detection": {
+        "file_globs": [
+          "**/*.swift"
+        ],
+        "patterns": [
+          "/\\w+!(?![=])/"
+        ],
+        "prefer": [
+          "guard let",
+          "if let",
+          "??"
+        ]
+      }
+    },
+    {
+      "id": "SW-002",
+      "category": "optionals",
+      "severity": "warning",
+      "quality_signal": "risky",
+      "title": "Force cast with as!",
+      "description": "as! crashes on mismatch. Prefer as? with a guard or a typed API that removes the need to cast.",
+      "penalty": 0.55,
+      "detection": {
+        "file_globs": [
+          "**/*.swift"
+        ],
+        "patterns": [
+          "/\\sas!\\s/"
+        ],
+        "prefer": [
+          "as?",
+          "generic"
+        ]
+      }
+    },
+    {
+      "id": "SW-003",
+      "category": "memory",
+      "severity": "warning",
+      "quality_signal": "risky",
+      "title": "Closure captures self strongly in an escaping context",
+      "description": "Escaping closures on view controllers, cancellables, or Tasks should capture self weakly or unowned to avoid retain cycles.",
+      "penalty": 0.6,
+      "detection": {
+        "file_globs": [
+          "**/*.swift"
+        ],
+        "patterns": [
+          "/@escaping[\\s\\S]*?\\{[^}]*self\\./"
+        ],
+        "absence_preferred": [
+          "\\[weak self\\]",
+          "\\[unowned self\\]"
+        ]
+      }
+    },
+    {
+      "id": "SW-004",
+      "category": "concurrency",
+      "severity": "warning",
+      "quality_signal": "risky",
+      "title": "Unstructured Task without cancellation handling",
+      "description": "Task { } started during view or object lifetime should be stored and cancelled when the owner goes away; otherwise work continues after dismissal.",
+      "penalty": 0.5,
+      "detection": {
+        "file_globs": [
+          "**/*.swift"
+        ],
+        "patterns": [
+          "/Task\\s*\\{/"
+        ],
+        "absence_preferred": [
+          "Task\\.isCancelled",
+          "task\\.cancel\\(",
+          "storedTask"
+        ]
+      }
+    },
+    {
+      "id": "SW-005",
+      "category": "errors",
+      "severity": "warning",
+      "quality_signal": "risky",
+      "title": "try! used on a throwing call",
+      "description": "try! crashes on error and hides failures. Prefer do/try/catch, try?, or bubble the error up.",
+      "penalty": 0.5,
+      "detection": {
+        "file_globs": [
+          "**/*.swift"
+        ],
+        "patterns": [
+          "/\\btry!\\s/"
+        ],
+        "prefer": [
+          "do { try ... } catch",
+          "try?"
+        ]
+      }
+    },
+    {
+      "id": "SW-006",
+      "category": "concurrency",
+      "severity": "error",
+      "quality_signal": "risky",
+      "title": "Blocking work on the MainActor",
+      "description": "Heavy synchronous work inside @MainActor or on DispatchQueue.main stalls the UI. Move to background queues, actors, or Task.detached.",
+      "penalty": 0.7,
+      "detection": {
+        "file_globs": [
+          "**/*.swift"
+        ],
+        "patterns": [
+          "/@MainActor[\\s\\S]*?(URLSession\\.shared\\.data|Thread\\.sleep|sleep\\()/"
+        ],
+        "prefer": [
+          "await background task",
+          "nonisolated"
+        ]
+      }
+    },
+    {
+      "id": "SW-007",
+      "category": "types",
+      "severity": "hint",
+      "quality_signal": "overengineered",
+      "title": "Class used where struct would suffice",
+      "description": "Value-type models (struct) give immutability and thread-safety by default. Reach for class only when reference semantics are required.",
+      "penalty": 0.25,
+      "detection": {
+        "file_globs": [
+          "**/*.swift"
+        ],
+        "patterns": [
+          "/class\\s+\\w+\\s*:\\s*Codable/"
+        ],
+        "heuristics": [
+          "No identity requirement, no ObjC bridging"
+        ]
+      }
+    },
+    {
+      "id": "SW-008",
+      "category": "api",
+      "severity": "warning",
+      "quality_signal": "risky",
+      "title": "Completion-handler callback without Result or error propagation",
+      "description": "Callbacks that pass (value, error) separately confuse callers. Prefer async/await or Result<Success, Failure>.",
+      "penalty": 0.35,
+      "detection": {
+        "file_globs": [
+          "**/*.swift"
+        ],
+        "patterns": [
+          "/\\(_\\s*:\\s*(Data|Any)?\\?,\\s*Error\\?\\)\\s*->\\s*Void/"
+        ],
+        "prefer": [
+          "async throws -> T",
+          "Result<T, Error>"
+        ]
+      }
+    },
+    {
+      "id": "SW-009",
+      "category": "security",
+      "severity": "warning",
+      "quality_signal": "risky",
+      "title": "Sensitive data stored in UserDefaults",
+      "description": "Tokens, passwords, and PII should use the Keychain. UserDefaults is unencrypted and syncs in some configurations.",
+      "penalty": 0.6,
+      "detection": {
+        "file_globs": [
+          "**/*.swift"
+        ],
+        "patterns": [
+          "/UserDefaults[\\s\\S]*?(token|password|secret|auth)/i"
+        ],
+        "prefer": [
+          "Keychain",
+          "Security framework"
+        ]
+      }
+    },
+    {
+      "id": "SW-010",
+      "category": "concurrency",
+      "severity": "hint",
+      "quality_signal": "senior_positive",
+      "title": "Strong pattern: actor for mutable shared state",
+      "description": "Using actor to isolate mutable state gives compile-time safety against data races.",
+      "penalty": -0.3,
+      "detection": {
+        "file_globs": [
+          "**/*.swift"
+        ],
+        "patterns": [
+          "/\\bactor\\s+[A-Z]\\w+\\s*\\{/"
+        ]
+      }
+    },
+    {
+      "id": "SW-011",
+      "category": "testability",
+      "severity": "hint",
+      "quality_signal": "overengineered",
+      "title": "Singleton used where dependency injection would help",
+      "description": "Widespread .shared singletons make tests brittle. Inject protocol-typed dependencies for units that need to be mocked.",
+      "penalty": 0.25,
+      "detection": {
+        "file_globs": [
+          "**/*.swift"
+        ],
+        "patterns": [
+          "/\\b\\w+\\.shared\\./"
+        ],
+        "heuristics": [
+          "Used inside business logic rather than app composition"
+        ]
+      }
+    },
+    {
+      "id": "SW-012",
+      "category": "logging",
+      "severity": "hint",
+      "quality_signal": "junior",
+      "title": "print used for production logging",
+      "description": "print has no levels or subsystems. Use os.Logger (or OSLog) for structured, filterable logs.",
+      "penalty": 0.2,
+      "detection": {
+        "file_globs": [
+          "**/*.swift"
+        ],
+        "patterns": [
+          "/\\bprint\\(/"
+        ],
+        "prefer": [
+          "Logger(subsystem:category:)",
+          "os_log"
+        ]
+      }
+    }
+  ]
+}

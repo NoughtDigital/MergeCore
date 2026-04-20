@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://www.mergecore.dev/schemas/laravel-rules.schema.json",
-  "title": "MergeCore Laravel rules pack",
+  "$id": "https://www.mergecore.dev/schemas/filament-rules.schema.json",
+  "title": "MergeCore Filament rules pack",
   "type": "object",
   "required": [
     "meta",

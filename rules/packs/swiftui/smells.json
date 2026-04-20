@@ -1,0 +1,22 @@
+{
+  "meta": {
+    "pack_id": "mergecore-swiftui-rules",
+    "version": "1.0.0",
+    "locale": "en-GB",
+    "description": "Smell index for SwiftUI. Maps to rubric.json rule_ref."
+  },
+  "smells": [
+    { "id": "SMELL-SUI-STATE-MISUSE", "name": "@State for external data", "rule_ref": "SUI-001", "summary": "@State used for a model owned elsewhere.", "focus": "state" },
+    { "id": "SMELL-SUI-OBS-OWN", "name": "ObservedObject owns instance", "rule_ref": "SUI-002", "summary": "@ObservedObject initialised in the view.", "focus": "state" },
+    { "id": "SMELL-SUI-NO-ID", "name": "ForEach without identity", "rule_ref": "SUI-003", "summary": "ForEach over non-identifiable collection.", "focus": "correctness" },
+    { "id": "SMELL-SUI-BODY-HEAVY", "name": "Heavy work in body", "rule_ref": "SUI-004", "summary": "Network or expensive compute inside body.", "focus": "performance" },
+    { "id": "SMELL-SUI-APPEAR-TASK", "name": ".onAppear { Task }", "rule_ref": "SUI-005", "summary": ".task would bind cancellation automatically.", "focus": "reliability" },
+    { "id": "SMELL-SUI-A11Y-ICON", "name": "Icon button without label", "rule_ref": "SUI-006", "summary": "Image-only Button missing accessibilityLabel.", "focus": "accessibility" },
+    { "id": "SMELL-SUI-NAV-VIEW", "name": "Legacy NavigationView", "rule_ref": "SUI-007", "summary": "NavigationView used in new code.", "focus": "navigation" },
+    { "id": "SMELL-SUI-GEOM-WRAP", "name": "GeometryReader wrap", "rule_ref": "SUI-008", "summary": "GeometryReader wrapping the whole body.", "focus": "layout" },
+    { "id": "SMELL-SUI-NO-PREVIEW", "name": "Missing preview", "rule_ref": "SUI-009", "summary": "New view has no #Preview.", "focus": "developer-experience" },
+    { "id": "SMELL-SUI-OBSERVABLE", "name": "Positive: @Observable model", "rule_ref": "SUI-010", "summary": "Modern Observation framework in use.", "focus": "state" },
+    { "id": "SMELL-SUI-MOD-ORDER", "name": "Modifier order confusion", "rule_ref": "SUI-011", "summary": "Visual result disagrees with modifier order.", "focus": "layout" },
+    { "id": "SMELL-SUI-ENV-LOCAL", "name": "Environment for local data", "rule_ref": "SUI-012", "summary": "@EnvironmentObject used for narrowly scoped data.", "focus": "architecture" }
+  ]
+}

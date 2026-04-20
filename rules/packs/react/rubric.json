@@ -1,0 +1,346 @@
+{
+  "$schema": "https://www.mergecore.dev/schemas/react-rules.schema.json",
+  "meta": {
+    "pack_id": "mergecore-react-rules",
+    "pack_version": "1.0.0",
+    "locale": "en-GB",
+    "title": "MergeCore React Rules",
+    "description": "Rules for modern React (function components, hooks): correctness, render safety, state ownership, accessibility, and performance.",
+    "notes": "Gate with react: true when the host supports project metadata. Rules marked react: true are React-specific."
+  },
+  "severity_levels": {
+    "info": {
+      "rank": 1,
+      "label": "Informational",
+      "default_penalty": 0.15
+    },
+    "hint": {
+      "rank": 2,
+      "label": "Style or maintainability",
+      "default_penalty": 0.25
+    },
+    "warning": {
+      "rank": 3,
+      "label": "Likely defect or performance risk",
+      "default_penalty": 0.55
+    },
+    "error": {
+      "rank": 4,
+      "label": "High risk (correctness or security)",
+      "default_penalty": 0.85
+    },
+    "critical": {
+      "rank": 5,
+      "label": "Critical (XSS or data corruption)",
+      "default_penalty": 1.2
+    }
+  },
+  "scoring": {
+    "scale_max": 10,
+    "initial_score": 10,
+    "aggregation": "subtract_penalties_with_cap",
+    "penalty_source": "rule.penalty overrides severity_levels[severity].default_penalty when present",
+    "max_total_penalty_per_file": 10,
+    "normalisation": "Per review unit (one component module), sum penalties for matched rules after optional quality_signal multiplier, then score = max(0, min(10, initial_score - min(sum_penalties, max_total_penalty_per_file))).",
+    "quality_signal_adjustment": {
+      "junior": 1,
+      "risky": 1.15,
+      "overengineered": 0.85,
+      "senior_positive": -0.35
+    },
+    "interpretation": {
+      "9_to_10": "Idiomatic hooks, safe effects, stable keys, accessible markup.",
+      "7_to_8": "Mergeable; tighten effect deps, memoisation, or list keys.",
+      "5_to_6": "Risky: stale closures, unbounded renders, or missing a11y.",
+      "0_to_4": "Block: XSS via dangerouslySetInnerHTML, broken state, or leaking effects."
+    }
+  },
+  "rules": [
+    {
+      "id": "RCT-001",
+      "category": "hooks",
+      "severity": "error",
+      "quality_signal": "risky",
+      "title": "Hook called conditionally or inside a loop",
+      "description": "Hooks must run in the same order on every render. Calling useState/useEffect/useMemo conditionally or inside loops breaks React's internal bookkeeping.",
+      "penalty": 0.9,
+      "react": true,
+      "detection": {
+        "file_globs": [
+          "**/*.jsx",
+          "**/*.tsx"
+        ],
+        "patterns": [
+          "/if\\s*\\([^)]*\\)\\s*\\{[^}]*use[A-Z]\\w*\\(/",
+          "/for\\s*\\([^)]*\\)\\s*\\{[^}]*use[A-Z]\\w*\\(/"
+        ],
+        "prefer": [
+          "Call hooks unconditionally at the top of the component"
+        ]
+      },
+      "examples": {
+        "before": "if (enabled) { const [x, setX] = useState(0); }",
+        "after": "const [x, setX] = useState(0); // branch on enabled inside handlers or render"
+      }
+    },
+    {
+      "id": "RCT-002",
+      "category": "hooks",
+      "severity": "warning",
+      "quality_signal": "risky",
+      "title": "useEffect dependency array missing referenced values",
+      "description": "Omitting referenced props or state from the dependency array yields stale closures and subtle bugs. If omission is intentional, extract the value or use a ref with a clear comment.",
+      "penalty": 0.6,
+      "react": true,
+      "detection": {
+        "file_globs": [
+          "**/*.jsx",
+          "**/*.tsx"
+        ],
+        "patterns": [
+          "/useEffect\\s*\\(\\s*\\(\\)\\s*=>\\s*\\{[\\s\\S]*?\\},\\s*\\[\\s*\\]\\s*\\)/"
+        ],
+        "heuristics": [
+          "Effect body references props/state not present in the deps array"
+        ]
+      }
+    },
+    {
+      "id": "RCT-003",
+      "category": "rendering",
+      "severity": "warning",
+      "quality_signal": "junior",
+      "title": "Array index used as React key",
+      "description": "Using array index as a key causes incorrect reconciliation when items reorder, insert, or delete. Prefer a stable domain id.",
+      "penalty": 0.45,
+      "react": true,
+      "detection": {
+        "file_globs": [
+          "**/*.jsx",
+          "**/*.tsx"
+        ],
+        "patterns": [
+          "/\\.map\\(\\s*\\([^,)]+,\\s*(\\w+)\\s*\\)\\s*=>[\\s\\S]*?key=\\{\\1\\}/"
+        ]
+      },
+      "examples": {
+        "before": "items.map((item, i) => <Row key={i} {...item} />)",
+        "after": "items.map((item) => <Row key={item.id} {...item} />)"
+      }
+    },
+    {
+      "id": "RCT-004",
+      "category": "security",
+      "severity": "critical",
+      "quality_signal": "risky",
+      "title": "dangerouslySetInnerHTML with unsanitised input",
+      "description": "Injecting HTML from user or remote data without sanitisation enables XSS. Sanitise with a vetted library (e.g. DOMPurify) or render as text.",
+      "penalty": 1.2,
+      "react": true,
+      "detection": {
+        "file_globs": [
+          "**/*.jsx",
+          "**/*.tsx"
+        ],
+        "patterns": [
+          "/dangerouslySetInnerHTML=\\{\\{\\s*__html:\\s*[^}]*\\}\\}/"
+        ],
+        "absence_preferred": [
+          "DOMPurify\\.sanitize",
+          "sanitize\\("
+        ]
+      }
+    },
+    {
+      "id": "RCT-005",
+      "category": "state",
+      "severity": "warning",
+      "quality_signal": "risky",
+      "title": "setState based on previous state without updater function",
+      "description": "Reading state directly inside setState races with batched updates. Use the functional form when the next value depends on the current one.",
+      "penalty": 0.45,
+      "react": true,
+      "detection": {
+        "file_globs": [
+          "**/*.jsx",
+          "**/*.tsx"
+        ],
+        "patterns": [
+          "/set(\\w+)\\(\\s*\\1\\s*[+\\-*/%]/",
+          "/set(\\w+)\\(\\s*\\1\\s*\\+\\s*1\\s*\\)/"
+        ]
+      },
+      "examples": {
+        "before": "setCount(count + 1)",
+        "after": "setCount((c) => c + 1)"
+      }
+    },
+    {
+      "id": "RCT-006",
+      "category": "effects",
+      "severity": "warning",
+      "quality_signal": "risky",
+      "title": "Async work in useEffect without cleanup or cancellation",
+      "description": "Unmounted components can still receive async results, causing state updates on dead components and memory leaks. Abort or gate on a cleanup flag.",
+      "penalty": 0.5,
+      "react": true,
+      "detection": {
+        "file_globs": [
+          "**/*.jsx",
+          "**/*.tsx"
+        ],
+        "patterns": [
+          "/useEffect\\s*\\([\\s\\S]*?fetch\\(/"
+        ],
+        "absence_preferred": [
+          "AbortController",
+          "cancelled",
+          "return\\s+\\(\\)\\s*=>"
+        ]
+      },
+      "examples": {
+        "before": "useEffect(() => { fetch(url).then(r => setData(r)) }, [url])",
+        "after": "useEffect(() => { const ac = new AbortController(); fetch(url, { signal: ac.signal }).then(setData).catch(() => {}); return () => ac.abort(); }, [url])"
+      }
+    },
+    {
+      "id": "RCT-007",
+      "category": "performance",
+      "severity": "hint",
+      "quality_signal": "junior",
+      "title": "Inline object or array props on hot-rendering parents",
+      "description": "Fresh object/array literals on every render break memoised children. Memoise with useMemo or hoist to module scope where safe.",
+      "penalty": 0.25,
+      "react": true,
+      "detection": {
+        "file_globs": [
+          "**/*.jsx",
+          "**/*.tsx"
+        ],
+        "patterns": [
+          "/<\\w+[^>]*\\s(style|data|options)=\\{\\{[^}]*\\}\\}/"
+        ],
+        "heuristics": [
+          "Memoised child (React.memo) receiving a fresh literal every render"
+        ]
+      }
+    },
+    {
+      "id": "RCT-008",
+      "category": "accessibility",
+      "severity": "warning",
+      "quality_signal": "junior",
+      "title": "Interactive element without accessible name or role",
+      "description": "Click handlers on divs/spans without role, tabIndex, or keyboard handlers exclude keyboard and screen-reader users. Prefer semantic buttons or links.",
+      "penalty": 0.4,
+      "react": true,
+      "detection": {
+        "file_globs": [
+          "**/*.jsx",
+          "**/*.tsx"
+        ],
+        "patterns": [
+          "/<(div|span)[^>]*onClick=\\{/"
+        ],
+        "absence_preferred": [
+          "role=",
+          "tabIndex=",
+          "aria-label="
+        ]
+      },
+      "examples": {
+        "before": "<div onClick={submit}>Save</div>",
+        "after": "<button type=\"button\" onClick={submit}>Save</button>"
+      }
+    },
+    {
+      "id": "RCT-009",
+      "category": "state",
+      "severity": "hint",
+      "quality_signal": "overengineered",
+      "title": "Derived state stored in useState instead of computed",
+      "description": "Mirroring props into state produces drift. Compute derived values during render or with useMemo.",
+      "penalty": 0.25,
+      "react": true,
+      "detection": {
+        "file_globs": [
+          "**/*.jsx",
+          "**/*.tsx"
+        ],
+        "patterns": [
+          "/useState\\([^)]*\\)[\\s\\S]{0,200}useEffect\\([\\s\\S]*?set\\w+\\(/"
+        ],
+        "heuristics": [
+          "useEffect only syncs a prop into local state"
+        ]
+      }
+    },
+    {
+      "id": "RCT-010",
+      "category": "forms",
+      "severity": "hint",
+      "quality_signal": "junior",
+      "title": "Uncontrolled vs controlled input mismatch",
+      "description": "Switching an input between controlled (value) and uncontrolled (defaultValue) mid-lifecycle warns in dev and corrupts state. Pick one.",
+      "penalty": 0.3,
+      "react": true,
+      "detection": {
+        "file_globs": [
+          "**/*.jsx",
+          "**/*.tsx"
+        ],
+        "patterns": [
+          "/<input[^>]*value=\\{[^}]*\\?\\s*\\w+\\s*:\\s*undefined\\}/"
+        ],
+        "heuristics": [
+          "value toggles between a string and undefined"
+        ]
+      }
+    },
+    {
+      "id": "RCT-011",
+      "category": "performance",
+      "severity": "hint",
+      "quality_signal": "senior_positive",
+      "title": "Strong pattern: memoised child with stable callbacks",
+      "description": "React.memo combined with useCallback for handlers signals deliberate render control for a hot path.",
+      "penalty": -0.3,
+      "react": true,
+      "detection": {
+        "file_globs": [
+          "**/*.jsx",
+          "**/*.tsx"
+        ],
+        "patterns": [
+          "/React\\.memo\\(/",
+          "/useCallback\\(/"
+        ],
+        "heuristics": [
+          "Memoised component receives useCallback-wrapped handlers"
+        ]
+      }
+    },
+    {
+      "id": "RCT-012",
+      "category": "architecture",
+      "severity": "hint",
+      "quality_signal": "overengineered",
+      "title": "Context used for local UI state",
+      "description": "Context causes every consumer to re-render on change. Prefer lifting state minimally or a dedicated store for widely shared, frequently changing values.",
+      "penalty": 0.2,
+      "react": true,
+      "detection": {
+        "file_globs": [
+          "**/*.jsx",
+          "**/*.tsx"
+        ],
+        "patterns": [
+          "/createContext\\(/"
+        ],
+        "heuristics": [
+          "Context value changes on every keystroke or tick"
+        ]
+      }
+    }
+  ]
+}

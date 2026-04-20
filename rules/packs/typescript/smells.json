@@ -1,0 +1,94 @@
+{
+  "meta": {
+    "pack_id": "mergecore-typescript-rules",
+    "version": "1.0.0",
+    "locale": "en-GB",
+    "description": "Smell index for TypeScript. Maps to rubric.json rule_ref."
+  },
+  "smells": [
+    {
+      "id": "SMELL-TS-ANY",
+      "name": "any escape hatch",
+      "rule_ref": "TS-001",
+      "summary": "any used where unknown plus narrowing would be safer.",
+      "focus": "type-safety"
+    },
+    {
+      "id": "SMELL-TS-BANG",
+      "name": "Unjustified non-null assertion",
+      "rule_ref": "TS-002",
+      "summary": "The ! operator used on values that can be null at runtime.",
+      "focus": "correctness"
+    },
+    {
+      "id": "SMELL-TS-AS-CAST",
+      "name": "Structural cast without validation",
+      "rule_ref": "TS-003",
+      "summary": "as T applied to untrusted input (JSON, form data, env).",
+      "focus": "security"
+    },
+    {
+      "id": "SMELL-TS-STRICT-OFF",
+      "name": "Strict mode disabled",
+      "rule_ref": "TS-004",
+      "summary": "tsconfig disables strict or strictNullChecks.",
+      "focus": "maintainability"
+    },
+    {
+      "id": "SMELL-TS-UNUSED-GENERIC",
+      "name": "Dead generic parameter",
+      "rule_ref": "TS-005",
+      "summary": "Type parameter declared but not tied to arguments or return.",
+      "focus": "maintainability"
+    },
+    {
+      "id": "SMELL-TS-NUMERIC-ENUM",
+      "name": "Numeric enum for string set",
+      "rule_ref": "TS-006",
+      "summary": "enum with integer values used where a string union would be clearer.",
+      "focus": "maintainability"
+    },
+    {
+      "id": "SMELL-TS-UNVALIDATED-IO",
+      "name": "Unvalidated API response",
+      "rule_ref": "TS-007",
+      "summary": "fetch().json() typed by cast instead of runtime schema.",
+      "focus": "reliability"
+    },
+    {
+      "id": "SMELL-TS-FLOAT-PROMISE",
+      "name": "Floating promise",
+      "rule_ref": "TS-008",
+      "summary": "async call without await, return, or handler.",
+      "focus": "correctness"
+    },
+    {
+      "id": "SMELL-TS-OBJECT",
+      "name": "Opaque object type",
+      "rule_ref": "TS-009",
+      "summary": "object/Object used instead of a named shape or Record.",
+      "focus": "type-safety"
+    },
+    {
+      "id": "SMELL-TS-TYPEGUARD",
+      "name": "Positive: type guard",
+      "rule_ref": "TS-010",
+      "summary": "Narrowing expressed via `x is T` predicate.",
+      "focus": "correctness"
+    },
+    {
+      "id": "SMELL-TS-COND-SOUP",
+      "name": "Conditional type soup",
+      "rule_ref": "TS-011",
+      "summary": "Nested conditional types for trivial mappings.",
+      "focus": "maintainability"
+    },
+    {
+      "id": "SMELL-TS-IMPORT-TYPE",
+      "name": "Missing import type",
+      "rule_ref": "TS-012",
+      "summary": "Value import used only in type positions.",
+      "focus": "build"
+    }
+  ]
+}

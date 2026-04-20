@@ -1,0 +1,304 @@
+{
+  "$schema": "https://www.mergecore.dev/schemas/go-rules.schema.json",
+  "meta": {
+    "pack_id": "mergecore-go-rules",
+    "pack_version": "1.0.0",
+    "locale": "en-GB",
+    "title": "MergeCore Go Rules",
+    "description": "Rules for production Go: errors, context, goroutines, channels, and stdlib idioms.",
+    "notes": "Gate with go: true. Assumes Go 1.21+."
+  },
+  "severity_levels": {
+    "info": {
+      "rank": 1,
+      "label": "Informational",
+      "default_penalty": 0.15
+    },
+    "hint": {
+      "rank": 2,
+      "label": "Style or maintainability",
+      "default_penalty": 0.25
+    },
+    "warning": {
+      "rank": 3,
+      "label": "Likely defect or performance risk",
+      "default_penalty": 0.55
+    },
+    "error": {
+      "rank": 4,
+      "label": "High risk (correctness or resource leak)",
+      "default_penalty": 0.85
+    },
+    "critical": {
+      "rank": 5,
+      "label": "Critical (data race or deadlock)",
+      "default_penalty": 1.2
+    }
+  },
+  "scoring": {
+    "scale_max": 10,
+    "initial_score": 10,
+    "aggregation": "subtract_penalties_with_cap",
+    "penalty_source": "rule.penalty overrides severity_levels[severity].default_penalty when present",
+    "max_total_penalty_per_file": 10,
+    "normalisation": "Per review unit (one .go file), sum penalties after optional quality_signal multiplier, then score = max(0, min(10, initial_score - min(sum_penalties, max_total_penalty_per_file))).",
+    "quality_signal_adjustment": {
+      "junior": 1,
+      "risky": 1.15,
+      "overengineered": 0.85,
+      "senior_positive": -0.35
+    },
+    "interpretation": {
+      "9_to_10": "Errors wrapped, context threaded, goroutines bounded.",
+      "7_to_8": "Mergeable; tighten error messages or add context to a call site.",
+      "5_to_6": "Risky: swallowed errors, missing defer, or goroutine leaks.",
+      "0_to_4": "Block: data races, unbounded goroutines, or nil-map writes."
+    }
+  },
+  "rules": [
+    {
+      "id": "GO-001",
+      "category": "errors",
+      "severity": "error",
+      "quality_signal": "risky",
+      "title": "Discarded error with _ or bare return",
+      "description": "Assigning the error return to _ or ignoring it hides failures. Handle, wrap with fmt.Errorf(\"%w\"), or return.",
+      "penalty": 0.7,
+      "detection": {
+        "file_globs": [
+          "**/*.go"
+        ],
+        "patterns": [
+          "/,\\s*_\\s*:?=\\s*\\w+\\(/"
+        ],
+        "prefer": [
+          "if err != nil { return fmt.Errorf(\"...: %w\", err) }"
+        ]
+      }
+    },
+    {
+      "id": "GO-002",
+      "category": "context",
+      "severity": "warning",
+      "quality_signal": "risky",
+      "title": "context.Background inside a request path",
+      "description": "Handlers and downstream calls should receive a ctx from the caller. Creating context.Background() mid-chain breaks cancellation and deadlines.",
+      "penalty": 0.55,
+      "detection": {
+        "file_globs": [
+          "**/*.go"
+        ],
+        "patterns": [
+          "/context\\.Background\\(\\)/"
+        ],
+        "heuristics": [
+          "Function signature accepts ctx but a fresh Background is used for an outbound call"
+        ]
+      }
+    },
+    {
+      "id": "GO-003",
+      "category": "concurrency",
+      "severity": "error",
+      "quality_signal": "risky",
+      "title": "Goroutine launched without bounded lifecycle",
+      "description": "go f() without a WaitGroup, context, or channel tying its lifetime to the caller leaks work and complicates shutdown.",
+      "penalty": 0.75,
+      "detection": {
+        "file_globs": [
+          "**/*.go"
+        ],
+        "patterns": [
+          "/\\bgo\\s+\\w+\\(/"
+        ],
+        "absence_preferred": [
+          "sync.WaitGroup",
+          "ctx.Done",
+          "errgroup"
+        ]
+      }
+    },
+    {
+      "id": "GO-004",
+      "category": "concurrency",
+      "severity": "warning",
+      "quality_signal": "risky",
+      "title": "Loop variable captured in closure",
+      "description": "Before Go 1.22 the loop variable was shared across iterations, a classic source of bugs. Even in newer versions, be explicit when capturing inside `go func(){}` or deferred calls.",
+      "penalty": 0.5,
+      "detection": {
+        "file_globs": [
+          "**/*.go"
+        ],
+        "patterns": [
+          "/for\\s+\\w+\\s*,\\s*\\w+\\s*:=\\s*range[\\s\\S]*?go\\s+func\\(\\)/",
+          "/for\\s+\\w+\\s*:=[\\s\\S]*?go\\s+func\\(\\)\\s*\\{[^}]*\\1[^}]*\\}/"
+        ],
+        "prefer": [
+          "pass as argument or re-declare inside the loop body"
+        ]
+      }
+    },
+    {
+      "id": "GO-005",
+      "category": "resources",
+      "severity": "warning",
+      "quality_signal": "risky",
+      "title": "Open resource without defer close",
+      "description": "os.Open, http.Client Do response body, sql.Rows, and other closables should be deferred closed immediately after the error check.",
+      "penalty": 0.55,
+      "detection": {
+        "file_globs": [
+          "**/*.go"
+        ],
+        "patterns": [
+          "/(os\\.Open|http\\.Get|http\\.Post|db\\.Query)\\([^)]*\\)/"
+        ],
+        "absence_preferred": [
+          "defer\\s+\\w+\\.(Close|Body\\.Close)"
+        ]
+      }
+    },
+    {
+      "id": "GO-006",
+      "category": "errors",
+      "severity": "warning",
+      "quality_signal": "risky",
+      "title": "Error compared with == instead of errors.Is",
+      "description": "Wrapped errors (%w) do not equal their sentinel with ==. Use errors.Is for sentinels and errors.As for typed errors.",
+      "penalty": 0.4,
+      "detection": {
+        "file_globs": [
+          "**/*.go"
+        ],
+        "patterns": [
+          "/err\\s*==\\s*\\w+Err\\w*/",
+          "/err\\s*==\\s*io\\.EOF/"
+        ],
+        "prefer": [
+          "errors.Is",
+          "errors.As"
+        ]
+      }
+    },
+    {
+      "id": "GO-007",
+      "category": "interfaces",
+      "severity": "hint",
+      "quality_signal": "overengineered",
+      "title": "Interface defined on the producer side",
+      "description": "Idiomatic Go places interfaces at the consumer. Large interfaces in packages that implement them encourage unnecessary coupling.",
+      "penalty": 0.25,
+      "detection": {
+        "file_globs": [
+          "**/*.go"
+        ],
+        "heuristics": [
+          "Package defines an interface and the only implementation in the same package"
+        ]
+      }
+    },
+    {
+      "id": "GO-008",
+      "category": "concurrency",
+      "severity": "critical",
+      "quality_signal": "risky",
+      "title": "Shared map written without synchronisation",
+      "description": "Concurrent map writes trigger a runtime fatal error. Guard with a mutex or use sync.Map with care.",
+      "penalty": 1.1,
+      "detection": {
+        "file_globs": [
+          "**/*.go"
+        ],
+        "patterns": [
+          "/\\w+\\[\\w+\\]\\s*=/"
+        ],
+        "heuristics": [
+          "Map assignment inside a goroutine without sync.Mutex"
+        ]
+      }
+    },
+    {
+      "id": "GO-009",
+      "category": "http",
+      "severity": "warning",
+      "quality_signal": "risky",
+      "title": "http.Client with no timeout in production",
+      "description": "The zero-value http.Client has no timeout. Use a configured client with Timeout or per-request context deadlines.",
+      "penalty": 0.5,
+      "detection": {
+        "file_globs": [
+          "**/*.go"
+        ],
+        "patterns": [
+          "/http\\.Get\\(",
+          "/http\\.Post\\(",
+          "/http\\.Client\\{\\}/"
+        ],
+        "prefer": [
+          "&http.Client{Timeout: ...}",
+          "context with deadline"
+        ]
+      }
+    },
+    {
+      "id": "GO-010",
+      "category": "security",
+      "severity": "error",
+      "quality_signal": "risky",
+      "title": "SQL query built with string concatenation",
+      "description": "Concatenating user input into SQL is injection. Use parameterised queries via database/sql or a query builder.",
+      "penalty": 0.95,
+      "detection": {
+        "file_globs": [
+          "**/*.go"
+        ],
+        "patterns": [
+          "/(db|tx)\\.(Exec|Query|QueryRow)\\([^,)]*\\+\\s*\\w+/",
+          "/fmt\\.Sprintf\\([\"'][^\"']*SELECT[\\s\\S]*?%s/"
+        ],
+        "prefer": [
+          "?",
+          "$1 placeholders"
+        ]
+      }
+    },
+    {
+      "id": "GO-011",
+      "category": "errors",
+      "severity": "hint",
+      "quality_signal": "senior_positive",
+      "title": "Strong pattern: wrapped error with context",
+      "description": "fmt.Errorf with %w and a meaningful prefix keeps the sentinel relationship and aids debugging.",
+      "penalty": -0.3,
+      "detection": {
+        "file_globs": [
+          "**/*.go"
+        ],
+        "patterns": [
+          "/fmt\\.Errorf\\([\"'][^\"']*:\\s*%w[\"']/"
+        ]
+      }
+    },
+    {
+      "id": "GO-012",
+      "category": "style",
+      "severity": "info",
+      "quality_signal": "junior",
+      "title": "Panic used for ordinary error paths",
+      "description": "panic should signal programmer error or unrecoverable state. Return error values for expected failures.",
+      "penalty": 0.2,
+      "detection": {
+        "file_globs": [
+          "**/*.go"
+        ],
+        "patterns": [
+          "/panic\\([^)]*err[^)]*\\)/"
+        ],
+        "prefer": [
+          "return error"
+        ]
+      }
+    }
+  ]
+}

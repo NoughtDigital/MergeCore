@@ -1,0 +1,22 @@
+{
+  "pack_id": "mergecore-tauri-rules",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "locale": "en-GB",
+  "title": "MergeCore Tauri Rules",
+  "description": "Production Tauri: capability hygiene, IPC validation, safe shell/fs use, and webview boundaries.",
+  "rubric_schema": "https://www.mergecore.dev/schemas/tauri-rules.schema.json",
+  "artifacts": {
+    "rubric": "rubric.json",
+    "smells": "smells.json",
+    "agents": "agents.md"
+  },
+  "tags": [
+    "tauri",
+    "rust",
+    "desktop",
+    "webview"
+  ],
+  "extends": [],
+  "notes": "Gate with tauri: true when tauri.conf.json, src-tauri/, or tauri in dependencies is present. Assumes Tauri 2.x; confirm before applying 1.x-specific suggestions."
+}

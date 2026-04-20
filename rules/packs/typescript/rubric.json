@@ -1,0 +1,325 @@
+{
+  "$schema": "https://www.mergecore.dev/schemas/typescript-rules.schema.json",
+  "meta": {
+    "pack_id": "mergecore-typescript-rules",
+    "pack_version": "1.0.0",
+    "locale": "en-GB",
+    "title": "MergeCore TypeScript Rules",
+    "description": "Rules for TypeScript: strictness, narrowing, sound generics, safe assertions, and API boundary typing.",
+    "notes": "Gate with typescript: true. Many rules assume strict mode; confirm tsconfig compatibility before flagging."
+  },
+  "severity_levels": {
+    "info": {
+      "rank": 1,
+      "label": "Informational",
+      "default_penalty": 0.15
+    },
+    "hint": {
+      "rank": 2,
+      "label": "Style or maintainability",
+      "default_penalty": 0.25
+    },
+    "warning": {
+      "rank": 3,
+      "label": "Likely defect or soundness hole",
+      "default_penalty": 0.55
+    },
+    "error": {
+      "rank": 4,
+      "label": "High risk (type escape or runtime crash)",
+      "default_penalty": 0.85
+    },
+    "critical": {
+      "rank": 5,
+      "label": "Critical (widespread unsafe boundary)",
+      "default_penalty": 1.2
+    }
+  },
+  "scoring": {
+    "scale_max": 10,
+    "initial_score": 10,
+    "aggregation": "subtract_penalties_with_cap",
+    "penalty_source": "rule.penalty overrides severity_levels[severity].default_penalty when present",
+    "max_total_penalty_per_file": 10,
+    "normalisation": "Per review unit (one TypeScript file), sum penalties after optional quality_signal multiplier, then score = max(0, min(10, initial_score - min(sum_penalties, max_total_penalty_per_file))).",
+    "quality_signal_adjustment": {
+      "junior": 1,
+      "risky": 1.15,
+      "overengineered": 0.85,
+      "senior_positive": -0.35
+    },
+    "interpretation": {
+      "9_to_10": "Sound types, narrow boundaries, no any leakage.",
+      "7_to_8": "Solid; tighten a few assertions or widen input validation.",
+      "5_to_6": "Risky: any sprinkled in, non-null assertions without proof, unchecked JSON.",
+      "0_to_4": "Block: unsafe API boundaries or pervasive type escapes."
+    }
+  },
+  "rules": [
+    {
+      "id": "TS-001",
+      "category": "types",
+      "severity": "warning",
+      "quality_signal": "risky",
+      "title": "Use of any escapes the type system",
+      "description": "Prefer unknown with explicit narrowing for untrusted data. Reserve any for well-documented, temporary boundary code.",
+      "penalty": 0.55,
+      "detection": {
+        "file_globs": [
+          "**/*.ts",
+          "**/*.tsx"
+        ],
+        "patterns": [
+          "/:\\s*any(\\b|\\[)/",
+          "/<any>/",
+          "/as\\s+any\\b/"
+        ],
+        "prefer": [
+          "unknown",
+          "generics",
+          "discriminated unions"
+        ]
+      },
+      "examples": {
+        "before": "function parse(input: any) { return input.value; }",
+        "after": "function parse(input: unknown): string { if (typeof input === 'object' && input && 'value' in input) return String((input as { value: unknown }).value); throw new Error('bad input'); }"
+      }
+    },
+    {
+      "id": "TS-002",
+      "category": "types",
+      "severity": "warning",
+      "quality_signal": "risky",
+      "title": "Non-null assertion without runtime proof",
+      "description": "The ! operator silences the type checker but not runtime. Prefer guards, invariant(), or proper narrowing.",
+      "penalty": 0.45,
+      "detection": {
+        "file_globs": [
+          "**/*.ts",
+          "**/*.tsx"
+        ],
+        "patterns": [
+          "/\\w+!\\.[\\w[]/"
+        ],
+        "heuristics": [
+          "Asserted value comes from a lookup, find, or optional chain"
+        ]
+      },
+      "examples": {
+        "before": "const user = users.find(u => u.id === id)!; return user.email;",
+        "after": "const user = users.find(u => u.id === id); if (!user) throw new Error('not found'); return user.email;"
+      }
+    },
+    {
+      "id": "TS-003",
+      "category": "assertions",
+      "severity": "warning",
+      "quality_signal": "risky",
+      "title": "Structural cast from untrusted input",
+      "description": "Casting JSON or form data with as T trusts the producer without verification. Validate with a schema (zod, valibot, io-ts) at the boundary.",
+      "penalty": 0.55,
+      "detection": {
+        "file_globs": [
+          "**/*.ts",
+          "**/*.tsx"
+        ],
+        "patterns": [
+          "/as\\s+[A-Z]\\w+[\\s<]/",
+          "/JSON\\.parse\\([^)]*\\)\\s*as\\s+\\w+/"
+        ],
+        "prefer": [
+          "zod.parse",
+          "validator.safeParse",
+          "explicit type guard"
+        ]
+      }
+    },
+    {
+      "id": "TS-004",
+      "category": "null-safety",
+      "severity": "hint",
+      "quality_signal": "junior",
+      "title": "Disabled strict null checks in surface code",
+      "description": "Turning off strictNullChecks hides real defects. If a single file needs escape hatches, scope them narrowly rather than weakening config.",
+      "penalty": 0.35,
+      "detection": {
+        "file_globs": [
+          "tsconfig*.json"
+        ],
+        "patterns": [
+          "/\"strictNullChecks\"\\s*:\\s*false/",
+          "/\"strict\"\\s*:\\s*false/"
+        ]
+      }
+    },
+    {
+      "id": "TS-005",
+      "category": "generics",
+      "severity": "hint",
+      "quality_signal": "overengineered",
+      "title": "Generic parameter unused or unconstrained",
+      "description": "A generic with no usage or no bound offers no safety. Drop it, constrain it (extends), or accept the concrete type.",
+      "penalty": 0.25,
+      "detection": {
+        "file_globs": [
+          "**/*.ts",
+          "**/*.tsx"
+        ],
+        "patterns": [
+          "/function\\s+\\w+<[A-Z]\\w*>\\([^)]*\\)\\s*:\\s*(void|[A-Z]\\w+)\\s*\\{/"
+        ],
+        "heuristics": [
+          "Type parameter not used in argument or return"
+        ]
+      }
+    },
+    {
+      "id": "TS-006",
+      "category": "enums",
+      "severity": "hint",
+      "quality_signal": "overengineered",
+      "title": "Numeric enum where string union suffices",
+      "description": "Numeric enums generate runtime objects and permit unintended arithmetic. Prefer const union types for stable, serialisable values.",
+      "penalty": 0.2,
+      "detection": {
+        "file_globs": [
+          "**/*.ts",
+          "**/*.tsx"
+        ],
+        "patterns": [
+          "/enum\\s+\\w+\\s*\\{[^=}]+\\}/"
+        ],
+        "prefer": [
+          "const as",
+          "type Foo = 'a' | 'b'"
+        ]
+      }
+    },
+    {
+      "id": "TS-007",
+      "category": "api-boundary",
+      "severity": "error",
+      "quality_signal": "risky",
+      "title": "External response typed without validation",
+      "description": "Assigning fetch().json() to a typed variable trusts upstream shape. Validate at the boundary to contain breakage.",
+      "penalty": 0.7,
+      "detection": {
+        "file_globs": [
+          "**/*.ts",
+          "**/*.tsx"
+        ],
+        "patterns": [
+          "/await\\s+\\w+\\.json\\(\\)\\s*as\\s+\\w+/",
+          "/:\\s*Promise<[^>]+>\\s*=[^=][^;]*fetch\\(/"
+        ],
+        "prefer": [
+          "zod.safeParse",
+          "runtime schema"
+        ]
+      }
+    },
+    {
+      "id": "TS-008",
+      "category": "promises",
+      "severity": "warning",
+      "quality_signal": "risky",
+      "title": "Floating promise (no await, no handler)",
+      "description": "Unawaited promises swallow errors and reorder execution. Await, return, or attach a terminal handler.",
+      "penalty": 0.5,
+      "detection": {
+        "file_globs": [
+          "**/*.ts",
+          "**/*.tsx"
+        ],
+        "patterns": [
+          "/^\\s*\\w+\\(\\)[\\s\\S]*?;\\s*\\/\\/.*floating/"
+        ],
+        "heuristics": [
+          "Async function called without await, return, or .catch at statement position"
+        ]
+      }
+    },
+    {
+      "id": "TS-009",
+      "category": "types",
+      "severity": "hint",
+      "quality_signal": "junior",
+      "title": "Overuse of object or Object type",
+      "description": "The Object/object types are rarely what you mean and allow unsafe property access. Prefer a named interface or Record<string, T>.",
+      "penalty": 0.25,
+      "detection": {
+        "file_globs": [
+          "**/*.ts",
+          "**/*.tsx"
+        ],
+        "patterns": [
+          "/:\\s*(object|Object)\\b/"
+        ],
+        "prefer": [
+          "Record<string, unknown>",
+          "named interface"
+        ]
+      }
+    },
+    {
+      "id": "TS-010",
+      "category": "narrowing",
+      "severity": "hint",
+      "quality_signal": "senior_positive",
+      "title": "Strong pattern: user-defined type guard",
+      "description": "Predicate functions with `x is T` return types make narrowing explicit and auditable.",
+      "penalty": -0.3,
+      "detection": {
+        "file_globs": [
+          "**/*.ts",
+          "**/*.tsx"
+        ],
+        "patterns": [
+          "/function\\s+\\w+\\s*\\([^)]+\\)\\s*:\\s*\\w+\\s+is\\s+\\w+/"
+        ]
+      }
+    },
+    {
+      "id": "TS-011",
+      "category": "maintainability",
+      "severity": "hint",
+      "quality_signal": "overengineered",
+      "title": "Deeply conditional types for simple mapping",
+      "description": "Complex conditional types increase compile time and cognitive load. Use a straightforward interface when the mapping is fixed.",
+      "penalty": 0.2,
+      "detection": {
+        "file_globs": [
+          "**/*.ts",
+          "**/*.tsx"
+        ],
+        "patterns": [
+          "/type\\s+\\w+<[\\s\\S]*?>\\s*=\\s*[\\s\\S]*?extends[\\s\\S]*?\\?[\\s\\S]*?:[\\s\\S]*?extends/"
+        ],
+        "heuristics": [
+          "Three or more nested conditional layers"
+        ]
+      }
+    },
+    {
+      "id": "TS-012",
+      "category": "imports",
+      "severity": "info",
+      "quality_signal": "junior",
+      "title": "Type-only import not marked as type",
+      "description": "import type avoids emitting imports that have runtime side effects and clarifies intent. Helps bundlers and isolatedModules.",
+      "penalty": 0.15,
+      "detection": {
+        "file_globs": [
+          "**/*.ts",
+          "**/*.tsx"
+        ],
+        "patterns": [
+          "/import\\s+\\{[^}]*\\}\\s+from\\s+['\"]/"
+        ],
+        "heuristics": [
+          "Imported binding is used only in type positions"
+        ]
+      }
+    }
+  ]
+}

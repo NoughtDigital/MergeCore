@@ -1,0 +1,301 @@
+{
+  "$schema": "https://www.mergecore.dev/schemas/swiftui-rules.schema.json",
+  "meta": {
+    "pack_id": "mergecore-swiftui-rules",
+    "pack_version": "1.0.0",
+    "locale": "en-GB",
+    "title": "MergeCore SwiftUI Rules",
+    "description": "Rules for SwiftUI views: state ownership, identity, lists, accessibility, and render performance.",
+    "notes": "Gate with swiftui: true. Complements mergecore-swift-rules."
+  },
+  "severity_levels": {
+    "info": {
+      "rank": 1,
+      "label": "Informational",
+      "default_penalty": 0.15
+    },
+    "hint": {
+      "rank": 2,
+      "label": "Style or maintainability",
+      "default_penalty": 0.25
+    },
+    "warning": {
+      "rank": 3,
+      "label": "Likely defect or render glitch",
+      "default_penalty": 0.55
+    },
+    "error": {
+      "rank": 4,
+      "label": "High risk (crashes or bad UX)",
+      "default_penalty": 0.85
+    },
+    "critical": {
+      "rank": 5,
+      "label": "Critical (broken state ownership)",
+      "default_penalty": 1.2
+    }
+  },
+  "scoring": {
+    "scale_max": 10,
+    "initial_score": 10,
+    "aggregation": "subtract_penalties_with_cap",
+    "penalty_source": "rule.penalty overrides severity_levels[severity].default_penalty when present",
+    "max_total_penalty_per_file": 10,
+    "normalisation": "Per review unit (one View struct), sum penalties after optional quality_signal multiplier, then score = max(0, min(10, initial_score - min(sum_penalties, max_total_penalty_per_file))).",
+    "quality_signal_adjustment": {
+      "junior": 1,
+      "risky": 1.15,
+      "overengineered": 0.85,
+      "senior_positive": -0.35
+    },
+    "interpretation": {
+      "9_to_10": "Correct property wrappers, stable identity, accessible surfaces.",
+      "7_to_8": "Shippable; tighten a binding or list identity.",
+      "5_to_6": "Risky: @State in the wrong view, mutated across parents, shaky identity.",
+      "0_to_4": "Block: broken ownership causing data loss or crashes."
+    }
+  },
+  "rules": [
+    {
+      "id": "SUI-001",
+      "category": "state",
+      "severity": "warning",
+      "quality_signal": "risky",
+      "title": "@State used for data that lives outside the view",
+      "description": "@State is for view-local, ephemeral state. Data owned elsewhere should be @Binding, @ObservedObject, @StateObject, or a modern @Observable model.",
+      "penalty": 0.6,
+      "swiftui": true,
+      "detection": {
+        "file_globs": [
+          "**/*.swift"
+        ],
+        "patterns": [
+          "/@State\\s+(private\\s+)?var\\s+\\w+\\s*:\\s*(\\w+Model|\\w+ViewModel)/"
+        ]
+      }
+    },
+    {
+      "id": "SUI-002",
+      "category": "state",
+      "severity": "error",
+      "quality_signal": "risky",
+      "title": "@ObservedObject used to create a new object in a view",
+      "description": "@ObservedObject does not own its instance; creating one inline is recreated on every render. Use @StateObject for creation, @ObservedObject for injection.",
+      "penalty": 0.75,
+      "swiftui": true,
+      "detection": {
+        "file_globs": [
+          "**/*.swift"
+        ],
+        "patterns": [
+          "/@ObservedObject\\s+var\\s+\\w+\\s*=\\s*\\w+\\(/"
+        ]
+      },
+      "examples": {
+        "before": "@ObservedObject var model = VM()",
+        "after": "@StateObject private var model = VM() // owner\n@ObservedObject var model: VM // consumer"
+      }
+    },
+    {
+      "id": "SUI-003",
+      "category": "identity",
+      "severity": "warning",
+      "quality_signal": "risky",
+      "title": "ForEach over non-identifiable collection without id",
+      "description": "Without stable identity, SwiftUI re-uses views incorrectly when collections change. Conform to Identifiable or use id:.",
+      "penalty": 0.5,
+      "swiftui": true,
+      "detection": {
+        "file_globs": [
+          "**/*.swift"
+        ],
+        "patterns": [
+          "/ForEach\\(\\s*\\w+\\s*\\)/"
+        ],
+        "absence_preferred": [
+          "id:\\s*\\\\.",
+          "Identifiable"
+        ]
+      }
+    },
+    {
+      "id": "SUI-004",
+      "category": "performance",
+      "severity": "warning",
+      "quality_signal": "risky",
+      "title": "Expensive work in body or property initialiser",
+      "description": "body runs many times. Network calls, heavy computations, or allocations in body cause jank. Compute in a model or .task/.onAppear.",
+      "penalty": 0.5,
+      "swiftui": true,
+      "detection": {
+        "file_globs": [
+          "**/*.swift"
+        ],
+        "patterns": [
+          "/var\\s+body\\s*:\\s*some\\s+View\\s*\\{[\\s\\S]*?URLSession\\.shared/"
+        ],
+        "prefer": [
+          ".task",
+          ".onAppear",
+          "async let"
+        ]
+      }
+    },
+    {
+      "id": "SUI-005",
+      "category": "async",
+      "severity": "hint",
+      "quality_signal": "junior",
+      "title": ".onAppear used where .task is clearer",
+      "description": ".task binds an async lifetime to the view and cancels automatically. Use it for fetches that should stop when the view disappears.",
+      "penalty": 0.25,
+      "swiftui": true,
+      "detection": {
+        "file_globs": [
+          "**/*.swift"
+        ],
+        "patterns": [
+          "/\\.onAppear\\s*\\{\\s*Task\\s*\\{/"
+        ],
+        "prefer": [
+          ".task { ... }"
+        ]
+      }
+    },
+    {
+      "id": "SUI-006",
+      "category": "accessibility",
+      "severity": "warning",
+      "quality_signal": "junior",
+      "title": "Interactive or meaningful element missing accessibility label",
+      "description": "Images used as buttons, custom controls, and icon-only Buttons need .accessibilityLabel so VoiceOver can describe them.",
+      "penalty": 0.4,
+      "swiftui": true,
+      "detection": {
+        "file_globs": [
+          "**/*.swift"
+        ],
+        "patterns": [
+          "/Button\\s*\\{[^}]*Image\\(/"
+        ],
+        "absence_preferred": [
+          ".accessibilityLabel"
+        ]
+      }
+    },
+    {
+      "id": "SUI-007",
+      "category": "navigation",
+      "severity": "hint",
+      "quality_signal": "junior",
+      "title": "Legacy NavigationView in new code",
+      "description": "NavigationView is deprecated in favour of NavigationStack/NavigationSplitView, which have clearer lifecycle and programmatic paths.",
+      "penalty": 0.3,
+      "swiftui": true,
+      "detection": {
+        "file_globs": [
+          "**/*.swift"
+        ],
+        "patterns": [
+          "/NavigationView\\s*\\{/"
+        ]
+      }
+    },
+    {
+      "id": "SUI-008",
+      "category": "layout",
+      "severity": "hint",
+      "quality_signal": "overengineered",
+      "title": "GeometryReader wrapping entire content tree",
+      "description": "GeometryReader claims all available space, often producing unexpected layout. Reach for it only where proposed size is truly needed.",
+      "penalty": 0.25,
+      "swiftui": true,
+      "detection": {
+        "file_globs": [
+          "**/*.swift"
+        ],
+        "patterns": [
+          "/var\\s+body\\s*:\\s*some\\s+View\\s*\\{\\s*GeometryReader/"
+        ]
+      }
+    },
+    {
+      "id": "SUI-009",
+      "category": "preview",
+      "severity": "info",
+      "quality_signal": "junior",
+      "title": "Preview provider absent for new views",
+      "description": "#Preview or PreviewProvider speeds iteration and guards against regressions. Add at least one representative preview.",
+      "penalty": 0.15,
+      "swiftui": true,
+      "detection": {
+        "file_globs": [
+          "**/*.swift"
+        ],
+        "patterns": [
+          "/struct\\s+\\w+View\\s*:\\s*View/"
+        ],
+        "absence_preferred": [
+          "#Preview",
+          "PreviewProvider"
+        ]
+      }
+    },
+    {
+      "id": "SUI-010",
+      "category": "state",
+      "severity": "hint",
+      "quality_signal": "senior_positive",
+      "title": "Strong pattern: @Observable model with @Bindable",
+      "description": "The Observation framework (@Observable, @Bindable) yields precise invalidation and cleaner view code.",
+      "penalty": -0.3,
+      "swiftui": true,
+      "detection": {
+        "file_globs": [
+          "**/*.swift"
+        ],
+        "patterns": [
+          "/@Observable\\s+(final\\s+)?class\\s+/",
+          "/@Bindable\\s+var\\s+/"
+        ]
+      }
+    },
+    {
+      "id": "SUI-011",
+      "category": "modifiers",
+      "severity": "hint",
+      "quality_signal": "junior",
+      "title": "Modifier order that changes semantics misused",
+      "description": "SwiftUI modifier order matters (.frame before .background etc.). When the visual result disagrees with the intent, consider order.",
+      "penalty": 0.2,
+      "swiftui": true,
+      "detection": {
+        "file_globs": [
+          "**/*.swift"
+        ],
+        "heuristics": [
+          "Comment indicates styling bug",
+          "Layered modifiers where order is suspect"
+        ]
+      }
+    },
+    {
+      "id": "SUI-012",
+      "category": "environment",
+      "severity": "hint",
+      "quality_signal": "overengineered",
+      "title": "Environment injection for view-local values",
+      "description": "@Environment/@EnvironmentObject for data used only in one subtree adds indirection. Pass via init parameters where the scope is narrow.",
+      "penalty": 0.2,
+      "swiftui": true,
+      "detection": {
+        "file_globs": [
+          "**/*.swift"
+        ],
+        "patterns": [
+          "/@EnvironmentObject\\s+var\\s+\\w+/"
+        ]
+      }
+    }
+  ]
+}

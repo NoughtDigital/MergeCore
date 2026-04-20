@@ -9,11 +9,31 @@
     "notes": "Confirm each finding against framework version, installed packages, and project conventions. Penalties are applied by the host engine; this file defines intent and traceability."
   },
   "severity_levels": {
-    "info": { "rank": 1, "label": "Informational", "default_penalty": 0.15 },
-    "hint": { "rank": 2, "label": "Style or maintainability", "default_penalty": 0.25 },
-    "warning": { "rank": 3, "label": "Likely defect or security risk", "default_penalty": 0.55 },
-    "error": { "rank": 4, "label": "High risk or incorrect framework use", "default_penalty": 0.85 },
-    "critical": { "rank": 5, "label": "Exploitable or data-loss class risk", "default_penalty": 1.2 }
+    "info": {
+      "rank": 1,
+      "label": "Informational",
+      "default_penalty": 0.15
+    },
+    "hint": {
+      "rank": 2,
+      "label": "Style or maintainability",
+      "default_penalty": 0.25
+    },
+    "warning": {
+      "rank": 3,
+      "label": "Likely defect or security risk",
+      "default_penalty": 0.55
+    },
+    "error": {
+      "rank": 4,
+      "label": "High risk or incorrect framework use",
+      "default_penalty": 0.85
+    },
+    "critical": {
+      "rank": 5,
+      "label": "Exploitable or data-loss class risk",
+      "default_penalty": 1.2
+    }
   },
   "scoring": {
     "scale_max": 10,
@@ -23,7 +43,7 @@
     "max_total_penalty_per_file": 10,
     "normalisation": "After summing penalties for matched rules in one review unit, score = max(0, min(10, initial_score - min(sum_penalties, max_total_penalty_per_file))).",
     "quality_signal_adjustment": {
-      "junior": 1.0,
+      "junior": 1,
       "risky": 1.15,
       "overengineered": 0.85,
       "senior_positive": -0.35
@@ -45,8 +65,14 @@
       "description": "Controllers should orchestrate HTTP concerns. Heavy domain logic belongs in actions, services, or domain classes to keep requests testable and cohesive.",
       "penalty": 0.25,
       "detection": {
-        "file_globs": ["app/Http/Controllers/**/*.php"],
-        "heuristics": ["Method exceeds ~40 lines", "Multiple database writes in one action", "Nested condition depth > 3"]
+        "file_globs": [
+          "app/Http/Controllers/**/*.php"
+        ],
+        "heuristics": [
+          "Method exceeds ~40 lines",
+          "Multiple database writes in one action",
+          "Nested condition depth > 3"
+        ]
       },
       "examples": {
         "before": "public function store(Request $request) { /* validation, persistence, mail, analytics in one block */ }",
@@ -67,7 +93,11 @@
           "/::create\\(\\$request->all\\(\\)\\)/",
           "/::update\\(\\$request->all\\(\\)\\)/"
         ],
-        "prefer": ["Form Request", "$request->validated()", "explicit DTO mapping"]
+        "prefer": [
+          "Form Request",
+          "$request->validated()",
+          "explicit DTO mapping"
+        ]
       }
     },
     {
@@ -79,8 +109,12 @@
       "description": "Repeated $request->validate([...]) scatters rules and blocks reuse from jobs, commands, and CLI entry points.",
       "penalty": 0.45,
       "detection": {
-        "patterns": ["/\\$request->validate\\s*\\(/"],
-        "prefer": ["FormRequest type-hint"]
+        "patterns": [
+          "/\\$request->validate\\s*\\(/"
+        ],
+        "prefer": [
+          "FormRequest type-hint"
+        ]
       }
     },
     {
@@ -92,8 +126,13 @@
       "description": "Destructive routes should be gated by policies, gates, or middleware that map to explicit abilities.",
       "penalty": 0.9,
       "detection": {
-        "file_globs": ["app/Http/Controllers/**/*.php", "routes/*.php"],
-        "heuristics": ["Delete/put/patch without authorisation middleware or $this->authorize"]
+        "file_globs": [
+          "app/Http/Controllers/**/*.php",
+          "routes/*.php"
+        ],
+        "heuristics": [
+          "Delete/put/patch without authorisation middleware or $this->authorize"
+        ]
       }
     },
     {
@@ -105,8 +144,14 @@
       "description": "Repeated role or ownership checks drift from policies and make refactors hazardous.",
       "penalty": 0.25,
       "detection": {
-        "patterns": ["/\\$request->user\\(\\)->role\\s*===/"],
-        "prefer": ["Policy", "@can", "Gate::authorize"]
+        "patterns": [
+          "/\\$request->user\\(\\)->role\\s*===/"
+        ],
+        "prefer": [
+          "Policy",
+          "@can",
+          "Gate::authorize"
+        ]
       }
     },
     {
@@ -118,8 +163,14 @@
       "description": "Accessing lazy-loaded relations inside a loop causes N+1 queries and unstable latency under load.",
       "penalty": 0.55,
       "detection": {
-        "patterns": ["/foreach\\s*\\([^)]*\\)\\s*\\{[^}]*->\\w+/"],
-        "prefer": ["with(", "load(", "loadMissing("]
+        "patterns": [
+          "/foreach\\s*\\([^)]*\\)\\s*\\{[^}]*->\\w+/"
+        ],
+        "prefer": [
+          "with(",
+          "load(",
+          "loadMissing("
+        ]
       }
     },
     {
@@ -131,8 +182,13 @@
       "description": "Missing pagination or limits risks memory exhaustion and slow responses.",
       "penalty": 0.5,
       "detection": {
-        "patterns": ["/::all\\(\\)/", "/::get\\(\\)\\s*;/"],
-        "context": ["Controller or query returning large tables"]
+        "patterns": [
+          "/::all\\(\\)/",
+          "/::get\\(\\)\\s*;/"
+        ],
+        "context": [
+          "Controller or query returning large tables"
+        ]
       }
     },
     {
@@ -142,10 +198,16 @@
       "quality_signal": "risky",
       "title": "Raw SQL without safe bindings",
       "description": "DB::raw / whereRaw with string concatenation invites SQL injection.",
-      "penalty": 1.0,
+      "penalty": 1,
       "detection": {
-        "patterns": ["/DB::raw\\s*\\(\\s*[\"'].*\\$/", "/whereRaw\\s*\\(\\s*[\"'][^?]*\\$/"],
-        "prefer": ["parameter binding", "query builder"]
+        "patterns": [
+          "/DB::raw\\s*\\(\\s*[\"'].*\\$/",
+          "/whereRaw\\s*\\(\\s*[\"'][^?]*\\$/"
+        ],
+        "prefer": [
+          "parameter binding",
+          "query builder"
+        ]
       }
     },
     {
@@ -157,8 +219,12 @@
       "description": "Retries can duplicate charges, e-mails, or rows unless the handler is idempotent or guarded by unique constraints.",
       "penalty": 0.6,
       "detection": {
-        "file_globs": ["app/Jobs/**/*.php"],
-        "heuristics": ["External side effects without idempotency key"]
+        "file_globs": [
+          "app/Jobs/**/*.php"
+        ],
+        "heuristics": [
+          "External side effects without idempotency key"
+        ]
       }
     },
     {
@@ -170,8 +236,13 @@
       "description": "Long outbound calls in HTTP requests hurt tail latency; queue with explicit failure handling where appropriate.",
       "penalty": 0.3,
       "detection": {
-        "file_globs": ["app/Http/Controllers/**/*.php"],
-        "patterns": ["/Http::(timeout\\()?\\d{2,}/", "/sleep\\(/"]
+        "file_globs": [
+          "app/Http/Controllers/**/*.php"
+        ],
+        "patterns": [
+          "/Http::(timeout\\()?\\d{2,}/",
+          "/sleep\\(/"
+        ]
       }
     },
     {
@@ -183,9 +254,15 @@
       "description": "Jobs should define sensible retries/backoff and failed handling; silent loss is a production incident waiting to happen.",
       "penalty": 0.45,
       "detection": {
-        "file_globs": ["app/Jobs/**/*.php"],
-        "patterns": ["/implements\\s+ShouldQueue/"],
-        "heuristics": ["Missing failed() or logging on terminal failure"]
+        "file_globs": [
+          "app/Jobs/**/*.php"
+        ],
+        "patterns": [
+          "/implements\\s+ShouldQueue/"
+        ],
+        "heuristics": [
+          "Missing failed() or logging on terminal failure"
+        ]
       }
     },
     {
@@ -197,8 +274,15 @@
       "description": "Ledger-like updates spanning multiple writes should be atomic.",
       "penalty": 0.95,
       "detection": {
-        "heuristics": ["Multiple balance writes without DB::transaction"],
-        "context_keywords": ["balance", "wallet", "ledger", "stock"]
+        "heuristics": [
+          "Multiple balance writes without DB::transaction"
+        ],
+        "context_keywords": [
+          "balance",
+          "wallet",
+          "ledger",
+          "stock"
+        ]
       }
     },
     {
@@ -210,8 +294,14 @@
       "description": "Outbound HTTP or slow I/O inside DB::transaction increases deadlock risk.",
       "penalty": 0.55,
       "detection": {
-        "patterns": ["/DB::transaction\\s*\\(/"],
-        "nested_risk": ["/Http::/", "/Mail::/", "/sleep\\(/"]
+        "patterns": [
+          "/DB::transaction\\s*\\(/"
+        ],
+        "nested_risk": [
+          "/Http::/",
+          "/Mail::/",
+          "/sleep\\(/"
+        ]
       }
     },
     {
@@ -223,8 +313,12 @@
       "description": "Resources touching relations without eager loading cause N+1 in production.",
       "penalty": 0.55,
       "detection": {
-        "file_globs": ["app/Http/Resources/**/*.php"],
-        "patterns": ["/\\$this->(\\w+)->/"]
+        "file_globs": [
+          "app/Http/Resources/**/*.php"
+        ],
+        "patterns": [
+          "/\\$this->(\\w+)->/"
+        ]
       }
     },
     {
@@ -237,7 +331,9 @@
       "penalty": 1.1,
       "tenancy": true,
       "detection": {
-        "heuristics": ["Global query without tenant guard where tenant_id exists"]
+        "heuristics": [
+          "Global query without tenant guard where tenant_id exists"
+        ]
       }
     },
     {
@@ -250,7 +346,9 @@
       "penalty": 0.65,
       "tenancy": true,
       "detection": {
-        "patterns": ["/tenant_id\\s*=>\\s*\\$request->input\\(/"]
+        "patterns": [
+          "/tenant_id\\s*=>\\s*\\$request->input\\(/"
+        ]
       }
     },
     {
@@ -262,8 +360,13 @@
       "description": "Providers retry webhooks; dedupe by event id or stored delivery state before applying side effects.",
       "penalty": 0.7,
       "detection": {
-        "file_globs": ["app/Http/Controllers/**/*Webhook*.php", "routes/*.php"],
-        "patterns": ["/webhook/i"]
+        "file_globs": [
+          "app/Http/Controllers/**/*Webhook*.php",
+          "routes/*.php"
+        ],
+        "patterns": [
+          "/webhook/i"
+        ]
       }
     },
     {
@@ -275,8 +378,14 @@
       "description": "ShouldBeUnique or WithoutOverlapping reduces duplicate side effects under concurrency.",
       "penalty": -0.35,
       "detection": {
-        "patterns": ["/ShouldBeUnique/", "/WithoutOverlapping/", "/uniqueId\\(/"],
-        "file_globs": ["app/Jobs/**/*.php"]
+        "patterns": [
+          "/ShouldBeUnique/",
+          "/WithoutOverlapping/",
+          "/uniqueId\\(/"
+        ],
+        "file_globs": [
+          "app/Jobs/**/*.php"
+        ]
       }
     },
     {
@@ -289,8 +398,13 @@
       "penalty": 0.75,
       "filament": true,
       "detection": {
-        "file_globs": ["app/Filament/**/*.php"],
-        "patterns": ["/getEloquentQuery/", "/withoutGlobalScopes\\(/"]
+        "file_globs": [
+          "app/Filament/**/*.php"
+        ],
+        "patterns": [
+          "/getEloquentQuery/",
+          "/withoutGlobalScopes\\(/"
+        ]
       }
     },
     {
@@ -303,8 +417,12 @@
       "penalty": 0.3,
       "filament": true,
       "detection": {
-        "patterns": ["/afterStateUpdated\\s*\\(/"],
-        "heuristics": ["HTTP or multi-write in callback"]
+        "patterns": [
+          "/afterStateUpdated\\s*\\(/"
+        ],
+        "heuristics": [
+          "HTTP or multi-write in callback"
+        ]
       }
     },
     {
@@ -317,8 +435,12 @@
       "penalty": 0.55,
       "pest": true,
       "detection": {
-        "file_globs": ["tests/**/*.php"],
-        "heuristics": ["HTTP test without actingAs/assertForbidden/assertUnauthorized"]
+        "file_globs": [
+          "tests/**/*.php"
+        ],
+        "heuristics": [
+          "HTTP test without actingAs/assertForbidden/assertUnauthorized"
+        ]
       }
     },
     {
@@ -331,8 +453,12 @@
       "penalty": 0.35,
       "pest": true,
       "detection": {
-        "file_globs": ["tests/**/*.php"],
-        "heuristics": ["Mutates models without RefreshDatabase"]
+        "file_globs": [
+          "tests/**/*.php"
+        ],
+        "heuristics": [
+          "Mutates models without RefreshDatabase"
+        ]
       }
     },
     {
@@ -344,7 +470,9 @@
       "description": "Ensure $fillable/$guarded and DTOs align; never rely on obscurity for sensitive columns.",
       "penalty": 0.9,
       "detection": {
-        "heuristics": ["User-controlled keys merged into models without validated subset"]
+        "heuristics": [
+          "User-controlled keys merged into models without validated subset"
+        ]
       }
     },
     {
@@ -356,8 +484,13 @@
       "description": "Logging request payloads or tokens breaches compliance and aids attackers.",
       "penalty": 0.7,
       "detection": {
-        "patterns": ["/Log::(info|debug|error)\\([^)]*password/", "/\\$request->all\\(\\)/"],
-        "context": ["Inside Log::"]
+        "patterns": [
+          "/Log::(info|debug|error)\\([^)]*password/",
+          "/\\$request->all\\(\\)/"
+        ],
+        "context": [
+          "Inside Log::"
+        ]
       }
     },
     {
@@ -369,8 +502,12 @@
       "description": "Sensitive POST/PUT/PATCH endpoints should use rate limiting middleware where abuse is plausible.",
       "penalty": 0.25,
       "detection": {
-        "file_globs": ["routes/*.php"],
-        "heuristics": ["Route::post without throttle middleware in high-risk contexts"]
+        "file_globs": [
+          "routes/*.php"
+        ],
+        "heuristics": [
+          "Route::post without throttle middleware in high-risk contexts"
+        ]
       }
     },
     {
@@ -382,8 +519,13 @@
       "description": "with() for rendered relations is a strong signal of deliberate N+1 mitigation.",
       "penalty": -0.25,
       "detection": {
-        "patterns": ["/::with\\(\\[/", "/::with\\(['\"]/"],
-        "file_globs": ["app/Http/Controllers/**/*.php"]
+        "patterns": [
+          "/::with\\(\\[/",
+          "/::with\\(['\"]/"
+        ],
+        "file_globs": [
+          "app/Http/Controllers/**/*.php"
+        ]
       }
     },
     {
@@ -395,7 +537,10 @@
       "description": "Many layers for simple CRUD slows change without adding invariants; match abstraction to complexity.",
       "penalty": 0.2,
       "detection": {
-        "heuristics": ["Many classes for a single-field update", "Empty interfaces"]
+        "heuristics": [
+          "Many classes for a single-field update",
+          "Empty interfaces"
+        ]
       }
     }
   ]

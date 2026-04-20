@@ -1,5 +1,5 @@
 {
-  "$schema": "https://www.mergecore.dev/schemas/laravel-rules.schema.json",
+  "$schema": "https://www.mergecore.dev/schemas/pest-rules.schema.json",
   "meta": {
     "pack_id": "mergecore-pest-rules",
     "pack_version": "1.0.0",
@@ -9,11 +9,31 @@
     "notes": "Gate with pest: true when the project uses Pest; hosts may still apply analogous rules to PHPUnit tests."
   },
   "severity_levels": {
-    "info": { "rank": 1, "label": "Informational", "default_penalty": 0.15 },
-    "hint": { "rank": 2, "label": "Style or maintainability", "default_penalty": 0.25 },
-    "warning": { "rank": 3, "label": "Likely gap or flaky risk", "default_penalty": 0.55 },
-    "error": { "rank": 4, "label": "Serious test gap (security or correctness)", "default_penalty": 0.85 },
-    "critical": { "rank": 5, "label": "Critical gap (auth or invariant untested)", "default_penalty": 1.2 }
+    "info": {
+      "rank": 1,
+      "label": "Informational",
+      "default_penalty": 0.15
+    },
+    "hint": {
+      "rank": 2,
+      "label": "Style or maintainability",
+      "default_penalty": 0.25
+    },
+    "warning": {
+      "rank": 3,
+      "label": "Likely gap or flaky risk",
+      "default_penalty": 0.55
+    },
+    "error": {
+      "rank": 4,
+      "label": "Serious test gap (security or correctness)",
+      "default_penalty": 0.85
+    },
+    "critical": {
+      "rank": 5,
+      "label": "Critical gap (auth or invariant untested)",
+      "default_penalty": 1.2
+    }
   },
   "scoring": {
     "scale_max": 10,
@@ -23,7 +43,7 @@
     "max_total_penalty_per_file": 10,
     "normalisation": "Per review unit (one test file or scoped diff), sum penalties for matched rules after optional quality_signal multiplier, then score = max(0, min(10, initial_score - min(sum_penalties, max_total_penalty_per_file))).",
     "quality_signal_adjustment": {
-      "junior": 1.0,
+      "junior": 1,
       "risky": 1.15,
       "overengineered": 0.85,
       "senior_positive": -0.35
@@ -50,13 +70,17 @@
       "penalty": 0.55,
       "pest": true,
       "detection": {
-        "file_globs": ["tests/**/*.php"],
+        "file_globs": [
+          "tests/**/*.php"
+        ],
         "patterns": [
           "/expect\\(true\\)->toBeTrue/",
           "/expect\\(1\\)->toBe\\(1\\)/",
           "/->assertTrue\\(\\s*true\\s*\\)/"
         ],
-        "heuristics": ["Assertion does not reference outcome of act"]
+        "heuristics": [
+          "Assertion does not reference outcome of act"
+        ]
       },
       "examples": {
         "before": "it('works', function () { doThing(); expect(true)->toBeTrue(); });",
@@ -73,9 +97,16 @@
       "penalty": 0.35,
       "pest": true,
       "detection": {
-        "file_globs": ["tests/**/*.php"],
-        "patterns": ["/->assertOk\\(\\)\\s*;/", "/->assertSuccessful\\(\\)\\s*;/"],
-        "heuristics": ["Same test has no assertJson, assertDatabaseHas, or Event::assertDispatched"]
+        "file_globs": [
+          "tests/**/*.php"
+        ],
+        "patterns": [
+          "/->assertOk\\(\\)\\s*;/",
+          "/->assertSuccessful\\(\\)\\s*;/"
+        ],
+        "heuristics": [
+          "Same test has no assertJson, assertDatabaseHas, or Event::assertDispatched"
+        ]
       },
       "examples": {
         "before": "$this->getJson('/api/me')->assertOk();",
@@ -98,7 +129,9 @@
           "/assertDatabaseHas\\([^)]*'id'\\s*=>\\s*1/",
           "/expect\\(\\$\\w+\\[0\\]\\)/"
         ],
-        "heuristics": ["Asserts on auto-increment without factory reference"]
+        "heuristics": [
+          "Asserts on auto-increment without factory reference"
+        ]
       },
       "examples": {
         "before": "expect(User::first()->id)->toBe(1);",
@@ -120,7 +153,11 @@
           "/Carbon::now/",
           "/today\\(\\)/"
         ],
-        "absence_preferred": ["travel(", "travelTo(", "Carbon::setTestNow"]
+        "absence_preferred": [
+          "travel(",
+          "travelTo(",
+          "Carbon::setTestNow"
+        ]
       },
       "examples": {
         "before": "expect($token->expires_at->isToday())->toBeTrue();",
@@ -141,7 +178,9 @@
           "Single it() for complex action with no dataset",
           "No assert for empty array, zero, or null where API accepts them"
         ],
-        "file_globs": ["tests/Feature/**/*.php"]
+        "file_globs": [
+          "tests/Feature/**/*.php"
+        ]
       },
       "examples": {
         "before": "it('creates invoice', fn () => post('/invoices', validPayload())->assertCreated());",
@@ -158,7 +197,11 @@
       "penalty": 0.8,
       "pest": true,
       "detection": {
-        "patterns": ["/post\\(/", "/put\\(/", "/patch\\(/"],
+        "patterns": [
+          "/post\\(/",
+          "/put\\(/",
+          "/patch\\(/"
+        ],
         "heuristics": [
           "Feature test hits POST/PUT with only valid payload cases",
           "No assertUnprocessable/assertInvalid/assertStatus(422)"
@@ -179,7 +222,9 @@
       "penalty": 0.35,
       "pest": true,
       "detection": {
-        "file_globs": ["database/factories/**/*.php"],
+        "file_globs": [
+          "database/factories/**/*.php"
+        ],
         "heuristics": [
           "Large model factory with only definition(), no suspended/inactive states",
           "Required enum columns always same value"
@@ -200,13 +245,19 @@
       "penalty": 0.45,
       "pest": true,
       "detection": {
-        "file_globs": ["database/factories/**/*.php"],
+        "file_globs": [
+          "database/factories/**/*.php"
+        ],
         "patterns": [
           "/['\"]test@example\\.com['\"]/",
           "/['\"]user@test\\.com['\"]/",
           "/['\"]slug['\"]\\s*=>\\s*['\"][^'\"]+['\"](?!.*fake)/"
         ],
-        "prefer": ["fake()->unique()->safeEmail()", "Str::uuid()", "fake()->slug()"]
+        "prefer": [
+          "fake()->unique()->safeEmail()",
+          "Str::uuid()",
+          "fake()->slug()"
+        ]
       },
       "examples": {
         "before": "'email' => 'a@a.com',",
@@ -223,8 +274,14 @@
       "penalty": 0.9,
       "pest": true,
       "detection": {
-        "file_globs": ["tests/Feature/**/*.php"],
-        "patterns": ["/get\\(/", "/post\\(/", "/delete\\(/"],
+        "file_globs": [
+          "tests/Feature/**/*.php"
+        ],
+        "patterns": [
+          "/get\\(/",
+          "/post\\(/",
+          "/delete\\(/"
+        ],
         "heuristics": [
           "File uses actingAs or signIn but never assertForbidden/assertRedirectToLogin",
           "Deletes/updates with no guest test"
@@ -286,8 +343,13 @@
       "penalty": 0.5,
       "pest": true,
       "detection": {
-        "patterns": ["/->handle\\(/", "/->process\\(/"],
-        "heuristics": ["Service method with guard clauses but tests only call valid transitions"]
+        "patterns": [
+          "/->handle\\(/",
+          "/->process\\(/"
+        ],
+        "heuristics": [
+          "Service method with guard clauses but tests only call valid transitions"
+        ]
       },
       "examples": {
         "before": "// only calls refund on paid order",
@@ -304,8 +366,13 @@
       "penalty": 0.3,
       "pest": true,
       "detection": {
-        "patterns": ["/Http::fake\\(/"],
-        "absence_preferred": ["Http::assertSent", "Http::assertSentCount"]
+        "patterns": [
+          "/Http::fake\\(/"
+        ],
+        "absence_preferred": [
+          "Http::assertSent",
+          "Http::assertSentCount"
+        ]
       },
       "examples": {
         "before": "Http::fake(); $service->sync(); expect(true)->toBeTrue();",
@@ -322,9 +389,18 @@
       "penalty": 0.45,
       "pest": true,
       "detection": {
-        "file_globs": ["tests/**/*.php"],
-        "patterns": ["/::factory\\(\\)->create/", "/User::create/"],
-        "absence_preferred": ["uses\\(RefreshDatabase", "uses\\(LazilyRefreshDatabase", "RefreshDatabase::class"]
+        "file_globs": [
+          "tests/**/*.php"
+        ],
+        "patterns": [
+          "/::factory\\(\\)->create/",
+          "/User::create/"
+        ],
+        "absence_preferred": [
+          "uses\\(RefreshDatabase",
+          "uses\\(LazilyRefreshDatabase",
+          "RefreshDatabase::class"
+        ]
       },
       "examples": {
         "before": "it('counts users', function () { User::factory()->create(); expect(User::count())->toBe(1); });",
@@ -346,7 +422,9 @@
           "/it\\([^)]*\\)->with\\(/",
           "/dataset\\(/"
         ],
-        "file_globs": ["tests/**/*.php"]
+        "file_globs": [
+          "tests/**/*.php"
+        ]
       },
       "examples": {
         "before": "N/A — positive signal",

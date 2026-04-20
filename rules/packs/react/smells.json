@@ -1,0 +1,94 @@
+{
+  "meta": {
+    "pack_id": "mergecore-react-rules",
+    "version": "1.0.0",
+    "locale": "en-GB",
+    "description": "Smell index for React. Maps to rubric.json rule_ref."
+  },
+  "smells": [
+    {
+      "id": "SMELL-RCT-HOOK-ORDER",
+      "name": "Conditional hook call",
+      "rule_ref": "RCT-001",
+      "summary": "useState/useEffect/etc. called inside if/for, breaking hook order.",
+      "focus": "correctness"
+    },
+    {
+      "id": "SMELL-RCT-STALE-DEPS",
+      "name": "Stale effect closure",
+      "rule_ref": "RCT-002",
+      "summary": "useEffect deps array omits values read inside the effect.",
+      "focus": "correctness"
+    },
+    {
+      "id": "SMELL-RCT-INDEX-KEY",
+      "name": "Index as list key",
+      "rule_ref": "RCT-003",
+      "summary": "Array index used for key in a list that can reorder or mutate.",
+      "focus": "correctness"
+    },
+    {
+      "id": "SMELL-RCT-XSS-HTML",
+      "name": "Unsafe dangerouslySetInnerHTML",
+      "rule_ref": "RCT-004",
+      "summary": "User-influenced HTML injected without sanitisation.",
+      "focus": "security"
+    },
+    {
+      "id": "SMELL-RCT-SETSTATE-RACE",
+      "name": "setState without updater",
+      "rule_ref": "RCT-005",
+      "summary": "Next state computed from current state without the functional form.",
+      "focus": "correctness"
+    },
+    {
+      "id": "SMELL-RCT-EFFECT-LEAK",
+      "name": "Async effect without cleanup",
+      "rule_ref": "RCT-006",
+      "summary": "fetch or timer in useEffect without AbortController or cleanup flag.",
+      "focus": "reliability"
+    },
+    {
+      "id": "SMELL-RCT-INLINE-LITERAL",
+      "name": "Inline literal prop",
+      "rule_ref": "RCT-007",
+      "summary": "Fresh object/array literal passed to a memoised child each render.",
+      "focus": "performance"
+    },
+    {
+      "id": "SMELL-RCT-A11Y-CLICK",
+      "name": "Div as button",
+      "rule_ref": "RCT-008",
+      "summary": "Click handler on non-interactive element without role or keyboard support.",
+      "focus": "accessibility"
+    },
+    {
+      "id": "SMELL-RCT-DERIVED-STATE",
+      "name": "Prop mirrored into state",
+      "rule_ref": "RCT-009",
+      "summary": "useState + useEffect used to mirror a prop; compute instead.",
+      "focus": "maintainability"
+    },
+    {
+      "id": "SMELL-RCT-INPUT-FLIP",
+      "name": "Controlled/uncontrolled flip",
+      "rule_ref": "RCT-010",
+      "summary": "Input toggles between value and undefined.",
+      "focus": "correctness"
+    },
+    {
+      "id": "SMELL-RCT-MEMO-STABLE",
+      "name": "Positive: stable memoised render",
+      "rule_ref": "RCT-011",
+      "summary": "React.memo with useCallback handlers on a hot path.",
+      "focus": "performance"
+    },
+    {
+      "id": "SMELL-RCT-CTX-MISUSE",
+      "name": "Context for local state",
+      "rule_ref": "RCT-012",
+      "summary": "Context storing frequently changing UI state causes cascade renders.",
+      "focus": "architecture"
+    }
+  ]
+}

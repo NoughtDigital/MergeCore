@@ -1,0 +1,21 @@
+{
+  "pack_id": "mergecore-python-rules",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "locale": "en-GB",
+  "title": "MergeCore Python Rules",
+  "description": "Senior production Python: type hints, safe error handling, resource management, dependency hygiene, and testability.",
+  "rubric_schema": "https://www.mergecore.dev/schemas/python-rules.schema.json",
+  "artifacts": {
+    "rubric": "rubric.json",
+    "smells": "smells.json",
+    "agents": "agents.md"
+  },
+  "tags": [
+    "python",
+    "backend",
+    "scripting"
+  ],
+  "extends": [],
+  "notes": "Gate with python: true. Assumes Python 3.10+. Framework-specific packs (Django, FastAPI) may extend this in future."
+}

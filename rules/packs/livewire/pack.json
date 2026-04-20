@@ -5,13 +5,19 @@
   "locale": "en-GB",
   "title": "MergeCore Livewire Rules",
   "description": "Livewire components: authorisation, payload hygiene, round-trip performance, uploads, and dispatches.",
-  "rubric_schema": "https://www.mergecore.dev/schemas/laravel-rules.schema.json",
+  "rubric_schema": "https://www.mergecore.dev/schemas/livewire-rules.schema.json",
   "artifacts": {
     "rubric": "rubric.json",
     "smells": "smells.json",
     "agents": "agents.md"
   },
-  "tags": ["laravel", "livewire", "blade"],
-  "extends": ["laravel-core-rules"],
+  "tags": [
+    "laravel",
+    "livewire",
+    "blade"
+  ],
+  "extends": [
+    "laravel-core-rules"
+  ],
   "notes": "Gate with livewire: true in project metadata when supported. Complements mergecore-alpine-rules for Blade stacks that also use Alpine."
 }

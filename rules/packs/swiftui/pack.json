@@ -1,0 +1,24 @@
+{
+  "pack_id": "mergecore-swiftui-rules",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "locale": "en-GB",
+  "title": "MergeCore SwiftUI Rules",
+  "description": "SwiftUI standards: state property choices, view identity, navigation, accessibility, and performance.",
+  "rubric_schema": "https://www.mergecore.dev/schemas/swiftui-rules.schema.json",
+  "artifacts": {
+    "rubric": "rubric.json",
+    "smells": "smells.json",
+    "agents": "agents.md"
+  },
+  "tags": [
+    "swiftui",
+    "ios",
+    "macos",
+    "ui"
+  ],
+  "extends": [
+    "mergecore-swift-rules"
+  ],
+  "notes": "Gate with swiftui: true when SwiftUI is imported. Extends mergecore-swift-rules; apply both."
+}

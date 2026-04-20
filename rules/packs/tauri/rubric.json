@@ -1,0 +1,281 @@
+{
+  "$schema": "https://www.mergecore.dev/schemas/tauri-rules.schema.json",
+  "meta": {
+    "pack_id": "mergecore-tauri-rules",
+    "pack_version": "1.0.0",
+    "locale": "en-GB",
+    "title": "MergeCore Tauri Rules",
+    "description": "Rules for Tauri apps (Rust backend + webview frontend): capabilities, IPC commands, shell and filesystem use, and update channel hygiene.",
+    "notes": "Gate with tauri: true. Targets Tauri 2.x; some rules flag 1.x allowlist usage as deprecated in new code."
+  },
+  "severity_levels": {
+    "info": {
+      "rank": 1,
+      "label": "Informational",
+      "default_penalty": 0.15
+    },
+    "hint": {
+      "rank": 2,
+      "label": "Style or maintainability",
+      "default_penalty": 0.25
+    },
+    "warning": {
+      "rank": 3,
+      "label": "Likely defect or hardening gap",
+      "default_penalty": 0.55
+    },
+    "error": {
+      "rank": 4,
+      "label": "High risk (privilege escalation or injection)",
+      "default_penalty": 0.85
+    },
+    "critical": {
+      "rank": 5,
+      "label": "Critical (webview -> OS bridge breach)",
+      "default_penalty": 1.2
+    }
+  },
+  "scoring": {
+    "scale_max": 10,
+    "initial_score": 10,
+    "aggregation": "subtract_penalties_with_cap",
+    "penalty_source": "rule.penalty overrides severity_levels[severity].default_penalty when present",
+    "max_total_penalty_per_file": 10,
+    "normalisation": "Per review unit (one Rust command module, one capability/permission file, or one webview entry), sum penalties after optional quality_signal multiplier, then score = max(0, min(10, initial_score - min(sum_penalties, max_total_penalty_per_file))).",
+    "quality_signal_adjustment": {
+      "junior": 1,
+      "risky": 1.15,
+      "overengineered": 0.85,
+      "senior_positive": -0.35
+    },
+    "interpretation": {
+      "9_to_10": "Narrow capabilities, validated IPC, no raw shell.",
+      "7_to_8": "Mergeable; tighten one permission or command validator.",
+      "5_to_6": "Risky: wide fs/shell scope, unvalidated command args.",
+      "0_to_4": "Block: arbitrary shell exec, permissive CSP, or globbed fs access."
+    }
+  },
+  "rules": [
+    {
+      "id": "TAU-001",
+      "category": "capabilities",
+      "severity": "error",
+      "quality_signal": "risky",
+      "title": "Overly broad filesystem scope",
+      "description": "Granting $HOME/**/* or similar to fs permissions gives the webview access far beyond the app's needs. Scope to specific directories.",
+      "penalty": 0.85,
+      "tauri": true,
+      "detection": {
+        "file_globs": [
+          "src-tauri/capabilities/**/*.json",
+          "src-tauri/tauri.conf.json"
+        ],
+        "patterns": [
+          "/\\$HOME\\/\\*\\*/",
+          "/\\*\\*\\/\\*/"
+        ],
+        "prefer": [
+          "$APPDATA",
+          "$APPLOCALDATA",
+          "explicit subpaths"
+        ]
+      }
+    },
+    {
+      "id": "TAU-002",
+      "category": "shell",
+      "severity": "critical",
+      "quality_signal": "risky",
+      "title": "shell.execute with user-controlled command",
+      "description": "Allowing shell execution with arbitrary commands or templated args from the webview is remote code execution. Use shell.scope allowlist with fixed commands, or avoid shell entirely.",
+      "penalty": 1.2,
+      "tauri": true,
+      "detection": {
+        "file_globs": [
+          "src-tauri/**/*.json",
+          "src-tauri/**/*.rs",
+          "src/**/*.ts",
+          "src/**/*.js"
+        ],
+        "patterns": [
+          "/shell:allow-execute/",
+          "/Command::new\\(\\s*\\w+\\s*\\)/"
+        ],
+        "heuristics": [
+          "Command path or args constructed from frontend input"
+        ],
+        "prefer": [
+          "fixed scope with validator",
+          "sidecar with strict args"
+        ]
+      }
+    },
+    {
+      "id": "TAU-003",
+      "category": "csp",
+      "severity": "error",
+      "quality_signal": "risky",
+      "title": "Permissive Content Security Policy",
+      "description": "CSP with unsafe-inline, unsafe-eval, or wildcard sources defeats the webview isolation boundary.",
+      "penalty": 0.8,
+      "tauri": true,
+      "detection": {
+        "file_globs": [
+          "src-tauri/tauri.conf.json"
+        ],
+        "patterns": [
+          "/unsafe-inline/",
+          "/unsafe-eval/",
+          "/\"csp\":\\s*null/"
+        ]
+      }
+    },
+    {
+      "id": "TAU-004",
+      "category": "ipc",
+      "severity": "warning",
+      "quality_signal": "risky",
+      "title": "Tauri command without argument validation",
+      "description": "#[tauri::command] functions should validate or parse inputs; trusting the frontend blindly defeats the backend privilege separation.",
+      "penalty": 0.6,
+      "tauri": true,
+      "detection": {
+        "file_globs": [
+          "src-tauri/**/*.rs"
+        ],
+        "patterns": [
+          "/#\\[tauri::command\\]/"
+        ],
+        "heuristics": [
+          "Command takes String or PathBuf parameters and uses them unvalidated"
+        ]
+      },
+      "examples": {
+        "before": "#[tauri::command] fn open_file(path: String) -> Result<String, String> { std::fs::read_to_string(&path).map_err(|e| e.to_string()) }",
+        "after": "validate path is inside app_data_dir before reading"
+      }
+    },
+    {
+      "id": "TAU-005",
+      "category": "updater",
+      "severity": "error",
+      "quality_signal": "risky",
+      "title": "Updater without signature verification",
+      "description": "Disabling or omitting update signature keys lets a compromised endpoint deliver arbitrary binaries to users.",
+      "penalty": 0.95,
+      "tauri": true,
+      "detection": {
+        "file_globs": [
+          "src-tauri/tauri.conf.json"
+        ],
+        "patterns": [
+          "/\"updater\"[\\s\\S]*?\"active\"\\s*:\\s*true/"
+        ],
+        "absence_preferred": [
+          "\"pubkey\"\\s*:\\s*\"[^\"]{32,}"
+        ]
+      }
+    },
+    {
+      "id": "TAU-006",
+      "category": "capabilities",
+      "severity": "warning",
+      "quality_signal": "risky",
+      "title": "Capability applied to all windows",
+      "description": "Granting sensitive permissions via a capability with \"windows\": [\"main\", ...] to every surface increases blast radius. Scope to the windows that actually need the feature.",
+      "penalty": 0.45,
+      "tauri": true,
+      "detection": {
+        "file_globs": [
+          "src-tauri/capabilities/**/*.json"
+        ],
+        "patterns": [
+          "/\"windows\":\\s*\\[\\s*\"\\*\"\\s*\\]/",
+          "/\"windows\":\\s*\\[\\s*\"main\"\\s*,\\s*\"\\w+\"\\s*\\]/"
+        ]
+      }
+    },
+    {
+      "id": "TAU-007",
+      "category": "invoke",
+      "severity": "hint",
+      "quality_signal": "junior",
+      "title": "Untyped invoke payloads on the frontend",
+      "description": "invoke<T>('cmd', args) with weak types at the boundary leads to runtime surprises. Define a shared schema and narrow on receipt.",
+      "penalty": 0.25,
+      "tauri": true,
+      "detection": {
+        "file_globs": [
+          "src/**/*.ts",
+          "src/**/*.tsx"
+        ],
+        "patterns": [
+          "/invoke\\(\\s*['\"]\\w+['\"]\\s*,\\s*\\{[^}]*\\}\\s*\\)/"
+        ],
+        "absence_preferred": [
+          "invoke<[A-Z]\\w+>"
+        ]
+      }
+    },
+    {
+      "id": "TAU-008",
+      "category": "fs",
+      "severity": "warning",
+      "quality_signal": "risky",
+      "title": "Path joined from frontend without canonicalisation",
+      "description": "Joining user-supplied segments onto a base dir allows .. traversal. Canonicalise and check the result is inside the allowed base.",
+      "penalty": 0.6,
+      "tauri": true,
+      "detection": {
+        "file_globs": [
+          "src-tauri/**/*.rs"
+        ],
+        "patterns": [
+          "/PathBuf::from\\(/",
+          "/Path::new\\(\\s*&?\\w+\\s*\\)/"
+        ],
+        "absence_preferred": [
+          "\\.canonicalize\\(\\)",
+          "starts_with\\("
+        ]
+      }
+    },
+    {
+      "id": "TAU-009",
+      "category": "logging",
+      "severity": "hint",
+      "quality_signal": "junior",
+      "title": "Debug logs leak to production builds",
+      "description": "Leaving noisy log::debug! or println! on user data in shipped builds is a support and privacy liability. Use log level filtering or feature flags.",
+      "penalty": 0.2,
+      "tauri": true,
+      "detection": {
+        "file_globs": [
+          "src-tauri/**/*.rs"
+        ],
+        "patterns": [
+          "/println!\\(/",
+          "/dbg!\\(/"
+        ]
+      }
+    },
+    {
+      "id": "TAU-010",
+      "category": "capabilities",
+      "severity": "hint",
+      "quality_signal": "senior_positive",
+      "title": "Strong pattern: least-privilege capability set",
+      "description": "Capability files that enable only the specific permissions a window uses (e.g. fs:allow-read-file for one scope) show disciplined hardening.",
+      "penalty": -0.3,
+      "tauri": true,
+      "detection": {
+        "file_globs": [
+          "src-tauri/capabilities/**/*.json"
+        ],
+        "patterns": [
+          "/\"permissions\":\\s*\\[[\\s\\S]*?fs:allow-read-file[\\s\\S]*?\\]/"
+        ]
+      }
+    }
+  ]
+}

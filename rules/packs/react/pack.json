@@ -1,0 +1,22 @@
+{
+  "pack_id": "mergecore-react-rules",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "locale": "en-GB",
+  "title": "MergeCore React Rules",
+  "description": "Senior production standards for React apps: hooks hygiene, render correctness, state boundaries, accessibility, and performance.",
+  "rubric_schema": "https://www.mergecore.dev/schemas/react-rules.schema.json",
+  "artifacts": {
+    "rubric": "rubric.json",
+    "smells": "smells.json",
+    "agents": "agents.md"
+  },
+  "tags": [
+    "react",
+    "jsx",
+    "frontend",
+    "hooks"
+  ],
+  "extends": [],
+  "notes": "Gate with react: true when the host detects react, react-dom, or JSX. Pairs well with mergecore-typescript-rules when TypeScript is in use."
+}

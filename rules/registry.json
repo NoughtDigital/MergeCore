@@ -36,6 +36,69 @@
       "version": "1.0.0",
       "tags": ["alpine", "javascript", "blade", "frontend"],
       "suggested_when": ["alpine"]
+    },
+    {
+      "id": "mergecore-react-rules",
+      "path": "packs/react",
+      "version": "1.0.0",
+      "tags": ["react", "jsx", "frontend", "hooks"],
+      "suggested_when": ["react"]
+    },
+    {
+      "id": "mergecore-typescript-rules",
+      "path": "packs/typescript",
+      "version": "1.0.0",
+      "tags": ["typescript", "types", "language"],
+      "suggested_when": ["typescript"]
+    },
+    {
+      "id": "mergecore-vue-rules",
+      "path": "packs/vue",
+      "version": "1.0.0",
+      "tags": ["vue", "vue3", "frontend", "composition-api"],
+      "suggested_when": ["vue"]
+    },
+    {
+      "id": "mergecore-python-rules",
+      "path": "packs/python",
+      "version": "1.0.0",
+      "tags": ["python", "backend", "scripting"],
+      "suggested_when": ["python"]
+    },
+    {
+      "id": "mergecore-pytorch-rules",
+      "path": "packs/pytorch",
+      "version": "1.0.0",
+      "tags": ["pytorch", "ml", "deep-learning", "python"],
+      "suggested_when": ["pytorch"]
+    },
+    {
+      "id": "mergecore-go-rules",
+      "path": "packs/go",
+      "version": "1.0.0",
+      "tags": ["go", "golang", "backend", "concurrency"],
+      "suggested_when": ["go"]
+    },
+    {
+      "id": "mergecore-tauri-rules",
+      "path": "packs/tauri",
+      "version": "1.0.0",
+      "tags": ["tauri", "rust", "desktop", "webview"],
+      "suggested_when": ["tauri"]
+    },
+    {
+      "id": "mergecore-swift-rules",
+      "path": "packs/swift",
+      "version": "1.0.0",
+      "tags": ["swift", "ios", "macos", "apple"],
+      "suggested_when": ["swift"]
+    },
+    {
+      "id": "mergecore-swiftui-rules",
+      "path": "packs/swiftui",
+      "version": "1.0.0",
+      "tags": ["swiftui", "ios", "macos", "ui"],
+      "suggested_when": ["swiftui"]
     }
   ]
 }

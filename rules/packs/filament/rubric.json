@@ -1,5 +1,5 @@
 {
-  "$schema": "https://www.mergecore.dev/schemas/laravel-rules.schema.json",
+  "$schema": "https://www.mergecore.dev/schemas/filament-rules.schema.json",
   "meta": {
     "pack_id": "mergecore-filament-rules",
     "pack_version": "1.0.0",
@@ -9,11 +9,31 @@
     "notes": "Heuristic detection: confirm against your Filament version, panel provider, and tenancy package. Rules marked filament: true may be gated by the host when the stack is present."
   },
   "severity_levels": {
-    "info": { "rank": 1, "label": "Informational", "default_penalty": 0.15 },
-    "hint": { "rank": 2, "label": "Style or maintainability", "default_penalty": 0.25 },
-    "warning": { "rank": 3, "label": "Likely defect or performance risk", "default_penalty": 0.55 },
-    "error": { "rank": 4, "label": "High risk (security or data leak)", "default_penalty": 0.85 },
-    "critical": { "rank": 5, "label": "Critical (cross-tenant data exposure)", "default_penalty": 1.2 }
+    "info": {
+      "rank": 1,
+      "label": "Informational",
+      "default_penalty": 0.15
+    },
+    "hint": {
+      "rank": 2,
+      "label": "Style or maintainability",
+      "default_penalty": 0.25
+    },
+    "warning": {
+      "rank": 3,
+      "label": "Likely defect or performance risk",
+      "default_penalty": 0.55
+    },
+    "error": {
+      "rank": 4,
+      "label": "High risk (security or data leak)",
+      "default_penalty": 0.85
+    },
+    "critical": {
+      "rank": 5,
+      "label": "Critical (cross-tenant data exposure)",
+      "default_penalty": 1.2
+    }
   },
   "scoring": {
     "scale_max": 10,
@@ -23,7 +43,7 @@
     "max_total_penalty_per_file": 10,
     "normalisation": "For each review unit (typically one PHP file or one git diff hunk set), sum applicable rule penalties, apply quality_signal multiplier to each rule where host supports it, then: score = max(0, min(10, initial_score - min(sum_penalties, max_total_penalty_per_file))). Cap prevents a single file from driving the whole review to zero unless the host uses multi-file aggregation.",
     "quality_signal_adjustment": {
-      "junior": 1.0,
+      "junior": 1,
       "risky": 1.15,
       "overengineered": 0.85,
       "senior_positive": -0.35
@@ -50,7 +70,9 @@
       "penalty": 0.3,
       "filament": true,
       "detection": {
-        "file_globs": ["app/Filament/**/*.php"],
+        "file_globs": [
+          "app/Filament/**/*.php"
+        ],
         "heuristics": [
           "Single class file exceeds ~400–500 lines",
           "Multiple unrelated concerns (table + form + many Page::make) in one file",
@@ -72,8 +94,13 @@
       "penalty": 0.35,
       "filament": true,
       "detection": {
-        "patterns": ["/shouldRegisterNavigation\\s*\\(\\s*\\)\\s*:\\s*bool/", "/\\$navigationItems/"],
-        "heuristics": ["shouldRegisterNavigation false but no policy denial on viewAny"]
+        "patterns": [
+          "/shouldRegisterNavigation\\s*\\(\\s*\\)\\s*:\\s*bool/",
+          "/\\$navigationItems/"
+        ],
+        "heuristics": [
+          "shouldRegisterNavigation false but no policy denial on viewAny"
+        ]
       },
       "examples": {
         "before": "public static function shouldRegisterNavigation(): bool { return false; } // but Policy::viewAny returns true for all admins",
@@ -90,13 +117,20 @@
       "penalty": 0.65,
       "filament": true,
       "detection": {
-        "file_globs": ["app/Filament/**/*Resource.php", "app/Filament/**/*/*Table.php"],
+        "file_globs": [
+          "app/Filament/**/*Resource.php",
+          "app/Filament/**/*/*Table.php"
+        ],
         "patterns": [
           "/formatStateUsing\\s*\\([^)]*::query\\(/",
           "/formatStateUsing\\s*\\([^)]*->where\\(/",
           "/->formatStateUsing\\(.*Model::/"
         ],
-        "heuristics": ["Closure body contains ::find(", "first()", "count() inside column definition"]
+        "heuristics": [
+          "Closure body contains ::find(",
+          "first()",
+          "count() inside column definition"
+        ]
       },
       "examples": {
         "before": "TextColumn::make('x')->formatStateUsing(fn ($record) => OrderItem::where('order_id', $record->id)->count())",
@@ -117,8 +151,13 @@
           "/TextColumn::make\\(['\"][^'\"]+\\.[^'\"]+['\"]\\)/",
           "/->relationship\\(/"
         ],
-        "absence_preferred": ["modifyQueryUsing(fn ($q) => $q->with(", "->with(["],
-        "heuristics": ["Column uses dot notation or relationship() without eager load in getEloquentQuery/modifyQueryUsing"]
+        "absence_preferred": [
+          "modifyQueryUsing(fn ($q) => $q->with(",
+          "->with(["
+        ],
+        "heuristics": [
+          "Column uses dot notation or relationship() without eager load in getEloquentQuery/modifyQueryUsing"
+        ]
       },
       "examples": {
         "before": "TextColumn::make('customer.name') // Customer:: queried per row",
@@ -162,7 +201,10 @@
           "/withoutGlobalScopes\\s*\\(/",
           "/->where\\(\\s*['\"]tenant_id['\"]\\s*,\\s*request\\(/"
         ],
-        "heuristics": ["Parent getEloquentQuery not called", "Tenant filter only from unvalidated request input"]
+        "heuristics": [
+          "Parent getEloquentQuery not called",
+          "Tenant filter only from unvalidated request input"
+        ]
       },
       "examples": {
         "before": "public static function getEloquentQuery(): Builder { return parent::getEloquentQuery()->withoutGlobalScopes(); }",
@@ -201,7 +243,9 @@
       "penalty": 0.6,
       "filament": true,
       "detection": {
-        "file_globs": ["app/Filament/**/*.php"],
+        "file_globs": [
+          "app/Filament/**/*.php"
+        ],
         "patterns": [
           "/Actions\\\\Action::make/",
           "/TableAction::make/",
@@ -209,7 +253,10 @@
           "/Mail::/",
           "/sleep\\(/"
         ],
-        "heuristics": ["action closure > 40 lines", "nested DB without transaction where money involved"]
+        "heuristics": [
+          "action closure > 40 lines",
+          "nested DB without transaction where money involved"
+        ]
       },
       "examples": {
         "before": "Action::make('sync')->action(fn () => Http::timeout(120)->post('https://partner...'))",
@@ -235,7 +282,11 @@
           "Action mutates models or calls APIs",
           "No authorize(), Gate::, or $this->authorize in same block"
         ],
-        "absence_preferred": ["->authorize(", "->visible(fn ($user)", "->hidden(fn ($user)"]
+        "absence_preferred": [
+          "->authorize(",
+          "->visible(fn ($user)",
+          "->hidden(fn ($user)"
+        ]
       },
       "examples": {
         "before": "Tables\\Actions\\DeleteAction::make()->action(fn (Model $r) => $r->forceDelete())",
@@ -297,8 +348,14 @@
       "penalty": 0.3,
       "filament": true,
       "detection": {
-        "patterns": ["/->live\\(\\s*\\)/", "/->live\\(\\s*true\\s*\\)/"],
-        "heuristics": ["More than ~6 live fields in one form", "No ->debounce("]
+        "patterns": [
+          "/->live\\(\\s*\\)/",
+          "/->live\\(\\s*true\\s*\\)/"
+        ],
+        "heuristics": [
+          "More than ~6 live fields in one form",
+          "No ->debounce("
+        ]
       },
       "examples": {
         "before": "Ten TextInputs each ->live() for a simple create form",
@@ -320,7 +377,10 @@
           "/RelationshipRepeater::make/",
           "/MorphToSelect::make/"
         ],
-        "heuristics": ["No ->maxItems(", "No query scoping on relationship options"]
+        "heuristics": [
+          "No ->maxItems(",
+          "No query scoping on relationship options"
+        ]
       },
       "examples": {
         "before": "Repeater::make('lineItems')->relationship() on orders with hundreds of lines",
@@ -337,7 +397,9 @@
       "penalty": 0.85,
       "filament": true,
       "detection": {
-        "file_globs": ["app/Policies/**/*.php"],
+        "file_globs": [
+          "app/Policies/**/*.php"
+        ],
         "heuristics": [
           "Policy exists for model used in Resource",
           "Resource registered but Policy lacks viewAny/view/create/update/delete"
@@ -363,7 +425,9 @@
           "/function\\s+canEdit\\s*\\(/",
           "/function\\s+canDelete\\s*\\(/"
         ],
-        "heuristics": ["Resource overrides can* without delegating to Gate or parent policy"]
+        "heuristics": [
+          "Resource overrides can* without delegating to Gate or parent policy"
+        ]
       },
       "examples": {
         "before": "public static function canCreate(): bool { return auth()->user()->isAdmin; } // Policy::create says editors OK",
@@ -405,7 +469,9 @@
           "/getEloquentQuery[\\s\\S]*->with\\(/",
           "/->withCount\\(/"
         ],
-        "file_globs": ["app/Filament/**/*.php"]
+        "file_globs": [
+          "app/Filament/**/*.php"
+        ]
       },
       "examples": {
         "before": "N/A — positive signal",

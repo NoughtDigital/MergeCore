@@ -1,0 +1,21 @@
+{
+  "pack_id": "mergecore-typescript-rules",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "locale": "en-GB",
+  "title": "MergeCore TypeScript Rules",
+  "description": "Type-safety and maintainability standards for TypeScript: strictness, narrowing, unknown over any, sound generics, and safe assertions.",
+  "rubric_schema": "https://www.mergecore.dev/schemas/typescript-rules.schema.json",
+  "artifacts": {
+    "rubric": "rubric.json",
+    "smells": "smells.json",
+    "agents": "agents.md"
+  },
+  "tags": [
+    "typescript",
+    "types",
+    "language"
+  ],
+  "extends": [],
+  "notes": "Gate with typescript: true when the host detects tsconfig.json or .ts/.tsx files. Stacks on top of framework packs (React, Vue, Node)."
+}

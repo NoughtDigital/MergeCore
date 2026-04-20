@@ -1,0 +1,22 @@
+{
+  "meta": {
+    "pack_id": "mergecore-pytorch-rules",
+    "version": "1.0.0",
+    "locale": "en-GB",
+    "description": "Smell index for PyTorch. Maps to rubric.json rule_ref."
+  },
+  "smells": [
+    { "id": "SMELL-PT-ZEROGRAD", "name": "Missing zero_grad", "rule_ref": "PT-001", "summary": "Training step without optimizer.zero_grad.", "focus": "correctness" },
+    { "id": "SMELL-PT-NOEVAL", "name": "Eval without no_grad/eval", "rule_ref": "PT-002", "summary": "Validation loop runs with grads and Dropout active.", "focus": "correctness" },
+    { "id": "SMELL-PT-HARD-CUDA", "name": "Hard-coded .cuda()", "rule_ref": "PT-003", "summary": "Device-specific call instead of .to(device).", "focus": "portability" },
+    { "id": "SMELL-PT-LOADER", "name": "Single-thread DataLoader", "rule_ref": "PT-004", "summary": "DataLoader without num_workers/pin_memory for GPU.", "focus": "performance" },
+    { "id": "SMELL-PT-GRAPH-RET", "name": "Graph retention in list", "rule_ref": "PT-005", "summary": "Storing tensors requiring grad across steps.", "focus": "memory" },
+    { "id": "SMELL-PT-SEED", "name": "Unseeded randomness", "rule_ref": "PT-006", "summary": "Benchmark/eval script without torch/numpy seeds.", "focus": "reproducibility" },
+    { "id": "SMELL-PT-SOFTMAX-CE", "name": "Softmax before CrossEntropy", "rule_ref": "PT-007", "summary": "Redundant softmax before CrossEntropyLoss.", "focus": "correctness" },
+    { "id": "SMELL-PT-ALLOC-LOOP", "name": "Tensor allocation in loop", "rule_ref": "PT-008", "summary": "torch.tensor(...) inside the inner loop.", "focus": "performance" },
+    { "id": "SMELL-PT-AMP", "name": "Positive: AMP usage", "rule_ref": "PT-009", "summary": "autocast + GradScaler for mixed precision.", "focus": "performance" },
+    { "id": "SMELL-PT-FORWARD-SHAPE", "name": "Unasserted shape/dtype", "rule_ref": "PT-010", "summary": "forward() without shape/dtype checks or hints.", "focus": "correctness" },
+    { "id": "SMELL-PT-DATAPARALLEL", "name": "DataParallel usage", "rule_ref": "PT-011", "summary": "nn.DataParallel used in new code.", "focus": "architecture" },
+    { "id": "SMELL-PT-PRINT-LOSS", "name": "Printing tensor loss", "rule_ref": "PT-012", "summary": "print(loss) instead of loss.item().", "focus": "logging" }
+  ]
+}

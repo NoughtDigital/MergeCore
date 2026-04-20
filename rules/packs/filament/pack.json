@@ -5,13 +5,19 @@
   "locale": "en-GB",
   "title": "MergeCore Filament Rules",
   "description": "Filament admin: resources, tables, tenancy, actions, forms, policies.",
-  "rubric_schema": "https://www.mergecore.dev/schemas/laravel-rules.schema.json",
+  "rubric_schema": "https://www.mergecore.dev/schemas/filament-rules.schema.json",
   "artifacts": {
     "rubric": "rubric.json",
     "smells": "smells.json",
     "agents": "agents.md"
   },
-  "tags": ["laravel", "filament", "admin"],
-  "extends": ["laravel-core-rules"],
+  "tags": [
+    "laravel",
+    "filament",
+    "admin"
+  ],
+  "extends": [
+    "laravel-core-rules"
+  ],
   "notes": "Hosts may merge scoring with laravel-core-rules; extends is advisory until the engine resolves it."
 }

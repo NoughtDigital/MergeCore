@@ -111,7 +111,7 @@ Hosts list packs via **`rules/registry.json`**, then resolve filenames in each p
 
 ### `pack.json` (manifest)
 
-Machine-readable pack metadata: **`pack_id`**, **`version`**, optional **`schema_version`**, **`locale`**, human **`title`** / **`description`**, and a **`rubric_schema`** URL for validating **`rubric.json`**. The **`artifacts`** object names the files the pack publishes (typically **`rubric`**, **`smells`**, **`agents`**, and optionally others such as rewrite guidelines). **`tags`** help filtering; **`extends`** lists other packs this one builds on (empty if standalone). This file is the single place a runner looks to find everything else in the folder.
+Machine-readable pack metadata: **`pack_id`**, **`version`**, optional **`schema_version`**, **`locale`**, human **`title`** / **`description`**, and a **`rubric_schema`** URL for validating **`rubric.json`**. Each pack ships its own schema at `https://www.mergecore.dev/schemas/<pack>-rules.schema.json` (source: `website/public/schemas/`), so the Swift pack points at `swift-rules.schema.json`, Python at `python-rules.schema.json`, and so on. The **`artifacts`** object names the files the pack publishes (typically **`rubric`**, **`smells`**, **`agents`**, and optionally others such as rewrite guidelines). **`tags`** help filtering; **`extends`** lists other packs this one builds on (empty if standalone). This file is the single place a runner looks to find everything else in the folder.
 
 ### `rubric.json` (canonical rules)
 

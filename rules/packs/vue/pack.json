@@ -1,0 +1,22 @@
+{
+  "pack_id": "mergecore-vue-rules",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "locale": "en-GB",
+  "title": "MergeCore Vue Rules",
+  "description": "Vue 3 production standards: Composition API hygiene, reactivity correctness, template safety, and component boundaries.",
+  "rubric_schema": "https://www.mergecore.dev/schemas/vue-rules.schema.json",
+  "artifacts": {
+    "rubric": "rubric.json",
+    "smells": "smells.json",
+    "agents": "agents.md"
+  },
+  "tags": [
+    "vue",
+    "vue3",
+    "frontend",
+    "composition-api"
+  ],
+  "extends": [],
+  "notes": "Gate with vue: true when the host detects .vue files or vue in dependencies. Pairs with mergecore-typescript-rules when <script setup lang=\"ts\"> is used."
+}

@@ -1,0 +1,22 @@
+{
+  "meta": {
+    "pack_id": "mergecore-vue-rules",
+    "version": "1.0.0",
+    "locale": "en-GB",
+    "description": "Smell index for Vue 3. Maps to rubric.json rule_ref."
+  },
+  "smells": [
+    { "id": "SMELL-VUE-VHTML", "name": "Unsafe v-html", "rule_ref": "VUE-001", "summary": "v-html bound to user or remote content without sanitisation.", "focus": "security" },
+    { "id": "SMELL-VUE-DESTRUCTURE", "name": "Destructured reactive", "rule_ref": "VUE-002", "summary": "Props or reactive object destructured, losing reactivity.", "focus": "correctness" },
+    { "id": "SMELL-VUE-KEY", "name": "Missing :key", "rule_ref": "VUE-003", "summary": "v-for without a stable :key.", "focus": "correctness" },
+    { "id": "SMELL-VUE-PROP-MUT", "name": "Prop mutation", "rule_ref": "VUE-004", "summary": "Child component mutates a prop directly.", "focus": "correctness" },
+    { "id": "SMELL-VUE-LEAK", "name": "Uncleaned effect", "rule_ref": "VUE-005", "summary": "Timer or listener without onBeforeUnmount cleanup.", "focus": "reliability" },
+    { "id": "SMELL-VUE-COMPOSABLE-FAT", "name": "Fat composable", "rule_ref": "VUE-006", "summary": "Composable returning many unrelated values.", "focus": "maintainability" },
+    { "id": "SMELL-VUE-EMITS", "name": "Undeclared emits", "rule_ref": "VUE-007", "summary": "Component uses emit without defineEmits contract.", "focus": "contracts" },
+    { "id": "SMELL-VUE-WATCH-DEEP", "name": "Deep watcher", "rule_ref": "VUE-008", "summary": "Deep watch on large reactive trees.", "focus": "performance" },
+    { "id": "SMELL-VUE-TPL-EXPR", "name": "Complex template expression", "rule_ref": "VUE-009", "summary": "Heavy logic embedded in mustache or directive.", "focus": "maintainability" },
+    { "id": "SMELL-VUE-A11Y", "name": "Div as button", "rule_ref": "VUE-010", "summary": "Click handler on non-interactive element without a11y support.", "focus": "accessibility" },
+    { "id": "SMELL-VUE-TYPED-PROPS", "name": "Positive: typed props", "rule_ref": "VUE-011", "summary": "defineProps with type or validator schema.", "focus": "contracts" },
+    { "id": "SMELL-VUE-STORE-OVERUSE", "name": "Store for local state", "rule_ref": "VUE-012", "summary": "Pinia/Vuex used for state owned by one view.", "focus": "architecture" }
+  ]
+}

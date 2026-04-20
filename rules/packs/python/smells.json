@@ -1,0 +1,22 @@
+{
+  "meta": {
+    "pack_id": "mergecore-python-rules",
+    "version": "1.0.0",
+    "locale": "en-GB",
+    "description": "Smell index for Python. Maps to rubric.json rule_ref."
+  },
+  "smells": [
+    { "id": "SMELL-PY-EVAL", "name": "eval/exec on input", "rule_ref": "PY-001", "summary": "Dynamic code evaluation on untrusted strings.", "focus": "security" },
+    { "id": "SMELL-PY-SHELL", "name": "shell=True injection", "rule_ref": "PY-002", "summary": "subprocess with shell=True and interpolation.", "focus": "security" },
+    { "id": "SMELL-PY-MUT-DEFAULT", "name": "Mutable default argument", "rule_ref": "PY-003", "summary": "Default list or dict shared across calls.", "focus": "correctness" },
+    { "id": "SMELL-PY-BARE-EXCEPT", "name": "Swallowed exception", "rule_ref": "PY-004", "summary": "except: or except Exception: with no reraise/log.", "focus": "reliability" },
+    { "id": "SMELL-PY-NO-WITH", "name": "Leaked file handle", "rule_ref": "PY-005", "summary": "open() without a context manager.", "focus": "reliability" },
+    { "id": "SMELL-PY-UNTYPED", "name": "Missing type hints", "rule_ref": "PY-006", "summary": "Public function lacks parameter or return annotations.", "focus": "maintainability" },
+    { "id": "SMELL-PY-BLOCK-ASYNC", "name": "Blocking call in async", "rule_ref": "PY-007", "summary": "time.sleep or requests.get inside async def.", "focus": "performance" },
+    { "id": "SMELL-PY-THIN-CLASS", "name": "Class as function", "rule_ref": "PY-008", "summary": "Thin wrapper class better modelled as dataclass or function.", "focus": "maintainability" },
+    { "id": "SMELL-PY-STAR-IMPORT", "name": "Wildcard import", "rule_ref": "PY-009", "summary": "from module import * obscures provenance.", "focus": "maintainability" },
+    { "id": "SMELL-PY-SECRET-LOG", "name": "Secret in log", "rule_ref": "PY-010", "summary": "Password, token, or header logged.", "focus": "security" },
+    { "id": "SMELL-PY-DOMAIN-ERR", "name": "Positive: domain exceptions", "rule_ref": "PY-011", "summary": "Custom exception classes for domain conditions.", "focus": "reliability" },
+    { "id": "SMELL-PY-STR-CONCAT", "name": "Quadratic string build", "rule_ref": "PY-012", "summary": "String += inside a loop.", "focus": "performance" }
+  ]
+}

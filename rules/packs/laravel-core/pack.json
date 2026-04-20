@@ -12,6 +12,10 @@
     "agents": "agents.md",
     "rewrite_guidelines": "rewrite-guidelines.md"
   },
-  "tags": ["laravel", "php", "core"],
+  "tags": [
+    "laravel",
+    "php",
+    "core"
+  ],
   "extends": []
 }

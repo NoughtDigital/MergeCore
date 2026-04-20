@@ -1,0 +1,310 @@
+{
+  "$schema": "https://www.mergecore.dev/schemas/python-rules.schema.json",
+  "meta": {
+    "pack_id": "mergecore-python-rules",
+    "pack_version": "1.0.0",
+    "locale": "en-GB",
+    "title": "MergeCore Python Rules",
+    "description": "Rules for production Python: typing, exceptions, concurrency, resource management, and safe execution.",
+    "notes": "Gate with python: true. Rules assume Python 3.10+; flag version-dependent findings explicitly."
+  },
+  "severity_levels": {
+    "info": {
+      "rank": 1,
+      "label": "Informational",
+      "default_penalty": 0.15
+    },
+    "hint": {
+      "rank": 2,
+      "label": "Style or maintainability",
+      "default_penalty": 0.25
+    },
+    "warning": {
+      "rank": 3,
+      "label": "Likely defect or performance risk",
+      "default_penalty": 0.55
+    },
+    "error": {
+      "rank": 4,
+      "label": "High risk (correctness or security)",
+      "default_penalty": 0.85
+    },
+    "critical": {
+      "rank": 5,
+      "label": "Critical (code execution or data loss)",
+      "default_penalty": 1.2
+    }
+  },
+  "scoring": {
+    "scale_max": 10,
+    "initial_score": 10,
+    "aggregation": "subtract_penalties_with_cap",
+    "penalty_source": "rule.penalty overrides severity_levels[severity].default_penalty when present",
+    "max_total_penalty_per_file": 10,
+    "normalisation": "Per review unit (one module), sum penalties after optional quality_signal multiplier, then score = max(0, min(10, initial_score - min(sum_penalties, max_total_penalty_per_file))).",
+    "quality_signal_adjustment": {
+      "junior": 1,
+      "risky": 1.15,
+      "overengineered": 0.85,
+      "senior_positive": -0.35
+    },
+    "interpretation": {
+      "9_to_10": "Typed, idiomatic, safe I/O, explicit errors.",
+      "7_to_8": "Mergeable; tighten exception handling or typing at boundaries.",
+      "5_to_6": "Risky: bare except, mutable defaults, or unbounded I/O.",
+      "0_to_4": "Block: shell injection, eval on untrusted input, or leaked secrets."
+    }
+  },
+  "rules": [
+    {
+      "id": "PY-001",
+      "category": "security",
+      "severity": "critical",
+      "quality_signal": "risky",
+      "title": "eval/exec on untrusted input",
+      "description": "eval(), exec(), and compile() on user or remote input enable remote code execution. Use explicit parsing (ast.literal_eval, json.loads) or a domain-specific parser.",
+      "penalty": 1.2,
+      "detection": {
+        "file_globs": [
+          "**/*.py"
+        ],
+        "patterns": [
+          "/\\beval\\s*\\(/",
+          "/\\bexec\\s*\\(/"
+        ],
+        "prefer": [
+          "ast.literal_eval",
+          "json.loads"
+        ]
+      }
+    },
+    {
+      "id": "PY-002",
+      "category": "security",
+      "severity": "error",
+      "quality_signal": "risky",
+      "title": "subprocess with shell=True and interpolated input",
+      "description": "shell=True with string interpolation is shell injection. Pass an argv list and shell=False (default) or quote with shlex.",
+      "penalty": 0.95,
+      "detection": {
+        "file_globs": [
+          "**/*.py"
+        ],
+        "patterns": [
+          "/subprocess\\.(run|Popen|call|check_output)\\([^)]*shell\\s*=\\s*True/"
+        ],
+        "prefer": [
+          "argv list",
+          "shlex.quote"
+        ]
+      }
+    },
+    {
+      "id": "PY-003",
+      "category": "correctness",
+      "severity": "warning",
+      "quality_signal": "risky",
+      "title": "Mutable default argument",
+      "description": "Default arguments are evaluated once at function definition; using [] or {} as defaults shares state across calls.",
+      "penalty": 0.55,
+      "detection": {
+        "file_globs": [
+          "**/*.py"
+        ],
+        "patterns": [
+          "/def\\s+\\w+\\([^)]*=\\s*\\[\\]/",
+          "/def\\s+\\w+\\([^)]*=\\s*\\{\\}/"
+        ],
+        "prefer": [
+          "None sentinel, assign inside the body"
+        ]
+      },
+      "examples": {
+        "before": "def add(item, bucket=[]): bucket.append(item); return bucket",
+        "after": "def add(item, bucket=None): bucket = [] if bucket is None else bucket; bucket.append(item); return bucket"
+      }
+    },
+    {
+      "id": "PY-004",
+      "category": "exceptions",
+      "severity": "warning",
+      "quality_signal": "risky",
+      "title": "Bare except or except Exception swallowing errors",
+      "description": "Catching every exception and logging or passing hides real defects and breaks KeyboardInterrupt/SystemExit. Catch specific types; reraise where appropriate.",
+      "penalty": 0.55,
+      "detection": {
+        "file_globs": [
+          "**/*.py"
+        ],
+        "patterns": [
+          "/except\\s*:/",
+          "/except\\s+Exception\\s*:/"
+        ],
+        "prefer": [
+          "except SpecificError:",
+          "except (A, B):",
+          "logging.exception + reraise"
+        ]
+      }
+    },
+    {
+      "id": "PY-005",
+      "category": "resources",
+      "severity": "warning",
+      "quality_signal": "risky",
+      "title": "File or connection opened without a context manager",
+      "description": "open(), socket(), and database connections should use with-blocks or explicit try/finally to release handles.",
+      "penalty": 0.5,
+      "detection": {
+        "file_globs": [
+          "**/*.py"
+        ],
+        "patterns": [
+          "/\\b\\w+\\s*=\\s*open\\(/"
+        ],
+        "absence_preferred": [
+          "with\\s+open\\("
+        ]
+      },
+      "examples": {
+        "before": "f = open(path); data = f.read(); f.close()",
+        "after": "with open(path) as f: data = f.read()"
+      }
+    },
+    {
+      "id": "PY-006",
+      "category": "typing",
+      "severity": "hint",
+      "quality_signal": "junior",
+      "title": "Public function missing type hints",
+      "description": "Public callables benefit from signatures. Type hints aid IDEs, mypy/pyright, and runtime validation.",
+      "penalty": 0.25,
+      "detection": {
+        "file_globs": [
+          "**/*.py"
+        ],
+        "patterns": [
+          "/^def\\s+\\w+\\s*\\([^)]*\\)\\s*:/"
+        ],
+        "absence_preferred": [
+          "->"
+        ]
+      }
+    },
+    {
+      "id": "PY-007",
+      "category": "concurrency",
+      "severity": "warning",
+      "quality_signal": "risky",
+      "title": "Blocking call inside async function",
+      "description": "time.sleep, requests.get, or synchronous DB drivers inside async def stall the event loop. Use the async equivalent or run_in_executor.",
+      "penalty": 0.55,
+      "detection": {
+        "file_globs": [
+          "**/*.py"
+        ],
+        "patterns": [
+          "/async\\s+def[\\s\\S]*?time\\.sleep\\(/",
+          "/async\\s+def[\\s\\S]*?requests\\.\\w+\\(/"
+        ],
+        "prefer": [
+          "asyncio.sleep",
+          "httpx.AsyncClient"
+        ]
+      }
+    },
+    {
+      "id": "PY-008",
+      "category": "data",
+      "severity": "hint",
+      "quality_signal": "overengineered",
+      "title": "Classes used where a function or dataclass would do",
+      "description": "Thin wrapper classes with __init__ storing attributes and one method are typically better modelled as functions or dataclasses.",
+      "penalty": 0.25,
+      "detection": {
+        "file_globs": [
+          "**/*.py"
+        ],
+        "heuristics": [
+          "class with __init__ + one method, no state evolution"
+        ],
+        "prefer": [
+          "@dataclass",
+          "function"
+        ]
+      }
+    },
+    {
+      "id": "PY-009",
+      "category": "imports",
+      "severity": "info",
+      "quality_signal": "junior",
+      "title": "Wildcard import pollutes namespace",
+      "description": "from module import * imports hide origins and break static analysis. Import names explicitly.",
+      "penalty": 0.15,
+      "detection": {
+        "file_globs": [
+          "**/*.py"
+        ],
+        "patterns": [
+          "/^from\\s+[\\w.]+\\s+import\\s+\\*/"
+        ]
+      }
+    },
+    {
+      "id": "PY-010",
+      "category": "logging",
+      "severity": "warning",
+      "quality_signal": "risky",
+      "title": "Secrets or tokens leaking to logs",
+      "description": "Logging full request bodies, auth headers, or tokens breaches compliance and aids attackers. Redact or structure logging with allow-lists.",
+      "penalty": 0.65,
+      "detection": {
+        "file_globs": [
+          "**/*.py"
+        ],
+        "patterns": [
+          "/log(ger)?\\.(debug|info|warning|error|critical)\\([^)]*(password|token|secret|authorization)/i"
+        ]
+      }
+    },
+    {
+      "id": "PY-011",
+      "category": "exceptions",
+      "severity": "hint",
+      "quality_signal": "senior_positive",
+      "title": "Strong pattern: domain-specific exception types",
+      "description": "Custom exception hierarchies communicate intent and enable precise handling at call sites.",
+      "penalty": -0.3,
+      "detection": {
+        "file_globs": [
+          "**/*.py"
+        ],
+        "patterns": [
+          "/class\\s+\\w+Error\\(\\s*\\w+Error\\s*\\)/"
+        ]
+      }
+    },
+    {
+      "id": "PY-012",
+      "category": "performance",
+      "severity": "hint",
+      "quality_signal": "junior",
+      "title": "String concatenation in a loop",
+      "description": "Repeated += on strings creates O(n^2) allocations. Use str.join or write to a buffer.",
+      "penalty": 0.2,
+      "detection": {
+        "file_globs": [
+          "**/*.py"
+        ],
+        "patterns": [
+          "/for\\s+\\w+\\s+in[\\s\\S]*?\\w+\\s*\\+=\\s*(['\"]|str\\()/"
+        ],
+        "prefer": [
+          "'\\n'.join(parts)",
+          "io.StringIO"
+        ]
+      }
+    }
+  ]
+}

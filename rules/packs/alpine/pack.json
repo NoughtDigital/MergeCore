@@ -5,13 +5,20 @@
   "locale": "en-GB",
   "title": "MergeCore Alpine.js Rules",
   "description": "Alpine.js in Blade and assets: safe initial state, lists, effects, and maintainable client behaviour.",
-  "rubric_schema": "https://www.mergecore.dev/schemas/laravel-rules.schema.json",
+  "rubric_schema": "https://www.mergecore.dev/schemas/alpine-rules.schema.json",
   "artifacts": {
     "rubric": "rubric.json",
     "smells": "smells.json",
     "agents": "agents.md"
   },
-  "tags": ["alpine", "javascript", "blade", "frontend"],
-  "extends": ["laravel-core-rules"],
+  "tags": [
+    "alpine",
+    "javascript",
+    "blade",
+    "frontend"
+  ],
+  "extends": [
+    "laravel-core-rules"
+  ],
   "notes": "Gate with alpine: true when the host detects x-data, Alpine.build, or alpinejs. Works alongside mergecore-livewire-rules when both are present."
 }

@@ -1,0 +1,20 @@
+{
+  "meta": {
+    "pack_id": "mergecore-tauri-rules",
+    "version": "1.0.0",
+    "locale": "en-GB",
+    "description": "Smell index for Tauri. Maps to rubric.json rule_ref."
+  },
+  "smells": [
+    { "id": "SMELL-TAU-FS-WIDE", "name": "Wide filesystem scope", "rule_ref": "TAU-001", "summary": "fs permission covers $HOME or globs outside the app.", "focus": "security" },
+    { "id": "SMELL-TAU-SHELL", "name": "Arbitrary shell exec", "rule_ref": "TAU-002", "summary": "shell.execute with user-shaped command or args.", "focus": "security" },
+    { "id": "SMELL-TAU-CSP", "name": "Weak CSP", "rule_ref": "TAU-003", "summary": "unsafe-inline, unsafe-eval, or null CSP.", "focus": "security" },
+    { "id": "SMELL-TAU-CMD-UNVAL", "name": "Unvalidated command", "rule_ref": "TAU-004", "summary": "#[tauri::command] uses inputs without validation.", "focus": "security" },
+    { "id": "SMELL-TAU-UPDATER", "name": "Unsigned updater", "rule_ref": "TAU-005", "summary": "Updater active without pubkey or verification.", "focus": "security" },
+    { "id": "SMELL-TAU-CAP-WIDE", "name": "Capability too broad", "rule_ref": "TAU-006", "summary": "Capability applied to all windows including privileged ones.", "focus": "security" },
+    { "id": "SMELL-TAU-INVOKE-UNTYPED", "name": "Untyped invoke", "rule_ref": "TAU-007", "summary": "invoke<T>() without generic or schema.", "focus": "maintainability" },
+    { "id": "SMELL-TAU-PATH-TRAVERSE", "name": "Path traversal risk", "rule_ref": "TAU-008", "summary": "User path joined without canonicalisation.", "focus": "security" },
+    { "id": "SMELL-TAU-LOG-NOISE", "name": "Debug logs in release", "rule_ref": "TAU-009", "summary": "println/dbg shipped without gating.", "focus": "privacy" },
+    { "id": "SMELL-TAU-LEAST-PRIV", "name": "Positive: least-privilege capabilities", "rule_ref": "TAU-010", "summary": "Specific, minimal permissions enabled.", "focus": "security" }
+  ]
+}

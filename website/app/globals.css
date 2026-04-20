@@ -635,6 +635,41 @@ footer .footer-credit {
   margin-top: 0.65rem;
 }
 
+.not-found {
+  padding: 5rem 0 4rem;
+  max-width: 720px;
+}
+
+.not-found-code {
+  font-family: var(--font-mono);
+  font-size: clamp(5rem, 14vw, 9rem);
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.06em;
+  margin: 0 0 1.5rem;
+  background: linear-gradient(
+    180deg,
+    var(--accent) 0%,
+    rgba(196, 245, 66, 0.25) 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  text-shadow: 0 0 40px rgba(196, 245, 66, 0.08);
+}
+
+.not-found h1 {
+  max-width: 22ch;
+}
+
+.not-found-panel {
+  margin-top: 2.5rem;
+}
+
+.not-found-panel code {
+  word-break: break-all;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .marquee-track.marquee-left,
   .marquee-track.marquee-right {

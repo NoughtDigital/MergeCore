@@ -1,5 +1,5 @@
 {
-  "$schema": "https://www.mergecore.dev/schemas/laravel-rules.schema.json",
+  "$schema": "https://www.mergecore.dev/schemas/livewire-rules.schema.json",
   "meta": {
     "pack_id": "mergecore-livewire-rules",
     "pack_version": "1.0.0",
@@ -9,11 +9,31 @@
     "notes": "Gate with livewire: true when the host supports project metadata. Rules marked livewire: true are Livewire-specific."
   },
   "severity_levels": {
-    "info": { "rank": 1, "label": "Informational", "default_penalty": 0.15 },
-    "hint": { "rank": 2, "label": "Style or maintainability", "default_penalty": 0.25 },
-    "warning": { "rank": 3, "label": "Likely defect or performance risk", "default_penalty": 0.55 },
-    "error": { "rank": 4, "label": "High risk (security or data leak)", "default_penalty": 0.85 },
-    "critical": { "rank": 5, "label": "Critical (unauthorised mutation)", "default_penalty": 1.2 }
+    "info": {
+      "rank": 1,
+      "label": "Informational",
+      "default_penalty": 0.15
+    },
+    "hint": {
+      "rank": 2,
+      "label": "Style or maintainability",
+      "default_penalty": 0.25
+    },
+    "warning": {
+      "rank": 3,
+      "label": "Likely defect or performance risk",
+      "default_penalty": 0.55
+    },
+    "error": {
+      "rank": 4,
+      "label": "High risk (security or data leak)",
+      "default_penalty": 0.85
+    },
+    "critical": {
+      "rank": 5,
+      "label": "Critical (unauthorised mutation)",
+      "default_penalty": 1.2
+    }
   },
   "scoring": {
     "scale_max": 10,
@@ -23,7 +43,7 @@
     "max_total_penalty_per_file": 10,
     "normalisation": "Per review unit (one PHP component class or one Blade file using wire:*), sum penalties for matched rules after optional quality_signal multiplier, then score = max(0, min(10, initial_score - min(sum_penalties, max_total_penalty_per_file))).",
     "quality_signal_adjustment": {
-      "junior": 1.0,
+      "junior": 1,
       "risky": 1.15,
       "overengineered": 0.85,
       "senior_positive": -0.35
@@ -50,13 +70,22 @@
       "penalty": 0.85,
       "livewire": true,
       "detection": {
-        "file_globs": ["app/Livewire/**/*.php"],
+        "file_globs": [
+          "app/Livewire/**/*.php"
+        ],
         "patterns": [
           "/function\\s+\\w+\\s*\\([^)]*\\)\\s*\\{[^}]*\\$this->\\w+->(save|update|delete)\\(/",
           "/function\\s+\\w+\\s*\\([^)]*\\)\\s*:\\s*void/"
         ],
-        "absence_preferred": ["authorize\\(", "#\\[Authorize", "Gate::authorize", "->authorize\\("],
-        "heuristics": ["Method name matches save|delete|toggle|approve but no authorisation call in body"]
+        "absence_preferred": [
+          "authorize\\(",
+          "#\\[Authorize",
+          "Gate::authorize",
+          "->authorize\\("
+        ],
+        "heuristics": [
+          "Method name matches save|delete|toggle|approve but no authorisation call in body"
+        ]
       },
       "examples": {
         "before": "public function approve(): void { $this->order->update(['status' => 'approved']); }",
@@ -73,12 +102,16 @@
       "penalty": 0.55,
       "livewire": true,
       "detection": {
-        "file_globs": ["app/Livewire/**/*.php"],
+        "file_globs": [
+          "app/Livewire/**/*.php"
+        ],
         "patterns": [
           "/public\\s+\\??\\s*\\w+\\s+\\$\\w+\\s*;/",
           "/#\\[Validate\\]/"
         ],
-        "heuristics": ["Property type hints Model or ?User and is assigned from ::find without Arrayable shaping"]
+        "heuristics": [
+          "Property type hints Model or ?User and is assigned from ::find without Arrayable shaping"
+        ]
       },
       "examples": {
         "before": "public Order $order;",
@@ -95,14 +128,18 @@
       "penalty": 0.65,
       "livewire": true,
       "detection": {
-        "file_globs": ["app/Livewire/**/*.php"],
+        "file_globs": [
+          "app/Livewire/**/*.php"
+        ],
         "patterns": [
           "/Http::(get|post|put|patch|delete)\\(/",
           "/Mail::(to|send)\\(/",
           "/->notify\\(/",
           "/sleep\\(\\s*\\d+\\s*\\)/"
         ],
-        "heuristics": ["Inside public component method, not inside dispatch or ShouldQueue class"]
+        "heuristics": [
+          "Inside public component method, not inside dispatch or ShouldQueue class"
+        ]
       },
       "examples": {
         "before": "public function sync(): void { Http::post(config('crm.url'), $this->payload); }",
@@ -119,12 +156,17 @@
       "penalty": 0.35,
       "livewire": true,
       "detection": {
-        "file_globs": ["resources/views/**/*.blade.php"],
+        "file_globs": [
+          "resources/views/**/*.blade.php"
+        ],
         "patterns": [
           "/wire:model\\.live(?!\\.debounce)/",
           "/wire:model\\.live=\"\\$\\w+\"/"
         ],
-        "heuristics": ["Bound to query or notes fields", "Same element is input type search or textarea"]
+        "heuristics": [
+          "Bound to query or notes fields",
+          "Same element is input type search or textarea"
+        ]
       },
       "examples": {
         "before": "<input type=\"search\" wire:model.live=\"q\" />",
@@ -141,10 +183,18 @@
       "penalty": 0.5,
       "livewire": true,
       "detection": {
-        "file_globs": ["resources/views/**/*.blade.php"],
-        "patterns": ["/@foreach\\s*\\(/"],
-        "absence_preferred": ["wire:key"],
-        "heuristics": ["Loop variable is model or array row with id"]
+        "file_globs": [
+          "resources/views/**/*.blade.php"
+        ],
+        "patterns": [
+          "/@foreach\\s*\\(/"
+        ],
+        "absence_preferred": [
+          "wire:key"
+        ],
+        "heuristics": [
+          "Loop variable is model or array row with id"
+        ]
       },
       "examples": {
         "before": "@foreach ($items as $item) <tr>",
@@ -161,12 +211,18 @@
       "penalty": 0.55,
       "livewire": true,
       "detection": {
-        "file_globs": ["resources/views/livewire/**/*.blade.php", "app/Livewire/**/*.php"],
+        "file_globs": [
+          "resources/views/livewire/**/*.blade.php",
+          "app/Livewire/**/*.php"
+        ],
         "patterns": [
           "/\\$\\w+->\\w+->\\w+/",
           "/@foreach\\s*\\(\\s*\\$\\w+->\\w+\\s+as/"
         ],
-        "heuristics": ["Component render() returns model without ->with(", "Blade dereferences nested relation"]
+        "heuristics": [
+          "Component render() returns model without ->with(",
+          "Blade dereferences nested relation"
+        ]
       },
       "examples": {
         "before": "return view('livewire.order', ['order' => Order::find($this->orderId)]);",
@@ -183,13 +239,21 @@
       "penalty": 0.9,
       "livewire": true,
       "detection": {
-        "file_globs": ["app/Livewire/**/*.php"],
+        "file_globs": [
+          "app/Livewire/**/*.php"
+        ],
         "patterns": [
           "/function\\s+updated\\w+\\(.*TemporaryUploadedFile/",
           "/TemporaryUploadedFile/"
         ],
-        "absence_preferred": ["WithFileUploads", "validate\\(\\s*\\[", "#\\[Validate\\]"],
-        "heuristics": ["Property typed as TemporaryUploadedFile without rules array nearby"]
+        "absence_preferred": [
+          "WithFileUploads",
+          "validate\\(\\s*\\[",
+          "#\\[Validate\\]"
+        ],
+        "heuristics": [
+          "Property typed as TemporaryUploadedFile without rules array nearby"
+        ]
       },
       "examples": {
         "before": "public function save(): void { Storage::put('x', $this->file); }",
@@ -206,12 +270,16 @@
       "penalty": 0.5,
       "livewire": true,
       "detection": {
-        "file_globs": ["app/Livewire/**/*.php"],
+        "file_globs": [
+          "app/Livewire/**/*.php"
+        ],
         "patterns": [
           "/\\$this->dispatch\\([^)]*::class/",
           "/\\$this->dispatch\\([^)]*\\$this->\\w+\\s*\\)/"
         ],
-        "heuristics": ["Second argument is entire $this->user or model"]
+        "heuristics": [
+          "Second argument is entire $this->user or model"
+        ]
       },
       "examples": {
         "before": "$this->dispatch('selected', user: $this->user);",
@@ -228,14 +296,18 @@
       "penalty": -0.3,
       "livewire": true,
       "detection": {
-        "file_globs": ["app/Livewire/**/*.php"],
+        "file_globs": [
+          "app/Livewire/**/*.php"
+        ],
         "patterns": [
           "/->with\\(\\s*\\[/",
           "/->with\\(['\"][^'\"]+['\"]/",
           "/->load\\(/",
           "/->loadMissing\\(/"
         ],
-        "heuristics": ["Inside render() or mount() returning data to the view"]
+        "heuristics": [
+          "Inside render() or mount() returning data to the view"
+        ]
       },
       "examples": {
         "before": "N/A — positive signal",

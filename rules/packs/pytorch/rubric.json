@@ -1,0 +1,319 @@
+{
+  "$schema": "https://www.mergecore.dev/schemas/pytorch-rules.schema.json",
+  "meta": {
+    "pack_id": "mergecore-pytorch-rules",
+    "pack_version": "1.0.0",
+    "locale": "en-GB",
+    "title": "MergeCore PyTorch Rules",
+    "description": "Rules for PyTorch training and inference: device handling, gradients, memory, reproducibility, and data pipelines.",
+    "notes": "Gate with pytorch: true. Complements mergecore-python-rules."
+  },
+  "severity_levels": {
+    "info": {
+      "rank": 1,
+      "label": "Informational",
+      "default_penalty": 0.15
+    },
+    "hint": {
+      "rank": 2,
+      "label": "Style or maintainability",
+      "default_penalty": 0.25
+    },
+    "warning": {
+      "rank": 3,
+      "label": "Likely defect or training regression",
+      "default_penalty": 0.55
+    },
+    "error": {
+      "rank": 4,
+      "label": "High risk (incorrect gradients or OOM)",
+      "default_penalty": 0.85
+    },
+    "critical": {
+      "rank": 5,
+      "label": "Critical (silent training failure)",
+      "default_penalty": 1.2
+    }
+  },
+  "scoring": {
+    "scale_max": 10,
+    "initial_score": 10,
+    "aggregation": "subtract_penalties_with_cap",
+    "penalty_source": "rule.penalty overrides severity_levels[severity].default_penalty when present",
+    "max_total_penalty_per_file": 10,
+    "normalisation": "Per review unit (one training script or module), sum penalties after optional quality_signal multiplier, then score = max(0, min(10, initial_score - min(sum_penalties, max_total_penalty_per_file))).",
+    "quality_signal_adjustment": {
+      "junior": 1,
+      "risky": 1.15,
+      "overengineered": 0.85,
+      "senior_positive": -0.35
+    },
+    "interpretation": {
+      "9_to_10": "Correct gradients, clear device placement, deterministic seeds where needed.",
+      "7_to_8": "Mergeable; tighten eval/train switches or dataloader workers.",
+      "5_to_6": "Risky: missing zero_grad or no_grad, silent device mismatches.",
+      "0_to_4": "Block: training computes wrong loss, leaks memory, or is irreproducible when required."
+    }
+  },
+  "rules": [
+    {
+      "id": "PT-001",
+      "category": "training",
+      "severity": "error",
+      "quality_signal": "risky",
+      "title": "Missing optimizer.zero_grad() in training step",
+      "description": "Gradients accumulate across calls by default. Forgetting to zero them before backward produces stale, summed gradients and wrong updates.",
+      "penalty": 0.85,
+      "pytorch": true,
+      "detection": {
+        "file_globs": [
+          "**/*.py"
+        ],
+        "patterns": [
+          "/loss\\.backward\\(\\)/"
+        ],
+        "absence_preferred": [
+          "optimizer\\.zero_grad\\(",
+          "set_to_none=True"
+        ]
+      },
+      "examples": {
+        "before": "for x, y in loader: out = model(x); loss = criterion(out, y); loss.backward(); optimizer.step()",
+        "after": "for x, y in loader: optimizer.zero_grad(set_to_none=True); out = model(x); loss = criterion(out, y); loss.backward(); optimizer.step()"
+      }
+    },
+    {
+      "id": "PT-002",
+      "category": "evaluation",
+      "severity": "error",
+      "quality_signal": "risky",
+      "title": "Evaluation without torch.no_grad() or model.eval()",
+      "description": "Validation/inference loops should disable grad tracking and switch Dropout/BatchNorm modes. Otherwise you leak gradients and get inconsistent metrics.",
+      "penalty": 0.7,
+      "pytorch": true,
+      "detection": {
+        "file_globs": [
+          "**/*.py"
+        ],
+        "patterns": [
+          "/def\\s+(evaluate|validate|test)\\s*\\(/",
+          "/for\\s+\\w+\\s*,\\s*\\w+\\s+in\\s+(val|test)_loader/"
+        ],
+        "absence_preferred": [
+          "torch\\.no_grad\\(",
+          "inference_mode\\(",
+          "model\\.eval\\("
+        ]
+      }
+    },
+    {
+      "id": "PT-003",
+      "category": "device",
+      "severity": "warning",
+      "quality_signal": "risky",
+      "title": "Hard-coded .cuda() instead of a device variable",
+      "description": "Hard-coding .cuda() breaks on CPU-only, multi-GPU, and MPS. Use a `device` variable derived once from availability.",
+      "penalty": 0.45,
+      "pytorch": true,
+      "detection": {
+        "file_globs": [
+          "**/*.py"
+        ],
+        "patterns": [
+          "/\\.cuda\\(\\)/"
+        ],
+        "prefer": [
+          ".to(device)",
+          "torch.device('cuda' if torch.cuda.is_available() else 'cpu')"
+        ]
+      }
+    },
+    {
+      "id": "PT-004",
+      "category": "data",
+      "severity": "warning",
+      "quality_signal": "risky",
+      "title": "DataLoader without num_workers or pin_memory on GPU training",
+      "description": "Single-threaded data loading starves the GPU. Configure num_workers > 0 and pin_memory=True when moving to CUDA.",
+      "penalty": 0.4,
+      "pytorch": true,
+      "detection": {
+        "file_globs": [
+          "**/*.py"
+        ],
+        "patterns": [
+          "/DataLoader\\([^)]*\\)/"
+        ],
+        "absence_preferred": [
+          "num_workers\\s*=",
+          "pin_memory\\s*=\\s*True"
+        ]
+      }
+    },
+    {
+      "id": "PT-005",
+      "category": "memory",
+      "severity": "warning",
+      "quality_signal": "risky",
+      "title": "Accumulating tensors that still require grad",
+      "description": "Collecting `loss` or output tensors into a list without .detach() or .item() retains the entire graph and exhausts memory.",
+      "penalty": 0.55,
+      "pytorch": true,
+      "detection": {
+        "file_globs": [
+          "**/*.py"
+        ],
+        "patterns": [
+          "/\\w+\\.append\\(\\s*loss\\s*\\)/",
+          "/\\w+\\.append\\(\\s*out(put)?s?\\s*\\)/"
+        ],
+        "prefer": [
+          ".item()",
+          ".detach().cpu()"
+        ]
+      }
+    },
+    {
+      "id": "PT-006",
+      "category": "reproducibility",
+      "severity": "hint",
+      "quality_signal": "junior",
+      "title": "Randomness without seed in a benchmarking or evaluation script",
+      "description": "If the script advertises reproducible metrics, seed torch, numpy, and random; consider torch.use_deterministic_algorithms where relevant.",
+      "penalty": 0.3,
+      "pytorch": true,
+      "detection": {
+        "file_globs": [
+          "**/*.py"
+        ],
+        "patterns": [
+          "/torch\\.(randn|rand|randint|randperm)\\(/"
+        ],
+        "absence_preferred": [
+          "torch\\.manual_seed\\(",
+          "np\\.random\\.seed\\("
+        ]
+      }
+    },
+    {
+      "id": "PT-007",
+      "category": "correctness",
+      "severity": "warning",
+      "quality_signal": "risky",
+      "title": "Softmax applied before CrossEntropyLoss",
+      "description": "nn.CrossEntropyLoss expects raw logits. Applying softmax first double-normalises and degrades training.",
+      "penalty": 0.6,
+      "pytorch": true,
+      "detection": {
+        "file_globs": [
+          "**/*.py"
+        ],
+        "patterns": [
+          "/F\\.softmax\\([\\s\\S]{0,200}CrossEntropyLoss/",
+          "/nn\\.Softmax\\([\\s\\S]{0,200}CrossEntropyLoss/"
+        ]
+      }
+    },
+    {
+      "id": "PT-008",
+      "category": "performance",
+      "severity": "hint",
+      "quality_signal": "junior",
+      "title": "torch.tensor(...) in the training inner loop",
+      "description": "Allocating a fresh tensor inside the loop and possibly copying from Python lists is slow. Prefer preallocated buffers or torch.as_tensor where possible.",
+      "penalty": 0.25,
+      "pytorch": true,
+      "detection": {
+        "file_globs": [
+          "**/*.py"
+        ],
+        "patterns": [
+          "/for\\s+\\w+\\s+in[\\s\\S]*?torch\\.tensor\\(/"
+        ]
+      }
+    },
+    {
+      "id": "PT-009",
+      "category": "autograd",
+      "severity": "hint",
+      "quality_signal": "senior_positive",
+      "title": "Strong pattern: autocast/GradScaler for mixed precision",
+      "description": "Using torch.autocast and torch.cuda.amp.GradScaler on CUDA correctly guards fp16 training stability.",
+      "penalty": -0.3,
+      "pytorch": true,
+      "detection": {
+        "file_globs": [
+          "**/*.py"
+        ],
+        "patterns": [
+          "/torch\\.autocast\\(/",
+          "/GradScaler\\(/"
+        ]
+      }
+    },
+    {
+      "id": "PT-010",
+      "category": "modelling",
+      "severity": "hint",
+      "quality_signal": "junior",
+      "title": "Tensor dtype or shape assumptions not asserted at boundaries",
+      "description": "Public forward() methods benefit from explicit shape/dtype checks or type annotations using TensorType to catch wiring errors early.",
+      "penalty": 0.25,
+      "pytorch": true,
+      "detection": {
+        "file_globs": [
+          "**/*.py"
+        ],
+        "patterns": [
+          "/def\\s+forward\\s*\\(self[^)]*\\)\\s*:/"
+        ],
+        "absence_preferred": [
+          "assert\\s+\\w+\\.shape",
+          "assert\\s+\\w+\\.dtype"
+        ]
+      }
+    },
+    {
+      "id": "PT-011",
+      "category": "distributed",
+      "severity": "warning",
+      "quality_signal": "risky",
+      "title": "Mixing DataParallel with new code",
+      "description": "nn.DataParallel is effectively deprecated for new work due to overheads and limitations. Prefer DistributedDataParallel or torch.compile with DDP.",
+      "penalty": 0.4,
+      "pytorch": true,
+      "detection": {
+        "file_globs": [
+          "**/*.py"
+        ],
+        "patterns": [
+          "/nn\\.DataParallel\\(/"
+        ],
+        "prefer": [
+          "DistributedDataParallel"
+        ]
+      }
+    },
+    {
+      "id": "PT-012",
+      "category": "logging",
+      "severity": "hint",
+      "quality_signal": "junior",
+      "title": "Printing loss tensor instead of scalar",
+      "description": "print(loss) renders the tensor with grad info; calling .item() or formatting with {:.4f} avoids graph retention and produces clean logs.",
+      "penalty": 0.2,
+      "pytorch": true,
+      "detection": {
+        "file_globs": [
+          "**/*.py"
+        ],
+        "patterns": [
+          "/print\\([^)]*loss[^)]*\\)/"
+        ],
+        "prefer": [
+          "loss.item()"
+        ]
+      }
+    }
+  ]
+}

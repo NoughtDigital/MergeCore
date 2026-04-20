@@ -1,0 +1,22 @@
+{
+  "pack_id": "mergecore-swift-rules",
+  "version": "1.0.0",
+  "schema_version": "1",
+  "locale": "en-GB",
+  "title": "MergeCore Swift Rules",
+  "description": "Swift language standards: optional handling, concurrency, memory, error handling, and value-type preference.",
+  "rubric_schema": "https://www.mergecore.dev/schemas/swift-rules.schema.json",
+  "artifacts": {
+    "rubric": "rubric.json",
+    "smells": "smells.json",
+    "agents": "agents.md"
+  },
+  "tags": [
+    "swift",
+    "ios",
+    "macos",
+    "apple"
+  ],
+  "extends": [],
+  "notes": "Gate with swift: true when .swift files are present. Assumes Swift 5.9+ and modern concurrency."
+}

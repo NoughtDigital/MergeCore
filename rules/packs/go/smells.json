@@ -1,0 +1,22 @@
+{
+  "meta": {
+    "pack_id": "mergecore-go-rules",
+    "version": "1.0.0",
+    "locale": "en-GB",
+    "description": "Smell index for Go. Maps to rubric.json rule_ref."
+  },
+  "smells": [
+    { "id": "SMELL-GO-ERR-IGNORED", "name": "Ignored error", "rule_ref": "GO-001", "summary": "Error return assigned to _ or discarded.", "focus": "reliability" },
+    { "id": "SMELL-GO-CTX-BG", "name": "Background mid-chain", "rule_ref": "GO-002", "summary": "context.Background used instead of propagated ctx.", "focus": "reliability" },
+    { "id": "SMELL-GO-LEAK-GO", "name": "Unbounded goroutine", "rule_ref": "GO-003", "summary": "go f() without lifecycle control.", "focus": "concurrency" },
+    { "id": "SMELL-GO-LOOPVAR", "name": "Loop variable capture", "rule_ref": "GO-004", "summary": "Closure captures iteration variable by reference.", "focus": "correctness" },
+    { "id": "SMELL-GO-NO-DEFER", "name": "Missing defer Close", "rule_ref": "GO-005", "summary": "Opened resource not closed via defer.", "focus": "reliability" },
+    { "id": "SMELL-GO-ERR-EQ", "name": "Error compared with ==", "rule_ref": "GO-006", "summary": "Wrapped error compared without errors.Is.", "focus": "correctness" },
+    { "id": "SMELL-GO-IFACE-PROD", "name": "Producer-side interface", "rule_ref": "GO-007", "summary": "Interface defined next to its only implementation.", "focus": "architecture" },
+    { "id": "SMELL-GO-MAP-RACE", "name": "Unsynchronised map write", "rule_ref": "GO-008", "summary": "Concurrent map assignment without mutex.", "focus": "concurrency" },
+    { "id": "SMELL-GO-HTTP-NO-TIMEOUT", "name": "HTTP without timeout", "rule_ref": "GO-009", "summary": "http.Get or default client without timeout.", "focus": "reliability" },
+    { "id": "SMELL-GO-SQL-CONCAT", "name": "SQL string concat", "rule_ref": "GO-010", "summary": "Query built with + or Sprintf on input.", "focus": "security" },
+    { "id": "SMELL-GO-WRAP-ERR", "name": "Positive: wrapped error", "rule_ref": "GO-011", "summary": "fmt.Errorf with %w and context.", "focus": "reliability" },
+    { "id": "SMELL-GO-PANIC-NORMAL", "name": "Panic for normal errors", "rule_ref": "GO-012", "summary": "panic used instead of returning error.", "focus": "style" }
+  ]
+}

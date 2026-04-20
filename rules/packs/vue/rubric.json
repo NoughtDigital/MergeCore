@@ -1,0 +1,331 @@
+{
+  "$schema": "https://www.mergecore.dev/schemas/vue-rules.schema.json",
+  "meta": {
+    "pack_id": "mergecore-vue-rules",
+    "pack_version": "1.0.0",
+    "locale": "en-GB",
+    "title": "MergeCore Vue Rules",
+    "description": "Rules for Vue 3 single-file components and Composition API: reactivity, templates, props/emits, and lifecycle.",
+    "notes": "Gate with vue: true. Rules assume Vue 3; confirm before applying to legacy Vue 2 code."
+  },
+  "severity_levels": {
+    "info": {
+      "rank": 1,
+      "label": "Informational",
+      "default_penalty": 0.15
+    },
+    "hint": {
+      "rank": 2,
+      "label": "Style or maintainability",
+      "default_penalty": 0.25
+    },
+    "warning": {
+      "rank": 3,
+      "label": "Likely defect or performance risk",
+      "default_penalty": 0.55
+    },
+    "error": {
+      "rank": 4,
+      "label": "High risk (correctness or security)",
+      "default_penalty": 0.85
+    },
+    "critical": {
+      "rank": 5,
+      "label": "Critical (XSS via v-html)",
+      "default_penalty": 1.2
+    }
+  },
+  "scoring": {
+    "scale_max": 10,
+    "initial_score": 10,
+    "aggregation": "subtract_penalties_with_cap",
+    "penalty_source": "rule.penalty overrides severity_levels[severity].default_penalty when present",
+    "max_total_penalty_per_file": 10,
+    "normalisation": "Per review unit (one .vue SFC or one composable), sum penalties after optional quality_signal multiplier, then score = max(0, min(10, initial_score - min(sum_penalties, max_total_penalty_per_file))).",
+    "quality_signal_adjustment": {
+      "junior": 1,
+      "risky": 1.15,
+      "overengineered": 0.85,
+      "senior_positive": -0.35
+    },
+    "interpretation": {
+      "9_to_10": "Reactive sources are stable, templates safe, props typed, emits declared.",
+      "7_to_8": "Mergeable; tighten watchers or split the SFC.",
+      "5_to_6": "Risky: mutated props, reactivity loss, or v-for without key.",
+      "0_to_4": "Block: v-html from user input or broken component contracts."
+    }
+  },
+  "rules": [
+    {
+      "id": "VUE-001",
+      "category": "security",
+      "severity": "critical",
+      "quality_signal": "risky",
+      "title": "v-html rendering user-controlled content",
+      "description": "v-html bypasses Vue's automatic escaping. Rendering user or remote HTML without sanitisation enables XSS.",
+      "penalty": 1.2,
+      "vue": true,
+      "detection": {
+        "file_globs": [
+          "**/*.vue"
+        ],
+        "patterns": [
+          "/v-html\\s*=\\s*[\"'][^\"']*\\$?\\w+/"
+        ],
+        "absence_preferred": [
+          "DOMPurify",
+          "sanitize"
+        ],
+        "prefer": [
+          "mustache interpolation",
+          "sanitised HTML"
+        ]
+      }
+    },
+    {
+      "id": "VUE-002",
+      "category": "reactivity",
+      "severity": "warning",
+      "quality_signal": "risky",
+      "title": "Destructuring reactive objects loses reactivity",
+      "description": "Destructuring props, reactive(), or a store breaks the reactive link. Use toRefs, computed, or keep property access.",
+      "penalty": 0.55,
+      "vue": true,
+      "detection": {
+        "file_globs": [
+          "**/*.vue",
+          "**/*.ts",
+          "**/*.js"
+        ],
+        "patterns": [
+          "/const\\s+\\{[^}]+\\}\\s*=\\s*(props|toRaw\\(|reactive\\()/"
+        ],
+        "prefer": [
+          "toRefs(props)",
+          "computed(() => props.x)"
+        ]
+      },
+      "examples": {
+        "before": "const { name } = props; watch(() => name, ...)",
+        "after": "const { name } = toRefs(props); watch(name, ...)"
+      }
+    },
+    {
+      "id": "VUE-003",
+      "category": "rendering",
+      "severity": "warning",
+      "quality_signal": "junior",
+      "title": "v-for without :key or with non-stable key",
+      "description": "Lists without a stable :key cause reorder bugs and lost focus. Use a domain id; avoid using the loop index as key when items mutate.",
+      "penalty": 0.45,
+      "vue": true,
+      "detection": {
+        "file_globs": [
+          "**/*.vue"
+        ],
+        "patterns": [
+          "/v-for\\s*=\\s*[\"'][^\"']+[\"']/"
+        ],
+        "absence_preferred": [
+          ":key="
+        ]
+      }
+    },
+    {
+      "id": "VUE-004",
+      "category": "reactivity",
+      "severity": "error",
+      "quality_signal": "risky",
+      "title": "Prop mutated inside child component",
+      "description": "Mutating props breaks the one-way data flow. Emit an event or use a local ref seeded from the prop with defineModel when appropriate.",
+      "penalty": 0.7,
+      "vue": true,
+      "detection": {
+        "file_globs": [
+          "**/*.vue"
+        ],
+        "patterns": [
+          "/props\\.\\w+\\s*=/",
+          "/this\\.\\$props\\.\\w+\\s*=/"
+        ],
+        "prefer": [
+          "emit('update:modelValue', v)",
+          "defineModel()"
+        ]
+      }
+    },
+    {
+      "id": "VUE-005",
+      "category": "lifecycle",
+      "severity": "warning",
+      "quality_signal": "risky",
+      "title": "Side effect without cleanup on unmount",
+      "description": "Timers, listeners, and observers started in setup must be cleaned up in onBeforeUnmount (or via watchEffect's onCleanup).",
+      "penalty": 0.5,
+      "vue": true,
+      "detection": {
+        "file_globs": [
+          "**/*.vue",
+          "**/*.ts",
+          "**/*.js"
+        ],
+        "patterns": [
+          "/setInterval\\(",
+          "/addEventListener\\("
+        ],
+        "absence_preferred": [
+          "onBeforeUnmount",
+          "onCleanup",
+          "clearInterval",
+          "removeEventListener"
+        ]
+      }
+    },
+    {
+      "id": "VUE-006",
+      "category": "composition-api",
+      "severity": "hint",
+      "quality_signal": "overengineered",
+      "title": "Large composable with unrelated responsibilities",
+      "description": "A composable returning many unrelated refs and functions is hard to test. Split by responsibility (data, UI state, transport).",
+      "penalty": 0.3,
+      "vue": true,
+      "detection": {
+        "file_globs": [
+          "**/use*.ts",
+          "**/use*.js"
+        ],
+        "heuristics": [
+          "Returned object has >10 keys",
+          "File exceeds ~300 lines"
+        ]
+      }
+    },
+    {
+      "id": "VUE-007",
+      "category": "contracts",
+      "severity": "hint",
+      "quality_signal": "junior",
+      "title": "Emits not declared with defineEmits",
+      "description": "Declaring emits gives a typed contract and enables validation. Ad-hoc emits lead to silent mismatches.",
+      "penalty": 0.3,
+      "vue": true,
+      "detection": {
+        "file_globs": [
+          "**/*.vue"
+        ],
+        "patterns": [
+          "/\\$emit\\s*\\(|emit\\s*\\(/"
+        ],
+        "absence_preferred": [
+          "defineEmits\\("
+        ]
+      }
+    },
+    {
+      "id": "VUE-008",
+      "category": "watchers",
+      "severity": "warning",
+      "quality_signal": "risky",
+      "title": "watch with deep: true on large reactive tree",
+      "description": "Deep watching expensive structures degrades performance. Watch a computed projection, or use an explicit source.",
+      "penalty": 0.4,
+      "vue": true,
+      "detection": {
+        "file_globs": [
+          "**/*.vue",
+          "**/*.ts",
+          "**/*.js"
+        ],
+        "patterns": [
+          "/watch\\([^,]+,[^,]+,\\s*\\{[^}]*deep:\\s*true/"
+        ],
+        "prefer": [
+          "watch(computed(...), handler)"
+        ]
+      }
+    },
+    {
+      "id": "VUE-009",
+      "category": "templates",
+      "severity": "hint",
+      "quality_signal": "junior",
+      "title": "Complex expression in template",
+      "description": "Long conditionals or transforms in templates are hard to test. Move to computed properties or methods.",
+      "penalty": 0.25,
+      "vue": true,
+      "detection": {
+        "file_globs": [
+          "**/*.vue"
+        ],
+        "patterns": [
+          "/\\{\\{[^}]{80,}\\}\\}/"
+        ],
+        "prefer": [
+          "computed()"
+        ]
+      }
+    },
+    {
+      "id": "VUE-010",
+      "category": "a11y",
+      "severity": "warning",
+      "quality_signal": "junior",
+      "title": "Click handler on non-interactive element",
+      "description": "@click on div/span without role, tabindex, or keyboard handlers excludes keyboard and assistive technology users.",
+      "penalty": 0.4,
+      "vue": true,
+      "detection": {
+        "file_globs": [
+          "**/*.vue"
+        ],
+        "patterns": [
+          "/<(div|span)[^>]*@click=/"
+        ],
+        "absence_preferred": [
+          "role=",
+          "tabindex=",
+          "aria-label="
+        ]
+      }
+    },
+    {
+      "id": "VUE-011",
+      "category": "composition-api",
+      "severity": "hint",
+      "quality_signal": "senior_positive",
+      "title": "Strong pattern: typed defineProps with validators",
+      "description": "Using defineProps<Props>() or a runtime schema with validators surfaces contract bugs at the boundary.",
+      "penalty": -0.3,
+      "vue": true,
+      "detection": {
+        "file_globs": [
+          "**/*.vue"
+        ],
+        "patterns": [
+          "/defineProps<[A-Z]\\w+>\\s*\\(/",
+          "/defineProps\\(\\{[^}]*validator:/"
+        ]
+      }
+    },
+    {
+      "id": "VUE-012",
+      "category": "store",
+      "severity": "hint",
+      "quality_signal": "overengineered",
+      "title": "Global store for local-only state",
+      "description": "Pinia/Vuex stores shared across the app for state that belongs to one view invite coupling. Keep local state in the component.",
+      "penalty": 0.2,
+      "vue": true,
+      "detection": {
+        "file_globs": [
+          "**/*.vue",
+          "**/*.ts"
+        ],
+        "heuristics": [
+          "Store consumed by a single component"
+        ]
+      }
+    }
+  ]
+}
