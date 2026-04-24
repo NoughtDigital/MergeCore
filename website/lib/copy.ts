@@ -46,6 +46,19 @@ export type MemorySignal = {
   body: string;
 };
 
+export type ProdRiskCategory = {
+  id: string;
+  title: string;
+  body: string;
+};
+
+export type TeachingExample = {
+  label: string;
+  weak: string;
+  strong: string;
+  sideEffectTag?: string;
+};
+
 export type HomepageCopy = {
   meta: {
     title: string;
@@ -96,6 +109,20 @@ export type HomepageCopy = {
   };
   memorySignals: MemorySignal[];
   memoryNote: string;
+  prodRisksIntro: {
+    eyebrow: string;
+    headline: string;
+    body: string;
+  };
+  prodRiskCategories: ProdRiskCategory[];
+  prodRisksNote: string;
+  teachingIntro: {
+    eyebrow: string;
+    headline: string;
+    body: string;
+  };
+  teachingExamples: TeachingExample[];
+  teachingNote: string;
   reviewModesIntro: {
     eyebrow: string;
     headline: string;
@@ -318,6 +345,87 @@ export const homepageCopy: HomepageCopy = {
   ],
   memoryNote:
     "Profiles are cached per workspace with a short TTL and auto-invalidate the instant a lockfile, tsconfig, or conventions file changes — so the review that runs after composer require or npm install already knows about the new dependency.",
+  prodRisksIntro: {
+    eyebrow: "What Breaks In Prod?",
+    headline: "A scanner for the nine things that wake on-call up.",
+    body: "A pack-agnostic scanner dedicated to production-risk categories, not style. Built-in rules ship with the engine; packs contribute stack-specific rules as pure data, so adding coverage for a new framework never means shipping new scanner code.",
+  },
+  prodRiskCategories: [
+    {
+      id: "race-conditions",
+      title: "Race conditions",
+      body: "Check-then-act, unsynchronised shared state, and concurrent writes that only fail under real traffic.",
+    },
+    {
+      id: "retry-duplication",
+      title: "Retry duplication",
+      body: "Non-idempotent work on retry paths — double charges, duplicate rows, and repeated side effects.",
+    },
+    {
+      id: "no-transactions",
+      title: "Missing transactions",
+      body: "Multi-step writes with no atomic boundary, leaving the system in half-committed states when one step fails.",
+    },
+    {
+      id: "bad-queue-retries",
+      title: "Bad queue retries",
+      body: "Infinite retries, no backoff, no dead-letter path — the reason a single bad job can drown the whole worker fleet.",
+    },
+    {
+      id: "memory-leaks",
+      title: "Memory leaks",
+      body: "Growing caches without bounds, listeners never torn down, closures that pin large objects for the life of the process.",
+    },
+    {
+      id: "n-plus-one",
+      title: "N+1 queries",
+      body: "Loops that fire one query per item. Fast in dev, fatal under real traffic. Number one cause of slow endpoints.",
+    },
+    {
+      id: "missing-indexes",
+      title: "Missing indexes",
+      body: "Queries on unindexed columns, sequential scans on tables that will grow, and joins without covering indexes.",
+    },
+    {
+      id: "no-rate-limits",
+      title: "No rate limits",
+      body: "Public endpoints with no throttle, outbound calls with no budget, cron paths that fan out unbounded.",
+    },
+    {
+      id: "weak-logging",
+      title: "Weak logging",
+      body: "Errors swallowed, logs with no correlation id, failures reported as info — the things that make incidents unsolvable at 3am.",
+    },
+  ],
+  prodRisksNote:
+    "Rules are data only: regex sources, language gates, and workspace-signal requirements. Malformed pack rules are dropped silently so one bad entry cannot break the scanner — built-ins remain authoritative.",
+  teachingIntro: {
+    eyebrow: "Explain Why",
+    headline: "Every criticism has to teach something.",
+    body: "A finding that says what is wrong but not why leaves the reader with nothing to internalise. MergeCore enforces a teaching bar: critical, error, and warning findings must carry a substantive why_it_matters, and hidden side effects get a dedicated callout so readers cannot miss them during review.",
+  },
+  teachingExamples: [
+    {
+      label: "Shallow why",
+      weak: "This is not best practice.",
+      strong: "The handler returns before the write completes; under load the client will see stale reads from the replica until the next commit catches up, which is how we got yesterday's incident.",
+      sideEffectTag: "Restates the rule",
+    },
+    {
+      label: "Unspecified risk",
+      weak: "This might cause issues.",
+      strong: "Retrying the charge call on timeout without an idempotency key double-bills on the second attempt; Stripe keeps both charges and we have to refund manually.",
+      sideEffectTag: "No concrete cost named",
+    },
+    {
+      label: "Hidden side effect",
+      weak: "This function silently swallows errors.",
+      strong: "The bare catch block discards the DB error, so the caller sees success while the row was never written; the read-back a few lines down returns empty and the endpoint responds 200 with no data.",
+      sideEffectTag: "Hidden side effect",
+    },
+  ],
+  teachingNote:
+    "The enforcement runs on both the engine and the host, so even a weakly-worded response from the model gets surfaced in the sidebar as a \"Hidden side effect\" tag or a neutral reviewer note — never silently accepted.",
   reviewModesIntro: {
     eyebrow: "Entry points",
     headline: "Run review exactly where confidence drops.",

@@ -884,6 +884,73 @@ footer .footer-credit {
   font-size: 0.95rem;
 }
 
+/* What Breaks In Prod? */
+.prod-risks-grid {
+  display: grid;
+  gap: 1.1rem;
+  margin-top: 2.25rem;
+}
+
+@media (min-width: 720px) {
+  .prod-risks-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 1000px) {
+  .prod-risks-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.risk-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  padding: 1.3rem;
+  position: relative;
+}
+
+.risk-card h3 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.risk-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.risk-tag {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  padding: 0.2rem 0.5rem;
+  border-radius: 5px;
+  border: 1px solid rgba(222, 93, 77, 0.35);
+  background: rgba(222, 93, 77, 0.1);
+  color: #f0b6ac;
+  text-transform: lowercase;
+}
+
+/* Side-effect / teaching gap tag used in the Explain Why section */
+.side-effect-tag {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 0.22rem 0.55rem;
+  border-radius: 5px;
+  border: 1px solid rgba(197, 154, 27, 0.4);
+  background: rgba(197, 154, 27, 0.1);
+  color: #e6c458;
+  font-style: normal;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .marquee-track.marquee-left,
   .marquee-track.marquee-right {

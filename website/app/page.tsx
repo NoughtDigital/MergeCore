@@ -313,6 +313,59 @@ export default function HomePage() {
           </div>
         </section>
 
+        <section aria-labelledby="prod-risks-heading">
+          <div className="wrap">
+            <p className="section-label">{c.prodRisksIntro.eyebrow}</p>
+            <h2 id="prod-risks-heading">{c.prodRisksIntro.headline}</h2>
+            <p className="lead">{c.prodRisksIntro.body}</p>
+            <div className="prod-risks-grid">
+              {c.prodRiskCategories.map((risk) => (
+                <article key={risk.id} className="card risk-card">
+                  <div className="risk-header">
+                    <span className="risk-tag">{risk.id}</span>
+                  </div>
+                  <h3>{risk.title}</h3>
+                  <p>{risk.body}</p>
+                </article>
+              ))}
+            </div>
+            <div className="plugin-panel memory-panel">
+              <p>{c.prodRisksNote}</p>
+            </div>
+          </div>
+        </section>
+
+        <section aria-labelledby="teaching-heading">
+          <div className="wrap">
+            <p className="section-label">{c.teachingIntro.eyebrow}</p>
+            <h2 id="teaching-heading">{c.teachingIntro.headline}</h2>
+            <p className="lead">{c.teachingIntro.body}</p>
+            <div className="inline-examples">
+              {c.teachingExamples.map((example) => (
+                <article key={example.label} className="card inline-card">
+                  <p className="pack-kicker">{example.label}</p>
+                  <div className="inline-row inline-before">
+                    <span className="inline-tag weak">Weak</span>
+                    <p>{example.weak}</p>
+                  </div>
+                  <div className="inline-row inline-after">
+                    <span className="inline-tag strong">Teaches</span>
+                    <p>{example.strong}</p>
+                  </div>
+                  {example.sideEffectTag ? (
+                    <p className="inline-note">
+                      <span className="side-effect-tag">{example.sideEffectTag}</span>
+                    </p>
+                  ) : null}
+                </article>
+              ))}
+            </div>
+            <div className="plugin-panel memory-panel">
+              <p>{c.teachingNote}</p>
+            </div>
+          </div>
+        </section>
+
         <section aria-labelledby="modes-heading">
           <div className="wrap">
             <p className="section-label">{c.reviewModesIntro.eyebrow}</p>
