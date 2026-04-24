@@ -421,15 +421,61 @@
       article.appendChild(meta);
     }
 
-    if (f.whyItMatters) {
-      article.appendChild(subBlock('Why it matters', f.whyItMatters, false));
+    if (f.sideEffectSignal) {
+      article.appendChild(sideEffectBlock(f.sideEffectSignal));
     }
+
+    if (f.whyItMatters) {
+      var whyHeading = sev === 'critical'
+        ? 'Why this is critical'
+        : sev === 'error'
+          ? 'Why this matters'
+          : 'Why it matters';
+      article.appendChild(subBlock(whyHeading, f.whyItMatters, false));
+    }
+
+    if (f.teachingGap) {
+      article.appendChild(teachingGapBlock(f.teachingGap));
+    }
+
     if (f.fixHint) {
       article.appendChild(subBlock('Suggested fix', f.fixHint, true));
     }
 
     li.appendChild(article);
     return li;
+  }
+
+  function sideEffectBlock(signal) {
+    var block = document.createElement('section');
+    block.className = 'mc-sub mc-sub-side-effect';
+    var h = document.createElement('h4');
+    h.className = 'mc-sub-title';
+    h.textContent = 'Hidden side effect';
+    var p = document.createElement('p');
+    p.className = 'mc-sub-copy';
+    var tag = document.createElement('span');
+    tag.className = 'mc-side-effect-tag';
+    tag.textContent = signal;
+    p.appendChild(tag);
+    p.appendChild(document.createTextNode(' — read the snippet carefully; the visible code understates what runs.'));
+    block.appendChild(h);
+    block.appendChild(p);
+    return block;
+  }
+
+  function teachingGapBlock(text) {
+    var block = document.createElement('section');
+    block.className = 'mc-sub mc-sub-teaching-gap';
+    var h = document.createElement('h4');
+    h.className = 'mc-sub-title';
+    h.textContent = 'Reviewer note';
+    var p = document.createElement('p');
+    p.className = 'mc-sub-copy';
+    p.textContent = text;
+    block.appendChild(h);
+    block.appendChild(p);
+    return block;
   }
 
   function subBlock(heading, text, isFix) {

@@ -434,6 +434,45 @@
   color: color-mix(in srgb, var(--vscode-foreground) 95%, var(--vscode-descriptionForeground));
 }
 
+/*
+ * "Hidden side effect" callout. Tinted with the editor's warning colour so it
+ * sits visually above a plain "Why it matters" block without overloading the
+ * severity badge — a side effect can appear on any severity, and it is the
+ * one thing a new teammate is least likely to spot by reading the snippet.
+ */
+.mc-sub-side-effect {
+  border-top-color: color-mix(in srgb, var(--vscode-editorWarning-foreground) 40%, var(--vscode-widget-border));
+}
+
+.mc-side-effect-tag {
+  display: inline-block;
+  margin-right: 4px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-family: var(--vscode-editor-font-family, monospace);
+  font-size: 11px;
+  font-weight: 700;
+  background: color-mix(in srgb, var(--vscode-editorWarning-foreground) 18%, transparent);
+  color: var(--vscode-editorWarning-foreground);
+  border: 1px solid color-mix(in srgb, var(--vscode-editorWarning-foreground) 45%, transparent);
+}
+
+/*
+ * "Reviewer note" block. Used when the teaching audit flagged that the
+ * finding's why_it_matters is missing, shallow, or restates the title.
+ * Neutral styling: it is not a second criticism, it is a meta-note so the
+ * reader knows the explanation gap is known rather than hidden.
+ */
+.mc-sub-teaching-gap {
+  border-top-style: dashed;
+  border-top-color: color-mix(in srgb, var(--vscode-descriptionForeground) 45%, var(--vscode-widget-border));
+}
+
+.mc-sub-teaching-gap .mc-sub-copy {
+  color: var(--vscode-descriptionForeground);
+  font-style: italic;
+}
+
 /* Severity colours (native-adjacent) */
 .mc-sev {
   flex: 0 0 auto;

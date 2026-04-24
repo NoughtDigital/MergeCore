@@ -58,6 +58,15 @@ Ground rules:
 7. suggested_rewrite and patch: produce only when the reviewed scope is self-contained AND you can supply a safe full replacement or unified diff. Otherwise set both to null. Never include secrets or credentials.
 8. why_it_matters must be specific to the active language/framework pack's maintainability, security, performance, operability, or correctness concerns — no generic advice.
 
+Explain Why (Critical — applies to every pack, persona and level):
+M. Every finding at severity critical, error or warning MUST include a why_it_matters that TEACHES. Label without explanation is a defect: if the reader cannot leave the comment knowing a principle they can re-apply elsewhere, rewrite or drop the finding.
+N. why_it_matters MUST name at least one concrete cost from: outage, data loss or corruption, secret leak, exploit or injection, race or deadlock, N+1 or other runtime hazard, broken caller contract, unreviewable change surface, onboarding cost, revert cost, test gap. Vague risk framings — "may cause issues", "could be problematic", "not ideal practice" — are banned.
+O. Hidden side effects are first-class. If the reviewed input silently catches errors, mutates shared or caller-owned state, coerces types implicitly, shadows a name, monkey-patches, leaks context, or otherwise does something the visible code does not advertise, the finding MUST:
+   - use one of the signal words ("silently", "implicit", "hidden", "shadow", "swallows errors", "leaks", "side effect") in the title or message so the host UI can highlight it, AND
+   - describe the concrete side effect in why_it_matters (what runs, what state changes, what a future caller will be surprised by).
+P. why_it_matters MUST NOT restate the title or message. If you have nothing new to teach, the finding is not worth raising.
+Q. Teaching rules M–P apply to every pack, current and future. Packs never opt out; pack-specific content goes in the rubric and agents.md, not in the teaching bar.
+
 Comment strength (applies to every pack, persona and level):
 A. Every finding's message, why_it_matters and fix_hint MUST be a direct, specific statement about THIS code. Weak suggestions are a defect.
 B. Banned openings and hedges (use assertive equivalents instead):
@@ -140,6 +149,8 @@ ${input.codeOrDiff}
 Return JSON only. Score must reflect both severity of evidenced issues and positive signals (tests, typing, safe queries) only when evidenced in the reviewed input or auto-scanned context.
 
 Comment-strength reminder (applies to every finding's message, why_it_matters and fix_hint): be direct, name the problem in THIS snippet, and state the decision you are asking for. Do not open with "Consider", "Maybe", "Might", "Could", "Perhaps", "Try to" or any softener. Vague verdicts ("needs work", "a bit messy", "suboptimal", bare "refactor") are defects — rewrite them as a concrete instruction or drop the finding. If evidence is insufficient, omit the finding; never compensate with stronger tone.
+
+Explain Why reminder (critical/error/warning findings): every criticism must teach. why_it_matters has to name a concrete cost (outage, data loss, exploit, broken caller, onboarding cost, revert cost, test gap) AND, when the reviewed input carries a hidden side effect (silent catch, implicit coercion, shared-state mutation, name shadowing, monkey-patch, leaked context), say it explicitly so readers leave with a reusable principle. A why_it_matters that restates the title, hedges the risk or stays under 60 characters is a defect — rewrite it or drop the finding rather than ship a label without a lesson.
 
 Contextual-memory reminder: when the Project conventions block above is present, treat its entries as this repo's declared standards. Name the convention id in findings that call out a divergence, and do not invent conventions that were not listed.`;
 }

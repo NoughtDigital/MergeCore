@@ -67,3 +67,52 @@ test('caps findings array length', () => {
   const big = new Array(201).fill({ id: 'x', severity: 'info', message: 'y' });
   assert.throws(() => parseReviewResult({ findings: big, score: 5 }), ReviewResponseError);
 });
+
+test('teaching audit attaches sideEffectSignal when message hints at hidden side effect', () => {
+  const out = parseReviewResult({
+    findings: [
+      {
+        id: 'rule-1',
+        severity: 'error',
+        message: 'This handler silently returns null when the upstream call fails.',
+        whyItMatters:
+          'Swallowing errors breaks callers that expected an exception: a failed payment looks successful to the queue worker, and the incident surfaces hours later as data loss in the ledger.',
+      },
+    ],
+    score: 6,
+  });
+  assert.equal(out.findings[0].sideEffectSignal, 'silently');
+  assert.equal(out.findings[0].teachingGap, undefined);
+});
+
+test('teaching audit attaches teachingGap when whyItMatters is missing on critical', () => {
+  const out = parseReviewResult({
+    findings: [
+      {
+        id: 'rule-1',
+        severity: 'critical',
+        message: 'Unvalidated request body concatenated into the SQL string.',
+      },
+    ],
+    score: 3,
+  });
+  assert.ok(out.findings[0].teachingGap);
+  assert.match(String(out.findings[0].teachingGap), /did not explain why/i);
+});
+
+test('teaching audit prefers server-provided mc_side_effect annotation', () => {
+  const out = parseReviewResult({
+    findings: [
+      {
+        id: 'rule-1',
+        severity: 'warning',
+        message: 'Cast happens at this boundary.',
+        whyItMatters:
+          'Implicit coercion here breaks the caller contract: callers receive a string when they expected an integer, and the regression only surfaces in production when a downstream arithmetic step silently truncates.',
+        mc_side_effect: 'implicit cast',
+      },
+    ],
+    score: 6,
+  });
+  assert.equal(out.findings[0].sideEffectSignal, 'implicit cast');
+});

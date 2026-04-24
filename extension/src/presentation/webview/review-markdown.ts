@@ -82,11 +82,26 @@ export function formatReviewAsMarkdown(
       if (f.code) {
         lines.push(`- **Code:** ${f.code}`);
       }
+      if (f.sideEffectSignal) {
+        lines.push(
+          `- **Hidden side effect:** \`${f.sideEffectSignal}\` — read the snippet carefully; the visible code understates what runs.`
+        );
+      }
       if (f.whyItMatters) {
         lines.push('');
-        lines.push('**Why it matters**');
+        const whyHeading =
+          f.severity === 'critical'
+            ? '**Why this is critical**'
+            : f.severity === 'error'
+              ? '**Why this matters**'
+              : '**Why it matters**';
+        lines.push(whyHeading);
         lines.push('');
         lines.push(f.whyItMatters);
+      }
+      if (f.teachingGap) {
+        lines.push('');
+        lines.push(`_Reviewer note: ${f.teachingGap}_`);
       }
       if (f.fixHint) {
         lines.push('');

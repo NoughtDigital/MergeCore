@@ -5,8 +5,34 @@ import type {
   RewriteAmend,
   Severity,
 } from '../domain/review-types';
+import { auditTeaching } from './teaching-audit';
 
 const SEVERITIES: readonly Severity[] = ['critical', 'error', 'warning', 'info', 'hint'];
+
+/**
+ * Human-friendly lines shown under a finding whose teaching audit failed.
+ * Kept neutral on purpose: the goal is to tell the user "the reviewer did
+ * not teach you anything reusable here" without piling a second critical
+ * on top of the first. Ordered by specificity — first matching wins.
+ */
+function describeTeachingGap(kinds: readonly string[]): string | undefined {
+  if (kinds.includes('missing-why')) {
+    return 'The reviewer did not explain why this matters. Treat the flag as a prompt to investigate, not a verdict.';
+  }
+  if (kinds.includes('undisclosed-side-effect')) {
+    return 'A hidden side effect was flagged but not explained in full. Read the snippet carefully before acting.';
+  }
+  if (kinds.includes('restates-title')) {
+    return 'The explanation here restates the headline. There may be more context the reviewer did not make explicit.';
+  }
+  if (kinds.includes('unspecified-risk')) {
+    return 'The risk is described in vague terms. Confirm the concrete cost before you merge.';
+  }
+  if (kinds.includes('shallow-why')) {
+    return 'The explanation is very short. Consider digging into the snippet rather than relying on the line alone.';
+  }
+  return undefined;
+}
 
 export class ReviewResponseError extends Error {
   constructor(message: string, readonly context?: string) {
@@ -68,17 +94,56 @@ function parseFinding(raw: unknown, index: number): Finding {
   const severity = normaliseSeverity(raw.severity);
   const id = requireString(raw.id, `findings[${index}].id`, 200);
   const message = requireString(raw.message, `findings[${index}].message`, 2000);
+  const whyItMatters = optionalString(
+    raw.whyItMatters,
+    `findings[${index}].whyItMatters`,
+    4000
+  );
+  const fixHint = optionalString(raw.fixHint, `findings[${index}].fixHint`, 4000);
+  const category = optionalString(raw.category, `findings[${index}].category`, 200);
+
+  // Prefer the server-provided annotation. When the API pipeline ran the
+  // teaching-enforcement pass, findings arrive tagged with a short signal
+  // like "silently" or "implicit cast" that drives the "Hidden side effect"
+  // badge. When the server did not tag it (older API, or mock path), we run
+  // the host audit so the badge and teaching gap are never silently lost.
+  //
+  // Accept both camelCase (host style) and snake_case (wire style) to keep
+  // this forgiving during API rollout without widening the Finding schema.
+  const rawEvidence = isObject(raw.evidence) ? raw.evidence : undefined;
+  const evidenceSnippet =
+    rawEvidence && typeof rawEvidence.snippet === 'string' ? rawEvidence.snippet : undefined;
+  const serverSideEffectSignal =
+    optionalString(raw.sideEffectSignal, `findings[${index}].sideEffectSignal`, 200) ??
+    optionalString(raw.mc_side_effect, `findings[${index}].mc_side_effect`, 200);
+
+  const audit = auditTeaching({
+    severity,
+    title: optionalString(raw.title, `findings[${index}].title`, 400) ?? message,
+    message,
+    whyItMatters,
+    fixHint,
+    evidenceSnippet,
+  });
+
+  const sideEffectSignal = serverSideEffectSignal ?? audit.sideEffectSignal;
+  const teachingGap = audit.ok
+    ? undefined
+    : describeTeachingGap(audit.issues.map((i) => i.kind));
+
   return {
     id,
     severity,
     message,
-    whyItMatters: optionalString(raw.whyItMatters, `findings[${index}].whyItMatters`, 4000),
-    fixHint: optionalString(raw.fixHint, `findings[${index}].fixHint`, 4000),
+    whyItMatters,
+    fixHint,
     file: optionalString(raw.file, `findings[${index}].file`, 2048),
     line: optionalFiniteNumber(raw.line, `findings[${index}].line`, 0, 1_000_000),
     column: optionalFiniteNumber(raw.column, `findings[${index}].column`, 0, 100_000),
-    category: optionalString(raw.category, `findings[${index}].category`, 200),
+    category,
     code: optionalString(raw.code, `findings[${index}].code`, 200),
+    sideEffectSignal,
+    teachingGap,
   };
 }
 

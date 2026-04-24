@@ -15,6 +15,25 @@ export interface Finding {
   readonly column?: number;
   readonly category?: string;
   readonly code?: string;
+  /**
+   * Short, lower-cased signal word (e.g. "silently", "implicit cast", "swallows
+   * errors") extracted by the teaching-enforcement pass when the finding's
+   * prose hints at a hidden side effect. The UI surfaces this as a dedicated
+   * "Hidden side effect" line so readers cannot miss it during review —
+   * hidden effects are the most expensive thing to discover at runtime and
+   * the hardest to explain to a new teammate.
+   * Undefined when no signal was detected.
+   */
+  readonly sideEffectSignal?: string;
+  /**
+   * Human-friendly explanation attached when the teaching audit flags a
+   * critical/error/warning finding that ships without a substantive
+   * why_it_matters. The extension renders this below the finding in a
+   * neutral tone (not a second criticism) so readers know the missing
+   * explanation was detected, not silently hidden.
+   * Undefined for findings that passed the teaching audit.
+   */
+  readonly teachingGap?: string;
 }
 
 /** Line ranges in the suggested full-file rewrite (1-based, inclusive). */

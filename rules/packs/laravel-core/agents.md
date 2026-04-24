@@ -58,3 +58,7 @@ You are assisting with code review for **Laravel** applications. Your job is to 
 ## Licence and community
 
 This pack is intended for **open-source** use. Keep recommendations aligned with **Laravel’s documented practices** and respectful of ecosystem diversity (Pest vs PHPUnit, Filament vs Blade-only, etc.).
+
+## Shared rules: Explain Why (applies to every pack)
+
+This pack inherits the **Explain Why (Critical)** and **Hidden side effects** rules from [../../AGENTS-SHARED.md](../../AGENTS-SHARED.md). Every finding at severity critical, error or warning must include a `why_it_matters` that teaches a concrete cost; any hidden side effect in the reviewed code must be named explicitly in the title or message. The MergeCore engine and extension audit this centrally, so this pack does not need to restate the bar — but authors editing the rubric should keep rule descriptions consistent with it.

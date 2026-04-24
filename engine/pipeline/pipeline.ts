@@ -17,6 +17,11 @@ import {
   stripHedgedOpening,
   type CommentStrengthIssue,
 } from './comment-strength.js';
+import {
+  auditTeaching,
+  extractSideEffectSignal,
+  type TeachingIssue,
+} from './teaching-enforcement.js';
 import { DEFAULT_QUOTA, estimateBillableTokensRough, shouldEscalate } from './cost-controls.js';
 import { getPersonaById, type ReviewPersonaId } from './personas.js';
 import { getReviewLevelById, type ReviewLevelId } from './review-levels.js';
@@ -87,6 +92,21 @@ export interface PipelineResult {
     readonly findingIndex: number;
     readonly findingId: string | undefined;
     readonly issues: readonly CommentStrengthIssue[];
+  }>;
+  /**
+   * Per-finding "Explain Why" teaching issues. Populated when a critical/error/
+   * warning finding ships without a substantive whyItMatters, when the finding
+   * prose hints at a hidden side effect that is not explained, or when the
+   * risk is described with vague hedges. Pack-agnostic: new packs inherit the
+   * same bar without any per-pack code. Not persisted in the cache; the
+   * cache stores the JSON with findings annotated by `mc_side_effect` so
+   * cache hits keep teaching signals without a re-audit.
+   */
+  readonly teaching?: ReadonlyArray<{
+    readonly findingIndex: number;
+    readonly findingId: string | undefined;
+    readonly issues: readonly TeachingIssue[];
+    readonly hasSideEffectSignal: boolean;
   }>;
 }
 
@@ -188,6 +208,15 @@ export async function runReviewPipeline(
   const { json: strongJson, report } = enforceCommentStrength(merged);
   merged = strongJson;
 
+  // "Explain Why" (Critical) pass: every criticism should teach. For every
+  // critical/error/warning finding we check that whyItMatters is present,
+  // substantive and — when the finding prose hints at a hidden side effect —
+  // actually names a concrete cost. Pack-agnostic by design: the pack doesn't
+  // declare teaching rules, the pipeline enforces them centrally so new packs
+  // inherit the same bar automatically.
+  const { json: taughtJson, report: teachingReport } = enforceTeaching(merged);
+  merged = taughtJson;
+
   await deps.cache.set(cacheKey, merged, 86400);
 
   return {
@@ -195,6 +224,7 @@ export async function runReviewPipeline(
     cacheHit: false,
     escalated,
     commentStrength: report.length > 0 ? report : undefined,
+    teaching: teachingReport.length > 0 ? teachingReport : undefined,
   };
 }
 
@@ -256,6 +286,102 @@ function enforceCommentStrength(
         findingIndex: index,
         findingId: typeof finding.id === 'string' ? finding.id : undefined,
         issues: audit.issues,
+      });
+    }
+  });
+
+  return {
+    json: mutated ? JSON.stringify(parsed) : json,
+    report,
+  };
+}
+
+interface TeachingReportEntry {
+  readonly findingIndex: number;
+  readonly findingId: string | undefined;
+  readonly issues: readonly TeachingIssue[];
+  readonly hasSideEffectSignal: boolean;
+}
+
+/**
+ * "Explain Why" enforcement over the model's JSON output. Annotates each
+ * finding in place with a compact `mc_side_effect` string when the finding's
+ * prose hints at a hidden side effect — this lets the host UI render a
+ * dedicated "Hidden side effects" line even on cache hits, without re-running
+ * the audit regex on every response read. Does not mutate why_it_matters
+ * because inventing a teaching explanation would violate ground rule 1
+ * (verbatim evidence) — if the why is missing or shallow we only report it.
+ */
+function enforceTeaching(
+  json: string
+): { json: string; report: readonly TeachingReportEntry[] } {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(json);
+  } catch {
+    return { json, report: [] };
+  }
+  if (!isRecord(parsed)) {
+    return { json, report: [] };
+  }
+
+  const findingsRaw = parsed.findings;
+  if (!Array.isArray(findingsRaw)) {
+    return { json, report: [] };
+  }
+
+  const report: TeachingReportEntry[] = [];
+  let mutated = false;
+
+  findingsRaw.forEach((finding, index) => {
+    if (!isRecord(finding)) {
+      return;
+    }
+    const evidence = isRecord(finding.evidence) ? finding.evidence : undefined;
+    const snippet =
+      evidence && typeof evidence.snippet === 'string' ? evidence.snippet : undefined;
+    const audit = auditTeaching({
+      severity: typeof finding.severity === 'string' ? finding.severity : undefined,
+      title: typeof finding.title === 'string' ? finding.title : undefined,
+      message: typeof finding.message === 'string' ? finding.message : undefined,
+      whyItMatters:
+        typeof finding.why_it_matters === 'string'
+          ? finding.why_it_matters
+          : typeof finding.whyItMatters === 'string'
+            ? finding.whyItMatters
+            : undefined,
+      fixHint:
+        typeof finding.fix_hint === 'string'
+          ? finding.fix_hint
+          : typeof finding.fixHint === 'string'
+            ? finding.fixHint
+            : undefined,
+      evidenceSnippet: snippet,
+    });
+
+    if (audit.hasSideEffectSignal) {
+      const signal = extractSideEffectSignal(
+        [
+          typeof finding.title === 'string' ? finding.title : '',
+          typeof finding.message === 'string' ? finding.message : '',
+          snippet ?? '',
+        ].join('\n')
+      );
+      if (signal && finding.mc_side_effect !== signal) {
+        finding.mc_side_effect = signal;
+        mutated = true;
+      }
+    } else if ('mc_side_effect' in finding) {
+      delete finding.mc_side_effect;
+      mutated = true;
+    }
+
+    if (!audit.ok || audit.hasSideEffectSignal) {
+      report.push({
+        findingIndex: index,
+        findingId: typeof finding.id === 'string' ? finding.id : undefined,
+        issues: audit.issues,
+        hasSideEffectSignal: audit.hasSideEffectSignal,
       });
     }
   });
