@@ -1,0 +1,47 @@
+{
+  "$notes": "Laravel-specific prod-risk rules layered on top of @mergecore/intelligence built-ins. Each rule follows the ProdRiskRule shape — data only, no executable code.",
+  "rules": [
+    {
+      "id": "laravel-pack:tx:observer-chain-no-transaction",
+      "ruleVersion": "1",
+      "category": "no-transactions",
+      "severity": "warning",
+      "title": "Model observer mutates related rows outside a transaction",
+      "description": "An observer method that creates/updates related models is invoked inside the parent model's save lifecycle. Without wrapping the parent write in a transaction, a failure in the observer leaves the database half-applied.",
+      "fixHint": "Wrap the parent write in DB::transaction(...) or move the observer logic into a queued listener that takes its own transactional boundary.",
+      "languages": ["php"],
+      "filePathIncludes": ["/observers/"],
+      "patterns": [
+        "public\\s+function\\s+(?:created|updated|deleted|saved)\\s*\\([\\s\\S]{0,800}?(?:::create|::update|::delete|->save\\s*\\(|->delete\\s*\\()"
+      ],
+      "negativePatterns": [
+        "DB::transaction\\s*\\(",
+        "DB::beginTransaction\\s*\\("
+      ],
+      "patternFlags": "s",
+      "requiredSignals": ["path:artisan"],
+      "tags": ["laravel", "eloquent", "observer"]
+    },
+    {
+      "id": "laravel-pack:rl:fortify-login-no-rate-limit",
+      "ruleVersion": "1",
+      "category": "no-rate-limits",
+      "severity": "error",
+      "title": "Custom login route without a login rate-limiter",
+      "description": "Login-shaped routes that do not pass through Fortify or a `throttle:login,5,1` middleware are trivially brute-forceable.",
+      "fixHint": "Either rely on Fortify's built-in limiter, or configure a named limiter (`RateLimiter::for('login', ...)`) and apply `->middleware(['throttle:login'])`.",
+      "languages": ["php"],
+      "filePathIncludes": ["routes/"],
+      "patterns": [
+        "Route::post\\s*\\(\\s*['\"][^'\"]*login[^'\"]*['\"]"
+      ],
+      "negativePatterns": [
+        "throttle:login",
+        "throttle:5,1",
+        "RateLimiter::for\\s*\\(\\s*['\"]login['\"]"
+      ],
+      "requiredSignals": ["path:artisan"],
+      "tags": ["laravel", "auth", "rate-limit"]
+    }
+  ]
+}

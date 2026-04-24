@@ -127,6 +127,12 @@ A **human-oriented index** of named “smells” that point at **`rubric.json`**
 
 **Prose instructions** for LLM-assisted review, human review, and tools: role, **language and tone** (for example British English), **priority order** (security before nit-picks), how to apply **`rubric.json`** and **`smells.json`**, **evidence rules** (quote the diff, do not invent context), stack-specific stance, and **output shape** when the host does not supply its own schema. It does not replace **`rubric.json`**; it tells agents how to use the pack consistently.
 
+### `prod-risks.json` (optional — **What Breaks In Prod?** scanner)
+
+Optional data file consumed by the local, pack-aware **"What Breaks In Prod?"** scanner (`mergecore.scanProdRisks`). Declare it in `pack.json` under `artifacts.prod_risks` (see `packs/typescript/pack.json` and `packs/laravel-core/pack.json` for examples).
+
+Each entry follows the `ProdRiskRule` shape exported from `@mergecore/intelligence` and must target one of the nine supported categories: `race-conditions`, `retry-duplication`, `no-transactions`, `bad-queue-retries`, `memory-leaks`, `n-plus-one`, `missing-indexes`, `no-rate-limits`, `weak-logging`. Rules are **data only** (regex sources, path filters, required workspace signals); no executable code is accepted from packs. Unknown categories and malformed rules are dropped silently so one bad entry cannot break the scanner for the whole repo. See the [engine source](engine/intelligence/prod-risks/types.ts) for the full contract. Built-ins ship with the engine; pack rules layer on top and can override a built-in by reusing its `id` and bumping `ruleVersion`.
+
 ---
 
 ## Roadmap

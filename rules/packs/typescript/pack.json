@@ -9,7 +9,8 @@
   "artifacts": {
     "rubric": "rubric.json",
     "smells": "smells.json",
-    "agents": "agents.md"
+    "agents": "agents.md",
+    "prod_risks": "prod-risks.json"
   },
   "tags": [
     "typescript",

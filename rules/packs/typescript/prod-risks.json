@@ -1,0 +1,34 @@
+{
+  "$notes": "Optional pack contribution to MergeCore's 'What Breaks In Prod?' scanner. Loaded by @mergecore/intelligence/prod-risks. Each entry follows the ProdRiskRule shape. Unknown categories are ignored; rules that overlap a built-in id override the built-in.",
+  "rules": [
+    {
+      "id": "ts-pack:race:node-module-scope-counter",
+      "ruleVersion": "1",
+      "category": "race-conditions",
+      "severity": "warning",
+      "title": "Shared counter mutated from concurrent request handlers",
+      "description": "A module-scope counter incremented inside an Express/Fastify/Nest handler is shared across every in-flight request. Under load this both under-counts and reveals race windows to other state updates nearby.",
+      "fixHint": "Move the counter to a persistent atomic store (Redis INCR, Postgres UPDATE ... SET n = n + 1), or a metrics client like prom-client's Counter.",
+      "languages": ["typescript", "javascript"],
+      "patterns": [
+        "^\\s*let\\s+\\w+Count\\s*=\\s*0[\\s\\S]{0,2000}?(?:app\\.(?:get|post|put|delete)|router\\.|fastify\\.)[\\s\\S]{0,400}?\\w+Count\\s*\\+\\+"
+      ],
+      "patternFlags": "s",
+      "tags": ["node", "concurrency"]
+    },
+    {
+      "id": "ts-pack:log:any-leaks-through-logger",
+      "ruleVersion": "1",
+      "category": "weak-logging",
+      "severity": "hint",
+      "title": "logger.info receives a value typed as any",
+      "description": "Passing `any`-typed payloads to a structured logger means a later refactor can quietly start logging new fields that contain PII or secrets.",
+      "fixHint": "Type the payload explicitly, or wrap with a redaction-aware serializer (pino-redact, winston-format).",
+      "languages": ["typescript"],
+      "patterns": [
+        "logger\\.(?:info|debug|warn|error)\\s*\\(\\s*[^,\\)]+as\\s+any\\b"
+      ],
+      "tags": ["logging", "types"]
+    }
+  ]
+}

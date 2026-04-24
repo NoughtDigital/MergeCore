@@ -17,5 +17,10 @@
     "noImplicitReturns": true,
     "resolveJsonModule": true
   },
-  "include": ["*.ts", "detectors/**/*.ts"]
+  "include": [
+    "*.ts",
+    "detectors/**/*.ts",
+    "conventions/**/*.ts",
+    "prod-risks/**/*.ts"
+  ]
 }

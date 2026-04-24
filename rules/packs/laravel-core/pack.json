@@ -10,7 +10,8 @@
     "rubric": "rubric.json",
     "smells": "smells.json",
     "agents": "agents.md",
-    "rewrite_guidelines": "rewrite-guidelines.md"
+    "rewrite_guidelines": "rewrite-guidelines.md",
+    "prod_risks": "prod-risks.json"
   },
   "tags": [
     "laravel",

@@ -51,7 +51,8 @@
     "onCommand:mergecore.setApiToken",
     "onCommand:mergecore.clearApiToken",
     "onCommand:mergecore.showLogs",
-    "onCommand:mergecore.chooseReviewerPersona"
+    "onCommand:mergecore.chooseReviewerPersona",
+    "onCommand:mergecore.scanProdRisks"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -125,6 +126,10 @@
       {
         "command": "mergecore.chooseReviewerPersona",
         "title": "MergeCore: Choose Reviewer Persona"
+      },
+      {
+        "command": "mergecore.scanProdRisks",
+        "title": "MergeCore: What Breaks In Prod? (local scan)"
       }
     ],
     "menus": {
@@ -153,6 +158,11 @@
           "command": "mergecore.review.disaster",
           "when": "resourceScheme == file",
           "group": "mergecore@5"
+        },
+        {
+          "command": "mergecore.scanProdRisks",
+          "when": "resourceScheme == file",
+          "group": "mergecore@6"
         }
       ],
       "editor/title": [
@@ -182,7 +192,8 @@
         { "command": "mergecore.setApiToken" },
         { "command": "mergecore.clearApiToken" },
         { "command": "mergecore.showLogs" },
-        { "command": "mergecore.chooseReviewerPersona" }
+        { "command": "mergecore.chooseReviewerPersona" },
+        { "command": "mergecore.scanProdRisks" }
       ]
     },
     "viewsContainers": {

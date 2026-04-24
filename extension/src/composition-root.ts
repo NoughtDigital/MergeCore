@@ -12,6 +12,7 @@ import { PatchApplier } from './infrastructure/patch-applier';
 import { RequestThrottle } from './infrastructure/request-throttle';
 import { MergeCoreSecretStore, migrateTokenFromSettingsIfAny } from './infrastructure/secret-store';
 import { registerMergeCoreCommands } from './presentation/commands/register-commands';
+import { registerProdRiskScanCommand } from './presentation/commands/register-prod-risk-scan';
 import { FindingDiagnostics } from './presentation/diagnostics/finding-diagnostics';
 import { ReviewSessionState } from './presentation/state/review-session.state';
 import { registerMergeCoreStatusBar } from './presentation/status/mergecore-status-bar';
@@ -65,6 +66,12 @@ export function createMergeCoreApp(context: vscode.ExtensionContext): void {
     secrets,
     throttle,
     abortSignals,
+  });
+
+  registerProdRiskScanCommand(context, {
+    diagnostics,
+    session,
+    sidebar,
   });
 
   const provider = vscode.window.registerWebviewViewProvider(MergeCoreSidebarProvider.viewId, sidebar, {
