@@ -18,6 +18,34 @@ export type SetupItem = {
   body: string;
 };
 
+export type Persona = {
+  id: string;
+  title: string;
+  badge: string;
+  tagline: string;
+  focus: string[];
+};
+
+export type ReviewLevel = {
+  id: string;
+  title: string;
+  badge: string;
+  tagline: string;
+  scope: string;
+};
+
+export type InlineCommentExample = {
+  label: string;
+  before: string;
+  after: string;
+  note: string;
+};
+
+export type MemorySignal = {
+  title: string;
+  body: string;
+};
+
 export type HomepageCopy = {
   meta: {
     title: string;
@@ -43,6 +71,31 @@ export type HomepageCopy = {
     body: string;
   };
   features: Feature[];
+  personasIntro: {
+    eyebrow: string;
+    headline: string;
+    body: string;
+  };
+  personas: Persona[];
+  reviewLevelsIntro: {
+    eyebrow: string;
+    headline: string;
+    body: string;
+  };
+  reviewLevels: ReviewLevel[];
+  inlineCommentsIntro: {
+    eyebrow: string;
+    headline: string;
+    body: string;
+  };
+  inlineCommentExamples: InlineCommentExample[];
+  memoryIntro: {
+    eyebrow: string;
+    headline: string;
+    body: string;
+  };
+  memorySignals: MemorySignal[];
+  memoryNote: string;
   reviewModesIntro: {
     eyebrow: string;
     headline: string;
@@ -124,6 +177,147 @@ export const homepageCopy: HomepageCopy = {
       body: "Pack first. Add language, framework, testing, frontend, backend, mobile, and domain-specific rules without changing the review workflow.",
     },
   ],
+  personasIntro: {
+    eyebrow: "Review modes · Personas",
+    headline: "Pick the reviewer looking over your shoulder.",
+    body: "The same pack, the same rules, reviewed through a different lens. Personas tune emphasis, tone, and triage without ever inventing evidence or dropping the ground rules.",
+  },
+  personas: [
+    {
+      id: "auto",
+      title: "MergeCore Default",
+      badge: "Default",
+      tagline: "Balanced senior-style review across the active pack.",
+      focus: ["correctness", "security", "maintainability", "operability"],
+    },
+    {
+      id: "principal-engineer",
+      title: "Principal Engineer",
+      badge: "Principal",
+      tagline: "Architecture obsessed. Boundaries, invariants, long-term cost.",
+      focus: ["architecture", "boundaries", "invariants", "api-design"],
+    },
+    {
+      id: "startup-cto",
+      title: "Startup CTO",
+      badge: "Startup CTO",
+      tagline: "Ship fast, stay alive. Pragmatic over pristine.",
+      focus: ["shipability", "risk-vs-speed", "blast-radius", "revert-cost"],
+    },
+    {
+      id: "security-lead",
+      title: "Security Lead",
+      badge: "Security",
+      tagline: "Paranoid by trade. Treat every input as hostile.",
+      focus: ["auth", "input-validation", "secrets", "data-exposure"],
+    },
+    {
+      id: "refactor-veteran",
+      title: "Refactor Veteran",
+      badge: "Refactor",
+      tagline: "Simplify aggressively. Delete more than you add.",
+      focus: ["simplicity", "dead-code", "duplication", "control-flow"],
+    },
+    {
+      id: "staff-mentor",
+      title: "Staff Mentor",
+      badge: "Mentor",
+      tagline: "Teaches juniors. Explains the why, not just the what.",
+      focus: ["teachability", "rationale", "idioms", "pitfalls"],
+    },
+  ],
+  reviewLevelsIntro: {
+    eyebrow: "Multi-level review buttons",
+    headline: "One click picks the depth, not just the target.",
+    body: "Scope is how the code gets sent to the engine. A review level is what you want the engine to do with it — a quick sanity pass, a whole-file sweep, a flow across files, a proper PR review, or a broad disaster hunt.",
+  },
+  reviewLevels: [
+    {
+      id: "quick",
+      title: "Quick Review",
+      badge: "Quick",
+      tagline: "Current function only. Fast, focused sanity check.",
+      scope: "Selection",
+    },
+    {
+      id: "file",
+      title: "File Review",
+      badge: "File",
+      tagline: "Current file end-to-end, as a cohesive unit.",
+      scope: "Active file",
+    },
+    {
+      id: "flow",
+      title: "Flow Review",
+      badge: "Flow",
+      tagline: "Linked files plus the business process that runs through them.",
+      scope: "File + related context",
+    },
+    {
+      id: "pr",
+      title: "PR Review",
+      badge: "PR",
+      tagline: "Changed files with impact analysis across the diff.",
+      scope: "Git diff",
+    },
+    {
+      id: "disaster",
+      title: "Disaster Review",
+      badge: "Disaster",
+      tagline: "Find everything wrong. Broad, unsparing sweep.",
+      scope: "Active file",
+    },
+  ],
+  inlineCommentsIntro: {
+    eyebrow: "Strong inline comments",
+    headline: "Review comments that actually say something.",
+    body: "MergeCore rewrites its own output. Hedged openings, empty verdicts, and vague \"refactor this\" one-liners get caught by a defence-in-depth pass so every finding lands as a decision, not a suggestion.",
+  },
+  inlineCommentExamples: [
+    {
+      label: "Hedged opening",
+      before: "Consider maybe adding a null check here when the user is missing.",
+      after: "Guard against `user` being null before dereferencing `user.id`; otherwise this throws in the logged-out branch.",
+      note: "\"Consider\", \"maybe\", \"might want to\" — softeners that turn a call into a shrug — get stripped.",
+    },
+    {
+      label: "Empty verdict",
+      before: "This is a bit messy and could be cleaner.",
+      after: "Extract the three nested `try/catch` branches into `parsePayload()` so the happy path reads top-to-bottom.",
+      note: "\"Needs work\", \"a bit messy\", \"could be better\" describe a feeling, not a fix. They get replaced or dropped.",
+    },
+    {
+      label: "Targetless refactor",
+      before: "Refactor this.",
+      after: "Split `processOrder()` — the validation, pricing, and persistence steps each deserve their own function.",
+      note: "Bare \"refactor this\" names no target. Strong comments must say what to extract, split, rename, or remove.",
+    },
+  ],
+  memoryIntro: {
+    eyebrow: "Contextual memory",
+    headline: "Review that remembers how your project is wired.",
+    body: "Before a review runs, MergeCore fingerprints the workspace: dependencies, test setup, TypeScript strictness, domain layout, and any conventions your team has declared. That profile is cached, auto-invalidated when it should be, and fed back into every review so feedback stays stack-aware.",
+  },
+  memorySignals: [
+    {
+      title: "Dependencies & runtime",
+      body: "package.json, composer.json, lockfiles, tsconfig — used to decide which packs apply and which ecosystem idioms to expect.",
+    },
+    {
+      title: "Domain layout",
+      body: "Detects patterns like Actions, Commands, Repositories, DTOs, typed requests, and service-over-helper style so findings match how your codebase is actually structured.",
+    },
+    {
+      title: "Testing style",
+      body: "Spots the test runner, assertion style, and fixtures in use so reviews point at tests the same way your repo already writes them.",
+    },
+    {
+      title: "Declared conventions",
+      body: "Team rules in .mergecore/conventions.json win on conflicts. Write them down once; every review respects them.",
+    },
+  ],
+  memoryNote:
+    "Profiles are cached per workspace with a short TTL and auto-invalidate the instant a lockfile, tsconfig, or conventions file changes — so the review that runs after composer require or npm install already knows about the new dependency.",
   reviewModesIntro: {
     eyebrow: "Entry points",
     headline: "Run review exactly where confidence drops.",

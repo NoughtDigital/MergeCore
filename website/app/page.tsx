@@ -226,6 +226,93 @@ export default function HomePage() {
           </div>
         </section>
 
+        <section aria-labelledby="personas-heading">
+          <div className="wrap">
+            <p className="section-label">{c.personasIntro.eyebrow}</p>
+            <h2 id="personas-heading">{c.personasIntro.headline}</h2>
+            <p className="lead">{c.personasIntro.body}</p>
+            <div className="persona-grid">
+              {c.personas.map((persona) => (
+                <article key={persona.id} className="card persona-card">
+                  <div className="persona-header">
+                    <span className="persona-badge">{persona.badge}</span>
+                    <h3>{persona.title}</h3>
+                  </div>
+                  <p>{persona.tagline}</p>
+                  <ul className="persona-focus">
+                    {persona.focus.map((f) => (
+                      <li key={f}>{f}</li>
+                    ))}
+                  </ul>
+                </article>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section aria-labelledby="levels-heading">
+          <div className="wrap">
+            <p className="section-label">{c.reviewLevelsIntro.eyebrow}</p>
+            <h2 id="levels-heading">{c.reviewLevelsIntro.headline}</h2>
+            <p className="lead">{c.reviewLevelsIntro.body}</p>
+            <div className="level-grid">
+              {c.reviewLevels.map((level) => (
+                <article key={level.id} className="card level-card">
+                  <div className="level-header">
+                    <span className="level-badge">{level.badge}</span>
+                    <span className="level-scope">{level.scope}</span>
+                  </div>
+                  <h3>{level.title}</h3>
+                  <p>{level.tagline}</p>
+                </article>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section aria-labelledby="inline-heading">
+          <div className="wrap">
+            <p className="section-label">{c.inlineCommentsIntro.eyebrow}</p>
+            <h2 id="inline-heading">{c.inlineCommentsIntro.headline}</h2>
+            <p className="lead">{c.inlineCommentsIntro.body}</p>
+            <div className="inline-examples">
+              {c.inlineCommentExamples.map((example) => (
+                <article key={example.label} className="card inline-card">
+                  <p className="pack-kicker">{example.label}</p>
+                  <div className="inline-row inline-before">
+                    <span className="inline-tag weak">Weak</span>
+                    <p>{example.before}</p>
+                  </div>
+                  <div className="inline-row inline-after">
+                    <span className="inline-tag strong">Strong</span>
+                    <p>{example.after}</p>
+                  </div>
+                  <p className="inline-note">{example.note}</p>
+                </article>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section aria-labelledby="memory-heading">
+          <div className="wrap">
+            <p className="section-label">{c.memoryIntro.eyebrow}</p>
+            <h2 id="memory-heading">{c.memoryIntro.headline}</h2>
+            <p className="lead">{c.memoryIntro.body}</p>
+            <div className="grid grid-2">
+              {c.memorySignals.map((signal) => (
+                <article key={signal.title} className="card">
+                  <h3>{signal.title}</h3>
+                  <p>{signal.body}</p>
+                </article>
+              ))}
+            </div>
+            <div className="plugin-panel memory-panel">
+              <p>{c.memoryNote}</p>
+            </div>
+          </div>
+        </section>
+
         <section aria-labelledby="modes-heading">
           <div className="wrap">
             <p className="section-label">{c.reviewModesIntro.eyebrow}</p>
