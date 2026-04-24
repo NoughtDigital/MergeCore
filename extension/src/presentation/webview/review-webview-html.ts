@@ -31,7 +31,10 @@ export function buildReviewPanelHtml(
         <span class="mc-brand-mark" aria-hidden="true"></span>
         <div class="mc-brand-text">
           <div class="mc-brand-name">MergeCore</div>
-          <div id="brand-sub" class="mc-brand-sub">Second opinion against a senior bar</div>
+          <div class="mc-brand-sub-row">
+            <div id="brand-sub" class="mc-brand-sub">Second opinion against a senior bar</div>
+            <span id="brand-persona" class="mc-persona-chip mc-hidden" hidden></span>
+          </div>
           <div id="brand-file" class="mc-brand-file" title=""></div>
         </div>
       </div>

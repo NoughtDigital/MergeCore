@@ -1,4 +1,5 @@
 import type { ProjectProfile } from '@mergecore/intelligence';
+import type { ReviewPersonaId } from './review-personas';
 
 export type Severity = 'critical' | 'error' | 'warning' | 'info' | 'hint';
 
@@ -60,6 +61,11 @@ export interface ReviewRequest {
   readonly label: string;
   readonly content: string;
   readonly selectionSnippet?: string;
+  /**
+   * Reviewer persona chosen by the user. Applied on top of whichever pack(s)
+   * the API selects from projectProfile — pack-agnostic by design.
+   */
+  readonly reviewerPersonaId?: ReviewPersonaId;
 }
 
 export interface ReviewResult {

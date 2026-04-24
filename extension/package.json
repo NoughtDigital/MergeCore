@@ -45,7 +45,8 @@
     "onCommand:mergecore.exportReviewMarkdown",
     "onCommand:mergecore.setApiToken",
     "onCommand:mergecore.clearApiToken",
-    "onCommand:mergecore.showLogs"
+    "onCommand:mergecore.showLogs",
+    "onCommand:mergecore.chooseReviewerPersona"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -95,6 +96,10 @@
       {
         "command": "mergecore.showLogs",
         "title": "MergeCore: Show Output Channel"
+      },
+      {
+        "command": "mergecore.chooseReviewerPersona",
+        "title": "MergeCore: Choose Reviewer Persona"
       }
     ],
     "menus": {
@@ -131,7 +136,8 @@
         { "command": "mergecore.exportReviewMarkdown" },
         { "command": "mergecore.setApiToken" },
         { "command": "mergecore.clearApiToken" },
-        { "command": "mergecore.showLogs" }
+        { "command": "mergecore.showLogs" },
+        { "command": "mergecore.chooseReviewerPersona" }
       ]
     },
     "viewsContainers": {
@@ -188,6 +194,27 @@
           "type": "boolean",
           "default": true,
           "markdownDescription": "If the activity-bar Review view cannot be opened (e.g. some Cursor builds), open the same review UI in a **beside editor tab** automatically."
+        },
+        "mergecore.reviewerPersona": {
+          "type": "string",
+          "default": "auto",
+          "enum": [
+            "auto",
+            "principal-engineer",
+            "startup-cto",
+            "security-lead",
+            "refactor-veteran",
+            "staff-mentor"
+          ],
+          "enumDescriptions": [
+            "Balanced senior-style review across the active pack.",
+            "Architecture obsessed. Boundaries, invariants, long-term cost.",
+            "Ship fast, stay alive. Pragmatic over pristine.",
+            "Paranoid by trade. Treat every input as hostile.",
+            "Simplify aggressively. Delete more than you add.",
+            "Teaches juniors. Explains the why, not just the what."
+          ],
+          "markdownDescription": "Which reviewer persona MergeCore should use. Works for every rules pack — the persona tunes emphasis and tone, while the active pack(s) still decide what counts as a finding. Change via the **MergeCore: Choose Reviewer Persona** command for a richer picker."
         }
       }
     }

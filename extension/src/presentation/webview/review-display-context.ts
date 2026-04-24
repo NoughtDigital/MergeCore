@@ -1,5 +1,6 @@
 import type { ProjectProfile } from '@mergecore/intelligence';
 import type { ReviewRequest } from '../../domain/review-types';
+import { getPersonaById } from '../../domain/review-personas';
 
 const SIGNAL_LABELS: Readonly<Record<string, string>> = {
   filament: 'Filament',
@@ -19,12 +20,20 @@ const SIGNAL_LABELS: Readonly<Record<string, string>> = {
 export interface ReviewDisplayInfo {
   readonly stackLine: string;
   readonly fileLabel: string;
+  /** Short persona chip ("Security", "Principal", …). Undefined for the default persona. */
+  readonly personaBadge?: string;
+  /** Full persona title for accessibility tooltips and exports. */
+  readonly personaTitle?: string;
 }
 
 export function buildReviewDisplayInfo(request: ReviewRequest): ReviewDisplayInfo {
+  const persona = getPersonaById(request.reviewerPersonaId);
+  const showBadge = persona.id !== 'auto';
   return {
     stackLine: stackLineFor(request),
     fileLabel: fileLabelFor(request),
+    personaBadge: showBadge ? persona.badge : undefined,
+    personaTitle: showBadge ? persona.title : undefined,
   };
 }
 

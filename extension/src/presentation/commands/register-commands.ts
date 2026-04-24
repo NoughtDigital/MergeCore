@@ -1,6 +1,13 @@
 import * as vscode from 'vscode';
 import { ReviewCodeUseCase } from '../../application/review-code.use-case';
 import type { ReviewRequest, ReviewResult } from '../../domain/review-types';
+import {
+  DEFAULT_PERSONA_ID,
+  REVIEW_PERSONAS,
+  getPersonaById,
+  isPersonaId,
+  type ReviewPersonaId,
+} from '../../domain/review-personas';
 import { GitDiffService } from '../../infrastructure/git-diff.service';
 import { MergeCoreLogger } from '../../infrastructure/logger';
 import { getProjectProfileCached } from '../../infrastructure/project-profile-cache';
@@ -158,6 +165,37 @@ export function registerMergeCoreCommands(context: vscode.ExtensionContext, deps
     vscode.commands.registerCommand('mergecore.showLogs', () => {
       MergeCoreLogger.shared.show();
     }),
+    vscode.commands.registerCommand('mergecore.chooseReviewerPersona', async () => {
+      const current = readConfiguredPersonaId();
+      const items: (vscode.QuickPickItem & { id: ReviewPersonaId })[] = REVIEW_PERSONAS.map((p) => ({
+        id: p.id,
+        label: p.title,
+        description: p.id === current ? 'Currently selected' : undefined,
+        detail: p.tagline,
+      }));
+      const picked = await vscode.window.showQuickPick(items, {
+        title: 'MergeCore: choose reviewer persona',
+        placeHolder: `Current: ${getPersonaById(current).title}`,
+        ignoreFocusOut: true,
+      });
+      if (!picked) {
+        return;
+      }
+      try {
+        await vscode.workspace
+          .getConfiguration('mergecore')
+          .update('reviewerPersona', picked.id, vscode.ConfigurationTarget.Global);
+      } catch (e) {
+        MergeCoreLogger.shared.error('Failed to persist reviewerPersona setting', e);
+        void vscode.window.showErrorMessage(
+          'MergeCore: could not save the persona setting. Check file permissions on your user settings.'
+        );
+        return;
+      }
+      void vscode.window.showInformationMessage(
+        `MergeCore reviewer persona: ${picked.label}. Re-run a review to apply.`
+      );
+    }),
     vscode.commands.registerCommand('mergecore.setApiToken', async () => {
       const existing = await secrets.getApiToken();
       const token = await vscode.window.showInputBox({
@@ -186,7 +224,7 @@ export function registerMergeCoreCommands(context: vscode.ExtensionContext, deps
         void vscode.window.showWarningMessage('MergeCore: run a review before exporting.');
         return;
       }
-      const md = formatReviewAsMarkdown(snap.result);
+      const md = formatReviewAsMarkdown(snap.result, snap.display);
       await vscode.env.clipboard.writeText(md);
       void vscode.window.showInformationMessage('MergeCore: report copied to clipboard.');
     }),
@@ -272,9 +310,10 @@ async function publishResult(
     sidebar: MergeCoreSidebarProvider;
   }
 ): Promise<void> {
-  deps.session.set(result, document.uri);
+  const display = buildReviewDisplayInfo(request);
+  deps.session.set(result, document.uri, display);
   deps.diagnostics.setForDocument(document, result.findings);
-  await deps.sidebar.showResult(result, buildReviewDisplayInfo(request));
+  await deps.sidebar.showResult(result, display);
 }
 
 async function buildRequest(
@@ -304,6 +343,7 @@ async function buildRequest(
     label,
     content,
     selectionSnippet,
+    reviewerPersonaId: readConfiguredPersonaId(),
   };
 }
 
@@ -328,7 +368,21 @@ async function buildGitDiffRequest(
     languageId: 'diff',
     label,
     content: diffText,
+    reviewerPersonaId: readConfiguredPersonaId(),
   };
+}
+
+/**
+ * Resolve the configured reviewer persona.
+ *
+ * We treat an unknown/removed persona id as the default rather than throwing:
+ * a legacy workspace setting should never block a review.
+ */
+function readConfiguredPersonaId(): ReviewPersonaId {
+  const raw = vscode.workspace
+    .getConfiguration('mergecore')
+    .get<string>('reviewerPersona', DEFAULT_PERSONA_ID);
+  return isPersonaId(raw) ? raw : DEFAULT_PERSONA_ID;
 }
 
 async function openVirtualDiffDoc(diffText: string): Promise<vscode.TextDocument> {

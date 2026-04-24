@@ -1,4 +1,5 @@
 import type { ReviewResult } from '../../domain/review-types';
+import type { ReviewDisplayInfo } from './review-display-context';
 import { buildScoreInsight } from './score-insight';
 
 function formatScoreForExport(score: number): string {
@@ -8,10 +9,17 @@ function formatScoreForExport(score: number): string {
   return String(Number(score.toFixed(2)));
 }
 
-export function formatReviewAsMarkdown(result: ReviewResult): string {
+export function formatReviewAsMarkdown(
+  result: ReviewResult,
+  display?: ReviewDisplayInfo
+): string {
   const lines: string[] = [];
   lines.push('# MergeCore review');
   lines.push('');
+  if (display?.personaTitle) {
+    lines.push(`**Reviewer:** ${display.personaTitle}`);
+    lines.push('');
+  }
   lines.push(`**Score:** ${formatScoreForExport(result.score)}/10`);
   lines.push('');
   const insight = buildScoreInsight(result);

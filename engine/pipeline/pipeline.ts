@@ -8,6 +8,7 @@ import { ESCALATION, PRIMARY_EDITOR } from './models.js';
 import { buildSystemPrompt, buildUserPrompt, type ReviewPromptInput } from './prompts.js';
 import { contentSha256, buildReviewCacheKey, normaliseDiffForCache } from './cache.js';
 import { DEFAULT_QUOTA, estimateBillableTokensRough, shouldEscalate } from './cost-controls.js';
+import { getPersonaById, type ReviewPersonaId } from './personas.js';
 
 export interface PipelineInput {
   readonly tenantId: string;
@@ -19,6 +20,11 @@ export interface PipelineInput {
   readonly rulesetVersion: string;
   readonly projectRulesDigest: string;
   readonly deterministicFindingsJson: string;
+  /**
+   * Reviewer persona tuning the LLM stage. Namespaced into the cache hash so
+   * two personas never share a cached response for the same code.
+   */
+  readonly reviewerPersonaId?: ReviewPersonaId;
 }
 
 export interface CachePort {
@@ -70,8 +76,11 @@ export async function runReviewPipeline(
 
   const digest = input.deterministicFindingsJson || '[]';
   const relatedContextDigest = input.relatedContextDigest ?? '';
+  const persona = getPersonaById(input.reviewerPersonaId);
 
-  const sha = contentSha256(`${input.rulesetVersion}|${digest}|${relatedContextDigest}|${text}`);
+  const sha = contentSha256(
+    `${input.rulesetVersion}|${persona.id}|${digest}|${relatedContextDigest}|${text}`
+  );
 
   const cacheKey = buildReviewCacheKey({
     tenantId: input.tenantId,
@@ -95,9 +104,10 @@ export async function runReviewPipeline(
     projectRulesDigest: input.projectRulesDigest,
     deterministicFindingsJson: digest,
     maxFindings: DEFAULT_QUOTA.maxFindingsReturned,
+    reviewerPersonaId: persona.id,
   });
 
-  const system = buildSystemPrompt();
+  const system = buildSystemPrompt(persona.id);
 
   const primary = await deps.llm.completeJson({
     system,

@@ -72,6 +72,33 @@
   font-size: 11px;
   color: var(--vscode-descriptionForeground);
   line-height: 1.25;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mc-brand-sub-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.mc-persona-chip {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  line-height: 1;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--vscode-badge-background) 85%, transparent);
+  color: var(--vscode-badge-foreground);
+  border: 1px solid color-mix(in srgb, var(--vscode-widget-border) 70%, transparent);
 }
 
 .mc-brand-file {

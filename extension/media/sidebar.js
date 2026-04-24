@@ -12,6 +12,7 @@
   const scoreResidualEl = document.getElementById('score-residual');
   const brandSubEl = document.getElementById('brand-sub');
   const brandFileEl = document.getElementById('brand-file');
+  const brandPersonaEl = document.getElementById('brand-persona');
   const summaryEl = document.getElementById('summary');
   const findingsEl = document.getElementById('findings');
   const findingsCount = document.getElementById('findings-count');
@@ -59,6 +60,21 @@
       const fl = typeof display.fileLabel === 'string' ? display.fileLabel : '';
       brandFileEl.textContent = fl;
       brandFileEl.title = fl;
+    }
+    if (brandPersonaEl) {
+      const badge = typeof display.personaBadge === 'string' ? display.personaBadge.trim() : '';
+      const title = typeof display.personaTitle === 'string' ? display.personaTitle.trim() : '';
+      if (badge) {
+        brandPersonaEl.textContent = badge;
+        brandPersonaEl.title = title || badge;
+        brandPersonaEl.hidden = false;
+        brandPersonaEl.classList.remove('mc-hidden');
+      } else {
+        brandPersonaEl.textContent = '';
+        brandPersonaEl.title = '';
+        brandPersonaEl.hidden = true;
+        brandPersonaEl.classList.add('mc-hidden');
+      }
     }
 
     const n = normaliseScore(payload.score);

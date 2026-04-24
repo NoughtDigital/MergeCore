@@ -3,6 +3,8 @@
  * the model must not contradict grounded rule hits on severity for the same evidence.
  */
 
+import { getPersonaById, type ReviewPersonaId } from './personas.js';
+
 export interface ReviewPromptInput {
   readonly scope: 'selection' | 'file' | 'git-diff';
   readonly filePath: string;
@@ -12,6 +14,11 @@ export interface ReviewPromptInput {
   readonly projectRulesDigest: string;
   readonly deterministicFindingsJson: string;
   readonly maxFindings: number;
+  /**
+   * Optional reviewer persona. Tunes emphasis and tone across any pack; never
+   * overrides ground rules (schema, evidence, insufficient_context).
+   */
+  readonly reviewerPersonaId?: ReviewPersonaId;
 }
 
 const SYSTEM = `You are MergeCore, a stack-aware code reviewer. You MUST respond with a single JSON object that conforms exactly to the provided JSON Schema (schema_version "1.0"). UK English in all prose fields.
@@ -26,8 +33,16 @@ Ground rules:
 7. suggested_rewrite and patch: produce only when the reviewed scope is self-contained AND you can supply a safe full replacement or unified diff. Otherwise set both to null. Never include secrets or credentials.
 8. why_it_matters must be specific to the active language/framework pack's maintainability, security, performance, operability, or correctness concerns — no generic advice.`;
 
-export function buildSystemPrompt(): string {
-  return SYSTEM;
+export function buildSystemPrompt(personaId?: ReviewPersonaId): string {
+  const persona = getPersonaById(personaId);
+  if (persona.id === 'auto') {
+    return SYSTEM;
+  }
+  return `${SYSTEM}
+
+Reviewer persona: ${persona.title}
+${persona.promptInstruction}
+Persona emphasis MUST NOT override the ground rules above: never invent evidence, never alter the schema, and still set insufficient_context=true when the input is not covered by the supplied packs.`;
 }
 
 export function buildUserPrompt(input: ReviewPromptInput): string {
