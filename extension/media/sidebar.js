@@ -417,8 +417,6 @@
 
   function scoreCaptionFor(n, stackLine) {
     const s = (stackLine || '').toLowerCase();
-    const laravelFamily =
-      s.includes('laravel') || s.includes('filament') || s.includes('livewire') || s.includes('pest');
     const jsFamily =
       s.includes('typescript') ||
       s.includes('javascript') ||
@@ -428,9 +426,6 @@
       s.includes('inertia');
 
     if (n >= 8.5) {
-      if (laravelFamily) {
-        return 'Strong Laravel hygiene for this scope.';
-      }
       if (jsFamily) {
         return 'Strong front-end hygiene for this scope.';
       }

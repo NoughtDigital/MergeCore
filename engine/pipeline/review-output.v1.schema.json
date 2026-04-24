@@ -25,7 +25,7 @@
     },
     "suggested_rewrite": {
       "type": ["string", "null"],
-      "description": "Full replacement PHP when scope is a single file or selection; null if unsafe or out of scope."
+      "description": "Full replacement code when scope is a single file or selection; null if unsafe or out of scope."
     },
     "patch": {
       "type": ["string", "null"],
@@ -77,7 +77,7 @@
             "snippet": {
               "type": "string",
               "maxLength": 2000,
-              "description": "Must be copied verbatim from input (code or diff)."
+              "description": "Must be copied verbatim from reviewed input or auto-scanned related context."
             },
             "start_line": { "type": ["integer", "null"], "minimum": 1 },
             "end_line": { "type": ["integer", "null"], "minimum": 1 }

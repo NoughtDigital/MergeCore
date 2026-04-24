@@ -2,7 +2,7 @@
 /**
  * Rewires each rules pack so `pack.json#rubric_schema` and
  * `rubric.json#$schema` point at the pack's own hosted schema URL instead of
- * the shared `laravel-rules.schema.json`.
+ * an older shared schema URL.
  *
  * Run: node scripts/rewire-pack-schemas.mjs
  */

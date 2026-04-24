@@ -2,7 +2,7 @@
 
 **Stack-aware AI code review inside your editor.** MergeCore scores changes, surfaces findings with evidence, and can suggest rewrites or patches—grounded in **project context** (dependencies, tests, and conventions) rather than generic trivia.
 
-We care about **real stacks**: **PHP / Laravel** is a first-class path today (Composer, Pest, Filament, Livewire), and the same idea extends to **TypeScript and JavaScript** (including React and Node), **Python**, **Go**, and other ecosystems as rules packs and profiles mature. Built for teams who want review that respects frameworks and tests—not a laundry list of style nits.
+We care about **real stacks**: MergeCore is organised around versioned rules packs, so TypeScript, React, Vue, Python, Go, Swift, PHP, and future ecosystems can share the same review pipeline without turning one framework into the centre of gravity. Built for teams who want review that respects frameworks and tests, not a laundry list of style nits.
 
 ---
 
@@ -11,12 +11,12 @@ We care about **real stacks**: **PHP / Laravel** is a first-class path today (Co
 | Layer | Role |
 |--------|------|
 | **VS Code / Cursor extension** | Runs reviews on selection, whole file, or git diff; shows results in the **Review** side bar; optional apply for improved code or unified diff. |
-| **MergeCore API** (optional) | Full review when `mergecore.apiToken` is set; sends code, scope, and **project profile** so analysis can follow your actual stack (PHP, TS/JS, Python, Go, and more as packs land). |
+| **MergeCore API** (optional) | Full review when `mergecore.apiToken` is set; sends code, scope, **project profile**, and bounded related-file context so analysis can follow your actual stack (PHP, TS/JS, Python, Go, and more as packs land). |
 | **Mock reviewer** | Ships by default so you can try the UX without an account; clearly labelled in the summary. Turn it off when the API is configured. |
-| **Rules packs** | Open rubrics—today centred on Laravel, Filament, and Pest—with room to grow for other languages and frameworks; usable by hosts that consume `rubric.json` / `smells.json`. |
+| **Rules packs** | Open rubrics for languages, frameworks, and workflows; usable by hosts that consume `pack.json`, `rubric.json`, `smells.json`, and `agents.md`. |
 | **Engine (`engine/`)** | Server-side pipeline sketch (LLM, cache, prompts) and **`@mergecore/intelligence`** for workspace fingerprinting. |
 
-MergeCore is opinionated: **security and correctness before micro-style**, **evidence quoted from the diff**, **UK English** in generated prose where applicable.
+MergeCore is opinionated: **security and correctness before micro-style**, **evidence quoted from the reviewed input or auto-scanned context**, **UK English** in generated prose where applicable.
 
 ---
 
@@ -98,9 +98,11 @@ engine/
 rules/
   registry.json         # Index of all packs (id, path, version, tags)
   packs/
-    laravel-core/       # Laravel core rubric + smells + agents + rewrite guidelines
-    filament/           # Filament-focused pack
-    pest/               # Pest-focused pack
+    typescript/         # TypeScript rubric + smells + agents
+    react/              # React-focused pack
+    python/             # Python-focused pack
+    go/                 # Go-focused pack
+    <pack-name>/        # Additional language, framework, testing, or domain packs
 ```
 
 ---
@@ -132,23 +134,23 @@ A **human-oriented index** of named “smells” that point at **`rubric.json`**
 Rough priority—subject to change:
 
 1. **API + auth** — Stable public API, token lifecycle, and clear error surfaces in the extension.
-2. **Richer project profiles** — Stronger use of `projectProfile` in prompts and deterministic rules across stacks (e.g. deeper Laravel signals: Livewire, Horizon, Octane; TypeScript/React and Python/Go packs as they are added).
+2. **Richer project profiles** — Stronger use of `projectProfile` in prompts and deterministic rules across packs, including dependencies, tests, entrypoints, runtime config, and framework signals.
 3. **CI / headless** — Review on merge requests without the editor (same rules packs, same scoring model).
 4. **IDE polish** — Inline decorations, export formats, and faster iteration on large diffs.
-5. **Community rules packs** — Versioned packs, schema compatibility, and attribution—covering more than PHP over time.
+5. **Community rules packs** — Versioned packs, schema compatibility, and attribution across any language or framework a pack can describe.
 
 If you need enterprise guarantees, treat the roadmap as direction—not a SLA—until versions are tagged and documented.
 
 ---
 
-## Stack awareness (Laravel and beyond)
+## Pack Awareness
 
-- **Multi-stack intent:** Review should follow the repo you are in—whether that is Laravel, a React + TypeScript front end, a Python service, a Go module, or a mix. Packs and fingerprints will expand; Laravel remains a strong, concrete baseline in this repo today.
-- **Laravel depth:** Where PHP/Laravel applies, Form Requests, policies, Eloquent boundaries, queues, and tenancy are first-class—not afterthoughts.
-- **Ecosystem:** Optional packs call out **Filament** (tables, tenancy, actions) and **Pest** (assertions, auth coverage, failure paths) without pretending every app uses them.
+- **Pack-first intent:** Review should follow the repo you are in through registered packs and fingerprints, whether that is a front end, API service, mobile app, ML project, framework app, or a mix.
+- **System context:** The extension auto-scans bounded related context such as imports, entrypoints, tests, config, schema files, and nearby domain modules before sending a review request.
+- **Ecosystem:** Optional packs can add framework-specific expectations without forcing every project through those assumptions.
 - **Honesty:** Mock mode is explicit; production review belongs behind the API with your policies and retention rules.
 
-MergeCore is not “another generic linter.” It is aimed at **merge-time judgement** that respects the stack—not only PHP.
+MergeCore is not “another generic linter.” It is aimed at **merge-time judgement** that respects the packs active for the repository.
 
 ---
 
@@ -165,14 +167,14 @@ MergeCore is not “another generic linter.” It is aimed at **merge-time judge
 
 Packs live under **`rules/packs/<name>/`**. Add new packs by creating the folder (with `rubric.json`, `smells.json`, `agents.md`, and **`pack.json`**) and **registering** them in **`rules/registry.json`**. See the **Rules pack files** section for what each of those files is for.
 
-- Keep **`rubric.json`** valid against the MergeCore Laravel rules schema where applicable.
+- Keep **`rubric.json`** valid against the schema declared by that pack’s **`pack.json`**.
 - Keep **rule IDs stable** or document breaking changes.
 - Prefer **evidence-based detection hints** over vague advice.
 - Bump **`version`** in both `pack.json` and `registry.json` when you ship breaking or meaningful changes.
 
 ### Issues
 
-Open issues for bugs, schema mismatches, or pack content that misleads real applications (Laravel or otherwise). Feature requests are welcome; **sharp reproduction steps** beat broad asks.
+Open issues for bugs, schema mismatches, or pack content that misleads real applications. Feature requests are welcome; **sharp reproduction steps** beat broad asks.
 
 ---
 
@@ -182,4 +184,4 @@ Specify your licence in `LICENCE` (or `LICENSE`) at the repository root when you
 
 ---
 
-**MergeCore** — review that aims to know what stack you are on—from Laravel to TypeScript, Python, Go, and beyond—and says so.
+**MergeCore** — review that aims to know which packs apply to your repo, then judge code through that context.

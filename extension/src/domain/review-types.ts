@@ -32,11 +32,29 @@ export interface CrossFileImpact {
 
 export type ReviewScope = 'selection' | 'file' | 'git-diff';
 
+export interface RelatedContextFile {
+  /** Workspace-relative path. */
+  readonly path: string;
+  /** Why this file was selected for the review context. */
+  readonly reason: string;
+  /** Bounded, evidence-bearing excerpt from the file. */
+  readonly excerpt: string;
+}
+
+export interface ReviewRelatedContext {
+  readonly strategy: string;
+  readonly files: readonly RelatedContextFile[];
+  readonly notes?: readonly string[];
+  readonly totalExcerptChars: number;
+}
+
 export interface ReviewRequest {
   readonly scope: ReviewScope;
   readonly workspaceRoot: string | undefined;
-  /** Workspace fingerprint (Laravel, Filament, Pest, React, Vue, TypeScript, …). */
+  /** Workspace fingerprint used to select and tune rules packs. */
   readonly projectProfile?: ProjectProfile;
+  /** Bounded related files collected before review so findings can follow system effects. */
+  readonly relatedContext?: ReviewRelatedContext;
   readonly filePath: string;
   readonly languageId: string;
   readonly label: string;

@@ -1,6 +1,21 @@
 import type { ProjectProfile } from '@mergecore/intelligence';
 import type { ReviewRequest } from '../../domain/review-types';
 
+const SIGNAL_LABELS: Readonly<Record<string, string>> = {
+  filament: 'Filament',
+  inertia: 'Inertia',
+  livewire: 'Livewire',
+  pest: 'Pest',
+  phpunit: 'PHPUnit',
+  react: 'React',
+  typescript: 'TypeScript',
+  vite: 'Vite',
+  vue: 'Vue',
+  'js:package-json': 'Node',
+  'php:composer': 'Composer',
+  'path:php-app-layout': 'PHP app layout',
+};
+
 export interface ReviewDisplayInfo {
   readonly stackLine: string;
   readonly fileLabel: string;
@@ -30,54 +45,30 @@ function stackLineFor(request: ReviewRequest): string {
   const p = request.projectProfile;
   if (p) {
     const parts = stackPartsFromProfile(p);
+    const relatedCount = request.relatedContext?.files.length ?? 0;
+    if (relatedCount > 0) {
+      parts.push(`${relatedCount} related`);
+    }
     if (parts.length > 0) {
       return parts.join(' · ');
     }
   }
-  return stackLineFromLanguageAndPath(request.languageId, request.filePath);
+  const fallback = stackLineFromLanguageAndPath(request.languageId, request.filePath);
+  const relatedCount = request.relatedContext?.files.length ?? 0;
+  return relatedCount > 0 ? `${fallback} · ${relatedCount} related` : fallback;
 }
 
 function stackPartsFromProfile(p: ProjectProfile): string[] {
   const out: string[] = [];
-  const sig = new Set(p.signals);
-  const php = p.stacks.php;
-  const js = p.stacks.javascript;
-
   const add = (label: string): void => {
     if (!out.includes(label)) {
       out.push(label);
     }
   };
 
-  if (sig.has('laravel') || php.isLaravel) {
-    add('Laravel');
-  }
-  if (sig.has('filament') || php.filament) {
-    add('Filament');
-  }
-  if (sig.has('livewire') || php.livewire) {
-    add('Livewire');
-  }
-  if (sig.has('pest') || php.pest) {
-    add('Pest');
-  }
-  if (sig.has('phpunit') || php.phpunit) {
-    add('PHPUnit');
-  }
-  if (sig.has('typescript') || js.typeScript) {
-    add('TypeScript');
-  }
-  if (sig.has('react') || js.react) {
-    add('React');
-  }
-  if (sig.has('vue') || js.vue) {
-    add('Vue');
-  }
-  if (sig.has('vite') || js.vite) {
-    add('Vite');
-  }
-  if (sig.has('inertia') || js.inertia) {
-    add('Inertia');
+  for (const signal of p.signals) {
+    const label = SIGNAL_LABELS[signal] ?? labelFromSignal(signal);
+    add(label);
   }
 
   return out;
@@ -86,7 +77,7 @@ function stackPartsFromProfile(p: ProjectProfile): string[] {
 function stackLineFromLanguageAndPath(languageId: string, filePath: string): string {
   const fp = filePath.replace(/\\/g, '/').toLowerCase();
   if (fp.includes('/filament/')) {
-    return 'Laravel · Filament';
+    return 'Filament';
   }
   if (languageId === 'diff') {
     return 'Git diff';
@@ -106,4 +97,9 @@ function stackLineFromLanguageAndPath(languageId: string, filePath: string): str
   };
 
   return map[languageId] ?? (languageId ? languageId : 'Code review');
+}
+
+function labelFromSignal(signal: string): string {
+  const cleaned = signal.replace(/^(path|js|php):/, '').replace(/[-_]/g, ' ');
+  return cleaned.replace(/\b\w/g, (m) => m.toUpperCase());
 }

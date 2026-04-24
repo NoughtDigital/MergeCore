@@ -1,9 +1,6 @@
 /** Filled by detectors; frozen when exposed on `ProjectProfile`. */
 export interface PhpStackInfo {
   hasComposerJson: boolean;
-  isLaravel: boolean;
-  /** From composer, e.g. "^11.0" */
-  laravelFrameworkVersion?: string;
   filament: boolean;
   livewire: boolean;
   pest: boolean;
@@ -27,7 +24,7 @@ export interface ProjectProfile {
     readonly php: Readonly<PhpStackInfo>;
     readonly javascript: Readonly<JavascriptStackInfo>;
   };
-  /** Deterministic tags for prompts and cache keys, e.g. "laravel", "filament", "pest" */
+  /** Deterministic tags for prompts and cache keys, e.g. "typescript", "react", "pest" */
   readonly signals: readonly string[];
   /** Short stable summary for APIs */
   readonly fingerprint: string;
@@ -36,7 +33,6 @@ export interface ProjectProfile {
 export function emptyPhpStack(): PhpStackInfo {
   return {
     hasComposerJson: false,
-    isLaravel: false,
     filament: false,
     livewire: false,
     pest: false,

@@ -1,7 +1,7 @@
 {
   "name": "mergecore",
   "displayName": "MergeCore",
-  "description": "Laravel-focused AI review: a senior-style second opinion so you can compare code that works against code that would hold up to scrutiny.",
+  "description": "Stack-aware AI review: a senior-style second opinion so you can compare code that works against code that would hold up to scrutiny.",
   "version": "0.1.0",
   "publisher": "mergecore",
   "engines": {
@@ -12,8 +12,12 @@
     "Other"
   ],
   "keywords": [
-    "laravel",
     "php",
+    "typescript",
+    "python",
+    "go",
+    "rules",
+    "packs",
     "ai",
     "review",
     "merge"
@@ -22,6 +26,15 @@
     "onStartupFinished",
     "onLanguage:php",
     "onLanguage:blade",
+    "onLanguage:typescript",
+    "onLanguage:typescriptreact",
+    "onLanguage:javascript",
+    "onLanguage:javascriptreact",
+    "onLanguage:vue",
+    "onLanguage:python",
+    "onLanguage:go",
+    "onLanguage:swift",
+    "onLanguage:rust",
     "onCommand:mergecore.showSidebar",
     "onCommand:mergecore.reviewFile",
     "onCommand:mergecore.reviewSelection",
@@ -93,19 +106,19 @@
         },
         {
           "command": "mergecore.reviewFile",
-          "when": "editorLangId == php",
+          "when": "resourceScheme == file",
           "group": "mergecore@2"
         }
       ],
       "editor/title": [
         {
           "command": "mergecore.reviewFile",
-          "when": "editorLangId == php && resourceScheme == file",
+          "when": "resourceScheme == file",
           "group": "navigation@mergecore"
         },
         {
           "command": "mergecore.showSidebar",
-          "when": "editorLangId == php && resourceScheme == file",
+          "when": "resourceScheme == file",
           "group": "navigation@mergecore2"
         }
       ],

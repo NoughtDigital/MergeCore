@@ -3,8 +3,7 @@
  * Generates per-pack rubric JSON Schemas under website/public/schemas.
  *
  * All packs share the same rubric shape. The only thing that varies is the
- * schema $id, title, and (for PHP / Laravel-ecosystem packs) a few extra
- * optional gate booleans on rule items.
+ * schema $id, title, and optional pack-specific gate booleans on rule items.
  *
  * Run: node website/scripts/generate-rule-schemas.mjs
  */

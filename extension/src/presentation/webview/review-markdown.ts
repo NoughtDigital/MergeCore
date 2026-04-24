@@ -107,7 +107,7 @@ export function formatReviewAsMarkdown(result: ReviewResult): string {
       }
       lines.push('');
     }
-    lines.push('```php');
+    lines.push('```');
     lines.push(result.improvedCode);
     lines.push('```');
     lines.push('');

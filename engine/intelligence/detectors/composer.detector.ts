@@ -33,8 +33,7 @@ export async function detectComposer(ctx: DetectorContext): Promise<void> {
   const req = mergeRequires(raw);
 
   if (hasPackage(req, 'laravel/framework')) {
-    ctx.php.isLaravel = true;
-    ctx.php.laravelFrameworkVersion = req['laravel/framework'];
+    ctx.extraSignals.push('laravel');
   }
 
   if (findFilament(req)) {

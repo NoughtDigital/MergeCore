@@ -14,10 +14,7 @@ export async function detectPathSignals(ctx: DetectorContext): Promise<void> {
     ctx.extraSignals.push('path:artisan');
   }
   if (bootstrapApp && appDir) {
-    ctx.extraSignals.push('path:laravel-skeleton');
-    if (!ctx.php.isLaravel) {
-      ctx.php.isLaravel = true;
-    }
+    ctx.extraSignals.push('path:php-app-layout');
   }
   if (pestFile) {
     ctx.php.pest = true;

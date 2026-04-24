@@ -6,6 +6,7 @@ import {
   validateApiBaseUrl,
 } from './api-base-url';
 import { MergeCoreLogger } from './logger';
+import { formatRelatedContextDigest } from './related-context.collector';
 import { omitRewriteIfUnchanged } from './review-result-normalize';
 import { parseReviewResult, ReviewResponseError } from './review-response.guard';
 import type { MergeCoreSecretStore } from './secret-store';
@@ -85,6 +86,8 @@ export class MergeCoreReviewAdapter implements ReviewEngine {
           scope: request.scope,
           workspaceRoot: request.workspaceRoot,
           projectProfile: request.projectProfile,
+          relatedContext: request.relatedContext,
+          relatedContextDigest: formatRelatedContextDigest(request.relatedContext),
           filePath: request.filePath,
           languageId: request.languageId,
           label: request.label,

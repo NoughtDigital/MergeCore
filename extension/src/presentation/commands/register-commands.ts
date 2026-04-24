@@ -6,6 +6,7 @@ import { MergeCoreLogger } from '../../infrastructure/logger';
 import { getProjectProfileCached } from '../../infrastructure/project-profile-cache';
 import { PatchApplier } from '../../infrastructure/patch-applier';
 import { DEFAULT_CLIENT_QUOTA, quotaFor } from '../../infrastructure/quotas';
+import { collectRelatedContext } from '../../infrastructure/related-context.collector';
 import { RequestThrottle } from '../../infrastructure/request-throttle';
 import { scanForSecrets, redactSecrets } from '../../infrastructure/secret-scrubber';
 import type { MergeCoreSecretStore } from '../../infrastructure/secret-store';
@@ -285,10 +286,19 @@ async function buildRequest(
 ): Promise<ReviewRequest> {
   const workspaceRoot = vscode.workspace.getWorkspaceFolder(doc.uri)?.uri.fsPath;
   const projectProfile = workspaceRoot ? await getProjectProfileCached(workspaceRoot) : undefined;
+  const relatedContext = workspaceRoot
+    ? await collectRelatedContext({
+        scope,
+        workspaceRoot,
+        filePath: doc.uri.fsPath,
+        content,
+      })
+    : undefined;
   return {
     scope,
     workspaceRoot,
     projectProfile,
+    relatedContext,
     filePath: doc.uri.fsPath,
     languageId: doc.languageId,
     label,
@@ -303,10 +313,17 @@ async function buildGitDiffRequest(
   diffText: string
 ): Promise<ReviewRequest> {
   const projectProfile = await getProjectProfileCached(workspaceRoot);
+  const relatedContext = await collectRelatedContext({
+    scope: 'git-diff',
+    workspaceRoot,
+    filePath: label,
+    content: diffText,
+  });
   return {
     scope: 'git-diff',
     workspaceRoot,
     projectProfile,
+    relatedContext,
     filePath: label,
     languageId: 'diff',
     label,
@@ -362,7 +379,12 @@ async function preflightScrubAndGuard(request: ReviewRequest): Promise<ScrubDeci
 
   const contentHits = scanForSecrets(request.content);
   const snippetHits = request.selectionSnippet ? scanForSecrets(request.selectionSnippet) : [];
-  const totalHits = contentHits.length + snippetHits.length;
+  const contextHits = (request.relatedContext?.files ?? []).map((file) => ({
+    file,
+    hits: scanForSecrets(file.excerpt),
+  }));
+  const contextHitCount = contextHits.reduce((sum, item) => sum + item.hits.length, 0);
+  const totalHits = contentHits.length + snippetHits.length + contextHitCount;
 
   if (totalHits === 0) {
     return { proceed: true, request };
@@ -371,6 +393,9 @@ async function preflightScrubAndGuard(request: ReviewRequest): Promise<ScrubDeci
   const uniqueRules = new Set<string>();
   for (const h of contentHits) uniqueRules.add(h.rule);
   for (const h of snippetHits) uniqueRules.add(h.rule);
+  for (const item of contextHits) {
+    for (const h of item.hits) uniqueRules.add(h.rule);
+  }
   const ruleList = [...uniqueRules].join(', ');
 
   MergeCoreLogger.shared.warn(
@@ -402,6 +427,22 @@ async function preflightScrubAndGuard(request: ReviewRequest): Promise<ScrubDeci
     selectionSnippet: request.selectionSnippet
       ? redactSecrets(request.selectionSnippet, snippetHits)
       : request.selectionSnippet,
+    relatedContext: request.relatedContext
+      ? {
+          ...request.relatedContext,
+          files: request.relatedContext.files.map((file) => {
+            const hits = contextHits.find((item) => item.file === file)?.hits ?? [];
+            return {
+              ...file,
+              excerpt: redactSecrets(file.excerpt, hits),
+            };
+          }),
+          totalExcerptChars: request.relatedContext.files.reduce((sum, file) => {
+            const hits = contextHits.find((item) => item.file === file)?.hits ?? [];
+            return sum + redactSecrets(file.excerpt, hits).length;
+          }, 0),
+        }
+      : request.relatedContext,
   };
   return { proceed: true, request: redactedRequest };
 }

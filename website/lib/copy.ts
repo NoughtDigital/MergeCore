@@ -74,20 +74,20 @@ export const homepageCopy: HomepageCopy = {
   meta: {
     title: "MergeCore — catch what seniors would flag before review",
     description:
-      "MergeCore reviews your code inside VS Code and Cursor, catches risky logic and Laravel smells, and helps clean up weak AI-generated code before PR review starts.",
+      "MergeCore reviews your code inside VS Code and Cursor, catches risky logic through stack-specific packs, and helps clean up weak AI-generated code before PR review starts.",
   },
   hero: {
     badge: "VS Code / Cursor extension",
     headline: "Vibe code freely. MergeCore catches what seniors would flag.",
     subheadline:
-      "Review a snippet, file, or git diff inside VS Code and Cursor. MergeCore spots risky Laravel mistakes, weak AI-generated code, and messy logic — then helps you fix it before review begins.",
+      "Review a snippet, file, or git diff inside VS Code and Cursor. MergeCore spots risky pack-specific mistakes, weak AI-generated code, and messy logic — then helps you fix it before review begins.",
     primaryCta: "Install Extension",
     secondaryCta: "See It Catch Real Issues",
   },
   panelOverview: {
     eyebrow: "The workflow",
     headline: "Review code where it actually matters: before commit.",
-    body: "Run MergeCore on a snippet, file, staged diff, or working tree. Get actionable findings, severity scores, Laravel-aware feedback, and rewrites you can apply immediately.",
+    body: "Run MergeCore on a snippet, file, staged diff, or working tree. Get actionable findings, severity scores, pack-aware feedback, and rewrites you can apply immediately.",
     commandLine:
       "MergeCore: Review Selection · Review Active File · Review Git Diff · Review Staged Diff",
     panelNote:
@@ -96,7 +96,7 @@ export const homepageCopy: HomepageCopy = {
   featuresIntro: {
     eyebrow: "Why it helps",
     headline: "Fewer pointless PR comments. Better code shipped faster.",
-    body: "MergeCore is strongest today in Laravel and PHP-heavy workflows, and it reads project signals from the repo so the feedback feels closer to a sharp engineer than a generic AI lint pass.",
+    body: "MergeCore reads project signals and applies versioned rules packs, so feedback feels closer to a sharp engineer than a generic AI lint pass.",
   },
   features: [
     {
@@ -121,7 +121,7 @@ export const homepageCopy: HomepageCopy = {
     },
     {
       title: "Built for modern stacks",
-      body: "Laravel first. Also understands Filament, Pest, Livewire, TypeScript, React, Vue, and modern PHP workflows.",
+      body: "Pack first. Add language, framework, testing, frontend, backend, mobile, and domain-specific rules without changing the review workflow.",
     },
   ],
   reviewModesIntro: {

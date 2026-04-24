@@ -14,8 +14,8 @@ export interface PipelineInput {
   readonly scope: ReviewPromptInput['scope'];
   readonly filePath: string;
   readonly languageId: string;
-  readonly laravelVersionHint?: string;
   readonly text: string;
+  readonly relatedContextDigest?: string;
   readonly rulesetVersion: string;
   readonly projectRulesDigest: string;
   readonly deterministicFindingsJson: string;
@@ -69,8 +69,9 @@ export async function runReviewPipeline(
   }
 
   const digest = input.deterministicFindingsJson || '[]';
+  const relatedContextDigest = input.relatedContextDigest ?? '';
 
-  const sha = contentSha256(`${input.rulesetVersion}|${digest}|${text}`);
+  const sha = contentSha256(`${input.rulesetVersion}|${digest}|${relatedContextDigest}|${text}`);
 
   const cacheKey = buildReviewCacheKey({
     tenantId: input.tenantId,
@@ -89,8 +90,8 @@ export async function runReviewPipeline(
     scope: input.scope,
     filePath: input.filePath,
     languageId: input.languageId,
-    laravelVersionHint: input.laravelVersionHint,
     codeOrDiff: text,
+    relatedContextDigest,
     projectRulesDigest: input.projectRulesDigest,
     deterministicFindingsJson: digest,
     maxFindings: DEFAULT_QUOTA.maxFindingsReturned,
@@ -150,5 +151,8 @@ function parseFindingsSeverities(json: string): ReadonlyArray<{ severity: string
 }
 
 export function roughTokenEstimateForBudget(input: PipelineInput): number {
-  return estimateBillableTokensRough(input.text.length, PRIMARY_EDITOR.maxOutputTokens);
+  return estimateBillableTokensRough(
+    input.text.length + (input.relatedContextDigest?.length ?? 0),
+    PRIMARY_EDITOR.maxOutputTokens
+  );
 }

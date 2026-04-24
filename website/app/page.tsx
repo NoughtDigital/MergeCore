@@ -5,49 +5,49 @@ const c = homepageCopy;
 
 const currentRulePacks = [
   {
-    title: "Laravel Core",
-    sub: "Production rules",
-    accent: "green",
-    icon: "hex",
-  },
-  {
-    title: "Filament",
-    sub: "Admin & panels",
-    accent: "blue",
-    icon: "panel",
-  },
-  {
-    title: "Pest",
-    sub: "Testing rules",
-    accent: "purple",
-    icon: "flask",
-  },
-  {
-    title: "Livewire",
-    sub: "Component behaviour",
-    accent: "cyan",
-    icon: "pulse",
-  },
-  {
-    title: "Alpine",
-    sub: "Blade frontend rules",
-    accent: "orange",
-    icon: "mountain",
-  },
-];
-
-const futureRulePacks = [
-  {
     title: "TypeScript",
-    sub: "App & service rules",
+    sub: "Type & app rules",
     accent: "blue",
     icon: "ts",
   },
   {
     title: "React",
-    sub: "Frontend review packs",
+    sub: "Component review",
     accent: "cyan",
     icon: "react",
+  },
+  {
+    title: "Python",
+    sub: "Service rules",
+    accent: "yellow",
+    icon: "python",
+  },
+  {
+    title: "Go",
+    sub: "API & concurrency",
+    accent: "teal",
+    icon: "go",
+  },
+  {
+    title: "Swift",
+    sub: "App rules",
+    accent: "purple",
+    icon: "hex",
+  },
+];
+
+const futureRulePacks = [
+  {
+    title: "More Frameworks",
+    sub: "Web & app packs",
+    accent: "green",
+    icon: "panel",
+  },
+  {
+    title: "More Test Runners",
+    sub: "Coverage & quality",
+    accent: "purple",
+    icon: "flask",
   },
   {
     title: "Node",
@@ -56,20 +56,8 @@ const futureRulePacks = [
     icon: "node",
   },
   {
-    title: "Python",
-    sub: "Services & data work",
-    accent: "yellow",
-    icon: "python",
-  },
-  {
-    title: "Go",
-    sub: "Modules & APIs",
-    accent: "teal",
-    icon: "go",
-  },
-  {
-    title: "Horizon & Octane",
-    sub: "Deeper Laravel ops",
+    title: "Domain Packs",
+    sub: "Team-specific rules",
     accent: "red",
     icon: "bolt",
   },
@@ -186,9 +174,9 @@ export default function HomePage() {
               <div>
                 <h2 id="capabilities-heading">Current rule packs, plus the next wave on the roadmap.</h2>
                 <p className="lead">
-                  Shipping today from the repo: Laravel Core, Filament, Pest, Livewire, and Alpine.
-                  Planned next from the roadmap: TypeScript, React, Node, Python, Go, and deeper
-                  Laravel ops coverage.
+                  Shipping today from the repo: language, framework, testing, frontend, backend,
+                  mobile, and systems packs. Planned next: more community packs, domain packs, and
+                  stronger pack resolution.
                 </p>
               </div>
             </div>

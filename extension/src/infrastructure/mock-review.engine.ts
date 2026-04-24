@@ -13,7 +13,6 @@ function fnv1a32(input: string): number {
 const FINGERPRINT_LABELS: Readonly<Record<string, string>> = {
   filament: 'Filament',
   inertia: 'Inertia',
-  laravel: 'Laravel',
   livewire: 'Livewire',
   pest: 'Pest',
   phpunit: 'PHPUnit',
@@ -24,7 +23,7 @@ const FINGERPRINT_LABELS: Readonly<Record<string, string>> = {
   'js:package-json': 'Node (package.json)',
   'php:composer': 'Composer',
   'path:artisan': 'Artisan',
-  'path:laravel-skeleton': 'Laravel layout',
+  'path:php-app-layout': 'PHP app layout',
   'path:pest.php': 'Pest',
   'path:phpunit': 'PHPUnit',
   'path:vite.config': 'Vite',
@@ -84,33 +83,32 @@ function formatFingerprintForSummary(fingerprint: string): string {
 
 export class MockReviewEngine implements ReviewEngine {
   async review(request: ReviewRequest): Promise<ReviewResult> {
-    const isPhp = request.languageId === 'php' || request.filePath.endsWith('.php');
     const findings = [];
 
-    if (isPhp && /DB::raw\s*\(/i.test(request.content)) {
+    if (/\b(eval|exec|shell_exec|child_process\.exec)\s*\(/i.test(request.content)) {
       findings.push({
-        id: 'mock-raw-sql',
+        id: 'mock-dynamic-exec',
         severity: 'warning' as const,
-        message: 'Raw SQL via DB::raw can be risky; ensure bindings are used.',
+        message: 'Dynamic execution can be risky; ensure untrusted input cannot reach it.',
         whyItMatters:
-          'Unparameterised raw SQL is a common source of SQL injection when user input reaches the expression.',
-        fixHint: 'Prefer the query builder, or use parameter binding with whereRaw/bind.',
+          'Runtime execution APIs can turn validation gaps into command or code injection issues across stacks.',
+        fixHint: 'Prefer a narrow API, allowlisted commands, or structured library calls.',
         line: undefined,
         category: 'security',
-        code: 'MERGECORE_RAW_SQL',
+        code: 'MERGECORE_DYNAMIC_EXEC',
       });
     }
 
-    if (isPhp && /\$request->all\s*\(\)/.test(request.content)) {
+    if (/\b(TODO|FIXME)\b/.test(request.content)) {
       findings.push({
-        id: 'mock-mass-assign',
-        severity: 'warning' as const,
-        message: 'Mass assignment from $request->all() can be dangerous; prefer validated input.',
+        id: 'mock-open-work',
+        severity: 'hint' as const,
+        message: 'Open TODO/FIXME marker left in reviewed code.',
         whyItMatters:
-          'Hidden attributes can be mass-assigned if your model is not perfectly guarded, which can escalate privileges.',
-        fixHint: 'Use Form Request validated arrays or explicit DTO mapping.',
-        category: 'security',
-        code: 'MERGECORE_MASS_ASSIGN',
+          'Outstanding markers make review intent ambiguous and can hide unfinished behaviour.',
+        fixHint: 'Resolve the marker or link it to tracked follow-up work.',
+        category: 'maintainability',
+        code: 'MERGECORE_OPEN_WORK',
       });
     }
 
@@ -130,11 +128,15 @@ export class MockReviewEngine implements ReviewEngine {
     const profileHint = stackPhrase
       ? ` Workspace looks like: ${stackPhrase}.`
       : '';
+    const contextCount = request.relatedContext?.files.length ?? 0;
+    const contextHint = contextCount > 0
+      ? ` Auto-scanned ${contextCount} related file${contextCount === 1 ? '' : 's'} for entrypoints, domain logic, tests, config, and schema signals.`
+      : '';
 
     return {
       findings,
       score,
-      summary: baseSummary + profileHint,
+      summary: baseSummary + profileHint + contextHint,
       improvedCode: undefined,
       patch: undefined,
     };

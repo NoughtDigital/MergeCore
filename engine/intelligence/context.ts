@@ -64,9 +64,6 @@ function collectSignals(php: PhpStackInfo, js: JavascriptStackInfo, extra: strin
   if (php.hasComposerJson) {
     s.add('php:composer');
   }
-  if (php.isLaravel) {
-    s.add('laravel');
-  }
   if (php.filament) {
     s.add('filament');
   }
