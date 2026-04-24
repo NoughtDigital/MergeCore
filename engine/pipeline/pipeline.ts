@@ -9,6 +9,7 @@ import { buildSystemPrompt, buildUserPrompt, type ReviewPromptInput } from './pr
 import { contentSha256, buildReviewCacheKey, normaliseDiffForCache } from './cache.js';
 import { DEFAULT_QUOTA, estimateBillableTokensRough, shouldEscalate } from './cost-controls.js';
 import { getPersonaById, type ReviewPersonaId } from './personas.js';
+import { getReviewLevelById, type ReviewLevelId } from './review-levels.js';
 
 export interface PipelineInput {
   readonly tenantId: string;
@@ -25,6 +26,11 @@ export interface PipelineInput {
    * two personas never share a cached response for the same code.
    */
   readonly reviewerPersonaId?: ReviewPersonaId;
+  /**
+   * Review level (quick/file/flow/pr/disaster). Namespaced into the cache
+   * hash so a Quick Review never reuses a Disaster Review payload.
+   */
+  readonly reviewLevelId?: ReviewLevelId;
 }
 
 export interface CachePort {
@@ -77,9 +83,10 @@ export async function runReviewPipeline(
   const digest = input.deterministicFindingsJson || '[]';
   const relatedContextDigest = input.relatedContextDigest ?? '';
   const persona = getPersonaById(input.reviewerPersonaId);
+  const level = getReviewLevelById(input.reviewLevelId);
 
   const sha = contentSha256(
-    `${input.rulesetVersion}|${persona.id}|${digest}|${relatedContextDigest}|${text}`
+    `${input.rulesetVersion}|${persona.id}|${level.id}|${digest}|${relatedContextDigest}|${text}`
   );
 
   const cacheKey = buildReviewCacheKey({
@@ -95,6 +102,10 @@ export async function runReviewPipeline(
     return { rawJson: cached, cacheHit: true, escalated: false };
   }
 
+  // The level's maxFindingsHint narrows or widens the LLM's budget, but the
+  // global quota still clamps the absolute maximum so no level can exceed it.
+  const maxFindings = Math.min(level.maxFindingsHint, DEFAULT_QUOTA.maxFindingsReturned);
+
   const userPrompt = buildUserPrompt({
     scope: input.scope,
     filePath: input.filePath,
@@ -103,11 +114,12 @@ export async function runReviewPipeline(
     relatedContextDigest,
     projectRulesDigest: input.projectRulesDigest,
     deterministicFindingsJson: digest,
-    maxFindings: DEFAULT_QUOTA.maxFindingsReturned,
+    maxFindings,
     reviewerPersonaId: persona.id,
+    reviewLevelId: level.id,
   });
 
-  const system = buildSystemPrompt(persona.id);
+  const system = buildSystemPrompt(persona.id, level.id);
 
   const primary = await deps.llm.completeJson({
     system,

@@ -1,6 +1,7 @@
 import type { ReviewEngine } from '../application/ports/review-engine.port';
 import type { ReviewRequest, ReviewResult } from '../domain/review-types';
 import { getPersonaById, type ReviewPersonaId } from '../domain/review-personas';
+import { getReviewLevelById, type ReviewLevelId } from '../domain/review-levels';
 
 function fnv1a32(input: string): number {
   let h = 2166136261 >>> 0;
@@ -193,11 +194,58 @@ const PERSONA_TONES: Readonly<Record<ReviewPersonaId, PersonaMockTone>> = {
   },
 };
 
+/**
+ * Per-level flavour for the mock. Real prompt emphasis lives in the engine
+ * pipeline; this table only exists so the offline UX visibly changes when
+ * the user picks a different level button, without hardcoding a large
+ * per-level branching ladder in the engine.
+ *
+ * Adding a new level id here is optional — missing ids fall back to the
+ * default tone, so the mock keeps working while the engine catches up.
+ */
+interface LevelMockTone {
+  readonly summaryPrefix: string;
+  readonly findingCap: number;
+  /** Scalar applied to the deterministic rule weight for scoring (higher = harsher). */
+  readonly weightScale: number;
+}
+
+const LEVEL_TONES: Readonly<Record<ReviewLevelId, LevelMockTone>> = {
+  quick: {
+    summaryPrefix: 'Quick Review lens: function-scoped sanity check.',
+    findingCap: 5,
+    weightScale: 0.8,
+  },
+  file: {
+    summaryPrefix: '',
+    findingCap: 12,
+    weightScale: 1.0,
+  },
+  flow: {
+    summaryPrefix:
+      'Flow Review lens: tracing the business process across linked files (no real cross-file analysis in mock).',
+    findingCap: 15,
+    weightScale: 1.05,
+  },
+  pr: {
+    summaryPrefix: 'PR Review lens: change-impact analysis over your diff.',
+    findingCap: 18,
+    weightScale: 1.1,
+  },
+  disaster: {
+    summaryPrefix: 'Disaster Review lens: broad, unsparing sweep (mock still limited — real reviewer will find more).',
+    findingCap: 25,
+    weightScale: 1.25,
+  },
+};
+
 export class MockReviewEngine implements ReviewEngine {
   async review(request: ReviewRequest): Promise<ReviewResult> {
     const persona = getPersonaById(request.reviewerPersonaId);
+    const level = getReviewLevelById(request.reviewLevelId);
     const tone = PERSONA_TONES[persona.id];
-    const findings = [];
+    const levelTone = LEVEL_TONES[level.id];
+    const findings: ReviewResult['findings'][number][] = [];
 
     if (/\b(eval|exec|shell_exec|child_process\.exec)\s*\(/i.test(request.content)) {
       findings.push({
@@ -224,10 +272,44 @@ export class MockReviewEngine implements ReviewEngine {
       });
     }
 
-    // Persona shifts severity weighting; reflect that in the score curve so the
-    // offline UX communicates "this reviewer cares more/less about these things".
-    const severityWeight = findings.reduce((sum, f) => sum + severityCost(f.severity), 0);
-    const seed = `${persona.id}\0${request.filePath}\0${request.content.slice(0, 4000)}`;
+    // Disaster Review wants breadth: surface a couple of extra mock findings
+    // when the evidence exists, so users see a visible difference between
+    // levels even without the real reviewer. Still honours the findingCap.
+    if (level.id === 'disaster') {
+      if (/console\.log\s*\(/.test(request.content)) {
+        findings.push({
+          id: 'mock-console-log',
+          severity: 'hint',
+          message: 'Leftover console.log in reviewed code.',
+          whyItMatters: 'Stray logging obscures signal in production logs and can leak user data.',
+          fixHint: 'Replace with a scoped logger or delete if temporary.',
+          category: 'operability',
+          code: 'MERGECORE_CONSOLE_LOG',
+        });
+      }
+      if (/\b(any|unknown)\b\s*[;,)]/.test(request.content)) {
+        findings.push({
+          id: 'mock-any-leak',
+          severity: 'info',
+          message: 'Loosely-typed value escapes the function boundary.',
+          whyItMatters:
+            'Any/unknown at a boundary shifts the cost of a mistake to every future caller.',
+          fixHint: 'Narrow the type at the boundary, or wrap the call and assert the shape.',
+          category: 'maintainability',
+          code: 'MERGECORE_LOOSE_TYPE',
+        });
+      }
+    }
+
+    const cappedFindings = findings.slice(0, levelTone.findingCap);
+
+    // Persona shifts severity weighting; level scales how harshly we feel it
+    // so Disaster Review scores lower than Quick Review for the same code.
+    const severityWeight = cappedFindings.reduce(
+      (sum, f) => sum + severityCost(f.severity) * levelTone.weightScale,
+      0
+    );
+    const seed = `${persona.id}\0${level.id}\0${request.filePath}\0${request.content.slice(0, 4000)}`;
     const h = fnv1a32(seed);
     const jitter = (h % 10000) / 10000 - 0.5;
     const raw = 9.34 - severityWeight + jitter * 0.36;
@@ -248,11 +330,12 @@ export class MockReviewEngine implements ReviewEngine {
       ? ` Auto-scanned ${contextCount} related file${contextCount === 1 ? '' : 's'} for entrypoints, domain logic, tests, config, and schema signals.`
       : '';
     const personaPrefix = tone.summaryPrefix ? `${tone.summaryPrefix} ` : '';
+    const levelPrefix = levelTone.summaryPrefix ? `${levelTone.summaryPrefix} ` : '';
 
     return {
-      findings,
+      findings: cappedFindings,
       score,
-      summary: personaPrefix + baseSummary + profileHint + contextHint,
+      summary: levelPrefix + personaPrefix + baseSummary + profileHint + contextHint,
       improvedCode: undefined,
       patch: undefined,
     };

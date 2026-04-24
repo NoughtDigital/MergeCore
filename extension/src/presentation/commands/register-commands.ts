@@ -8,6 +8,11 @@ import {
   isPersonaId,
   type ReviewPersonaId,
 } from '../../domain/review-personas';
+import {
+  REVIEW_LEVELS,
+  commandIdForReviewLevel,
+  type ReviewLevelId,
+} from '../../domain/review-levels';
 import { GitDiffService } from '../../infrastructure/git-diff.service';
 import { MergeCoreLogger } from '../../infrastructure/logger';
 import { getProjectProfileCached } from '../../infrastructure/project-profile-cache';
@@ -23,6 +28,7 @@ import { FindingDiagnostics } from '../diagnostics/finding-diagnostics';
 import { ReviewSessionState } from '../state/review-session.state';
 import type { MergeCoreSidebarProvider } from '../webview/mergecore-sidebar.provider';
 import { confirmApplyWithDiff } from '../apply-confirmation';
+import { resolverFor, type ResolvedScope, type ScopeResolverContext } from './review-scope-resolvers';
 
 interface Deps {
   review: ReviewCodeUseCase;
@@ -38,6 +44,11 @@ interface Deps {
 
 export function registerMergeCoreCommands(context: vscode.ExtensionContext, deps: Deps): void {
   const { review, gitDiff, session, patchApplier, secrets, throttle, abortSignals } = deps;
+
+  const resolverContext: ScopeResolverContext = {
+    gitDiff,
+    openVirtualDiffDoc: (text, languageId) => openVirtualDiffDoc(text, languageId),
+  };
 
   const run = async (
     key: string,
@@ -91,74 +102,35 @@ export function registerMergeCoreCommands(context: vscode.ExtensionContext, deps
     }
   };
 
+  /**
+   * Every review level runs through the same shared pipeline. This closure
+   * is here (not in the module scope) so it can close over `run` and `deps`;
+   * new levels registered via REVIEW_LEVELS automatically pick up the same
+   * scrubbing, throttling, abort handling and progress UI.
+   */
+  const runLevel = async (levelId: ReviewLevelId): Promise<void> => {
+    const resolver = resolverFor(levelId);
+    await run(`review.${levelId}`, async () => {
+      const resolved = await resolver(resolverContext);
+      if (!resolved) {
+        return undefined;
+      }
+      const request = await buildRequestFromResolved(resolved, levelId);
+      return { request, document: resolved.document };
+    });
+  };
+
   context.subscriptions.push(
-    vscode.commands.registerCommand('mergecore.reviewSelection', () =>
-      run('reviewSelection', async () => {
-        const editor = vscode.window.activeTextEditor;
-        if (!editor) {
-          void vscode.window.showWarningMessage('MergeCore: no active editor.');
-          return undefined;
-        }
-        const selection = editor.selection;
-        if (selection.isEmpty) {
-          void vscode.window.showWarningMessage('MergeCore: select code to review.');
-          return undefined;
-        }
-        const text = editor.document.getText(selection);
-        const request = await buildRequest(editor.document, 'selection', editor.document.uri.fsPath, text, text);
-        return { request, document: editor.document };
-      })
+    ...REVIEW_LEVELS.map((level) =>
+      vscode.commands.registerCommand(commandIdForReviewLevel(level.id), () => runLevel(level.id))
     ),
-    vscode.commands.registerCommand('mergecore.reviewFile', () =>
-      run('reviewFile', async () => {
-        const editor = vscode.window.activeTextEditor;
-        if (!editor) {
-          void vscode.window.showWarningMessage('MergeCore: no active editor.');
-          return undefined;
-        }
-        const doc = editor.document;
-        const request = await buildRequest(doc, 'file', doc.fileName, doc.getText(), undefined);
-        return { request, document: doc };
-      })
-    ),
-    vscode.commands.registerCommand('mergecore.reviewGitDiff', () =>
-      run('reviewGitDiff', async () => {
-        const editor = vscode.window.activeTextEditor;
-        const folder = vscode.workspace.workspaceFolders?.[0];
-        if (!folder) {
-          void vscode.window.showWarningMessage('MergeCore: open a workspace folder first.');
-          return undefined;
-        }
-        const diffText = await gitDiff.readDiff(folder.uri.fsPath, 'working');
-        if (!diffText.trim()) {
-          void vscode.window.showInformationMessage('MergeCore: git diff is empty.');
-          return undefined;
-        }
-        const pathLabel = editor?.document.uri.fsPath ?? 'git-diff';
-        const request = await buildGitDiffRequest(folder.uri.fsPath, pathLabel, diffText);
-        const document = editor?.document ?? (await openVirtualDiffDoc(diffText));
-        return { request, document };
-      })
-    ),
-    vscode.commands.registerCommand('mergecore.reviewStagedDiff', () =>
-      run('reviewStagedDiff', async () => {
-        const editor = vscode.window.activeTextEditor;
-        const folder = vscode.workspace.workspaceFolders?.[0];
-        if (!folder) {
-          void vscode.window.showWarningMessage('MergeCore: open a workspace folder first.');
-          return undefined;
-        }
-        const diffText = await gitDiff.readDiff(folder.uri.fsPath, 'staged');
-        if (!diffText.trim()) {
-          void vscode.window.showInformationMessage('MergeCore: staged diff is empty.');
-          return undefined;
-        }
-        const pathLabel = editor?.document.uri.fsPath ?? 'git-staged-diff';
-        const request = await buildGitDiffRequest(folder.uri.fsPath, pathLabel, diffText);
-        const document = editor?.document ?? (await openVirtualDiffDoc(diffText));
-        return { request, document };
-      })
-    ),
+    // Legacy command ids kept for keybindings, task runners, and any user
+    // documentation that pre-dates the multi-level review buttons. Each one
+    // maps to the closest new level so behaviour is preserved.
+    vscode.commands.registerCommand('mergecore.reviewSelection', () => runLevel('quick')),
+    vscode.commands.registerCommand('mergecore.reviewFile', () => runLevel('file')),
+    vscode.commands.registerCommand('mergecore.reviewGitDiff', () => runLevel('pr')),
+    vscode.commands.registerCommand('mergecore.reviewStagedDiff', () => runLevel('pr')),
     vscode.commands.registerCommand('mergecore.showSidebar', async () => {
       await vscode.commands.executeCommand('workbench.view.extension.mergecore');
     }),
@@ -316,59 +288,47 @@ async function publishResult(
   await deps.sidebar.showResult(result, display);
 }
 
-async function buildRequest(
-  doc: vscode.TextDocument,
-  scope: ReviewRequest['scope'],
-  label: string,
-  content: string,
-  selectionSnippet: string | undefined
+/**
+ * Turn a resolved scope into a full {@link ReviewRequest}. This is the single
+ * place where persona, level, workspace profile and related-context collection
+ * are stitched together, so new review levels never need to duplicate that
+ * wiring.
+ */
+async function buildRequestFromResolved(
+  resolved: ResolvedScope,
+  levelId: ReviewLevelId
 ): Promise<ReviewRequest> {
-  const workspaceRoot = vscode.workspace.getWorkspaceFolder(doc.uri)?.uri.fsPath;
+  const doc = resolved.document;
+  const workspaceRoot =
+    vscode.workspace.getWorkspaceFolder(doc.uri)?.uri.fsPath ??
+    vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+
   const projectProfile = workspaceRoot ? await getProjectProfileCached(workspaceRoot) : undefined;
+
+  const filePath = resolved.scope === 'git-diff' ? resolved.label : doc.uri.fsPath;
+  const languageId = resolved.scope === 'git-diff' ? 'diff' : doc.languageId;
+
   const relatedContext = workspaceRoot
     ? await collectRelatedContext({
-        scope,
+        scope: resolved.scope,
         workspaceRoot,
-        filePath: doc.uri.fsPath,
-        content,
+        filePath,
+        content: resolved.content,
       })
     : undefined;
-  return {
-    scope,
-    workspaceRoot,
-    projectProfile,
-    relatedContext,
-    filePath: doc.uri.fsPath,
-    languageId: doc.languageId,
-    label,
-    content,
-    selectionSnippet,
-    reviewerPersonaId: readConfiguredPersonaId(),
-  };
-}
 
-async function buildGitDiffRequest(
-  workspaceRoot: string,
-  label: string,
-  diffText: string
-): Promise<ReviewRequest> {
-  const projectProfile = await getProjectProfileCached(workspaceRoot);
-  const relatedContext = await collectRelatedContext({
-    scope: 'git-diff',
-    workspaceRoot,
-    filePath: label,
-    content: diffText,
-  });
   return {
-    scope: 'git-diff',
+    scope: resolved.scope,
     workspaceRoot,
     projectProfile,
     relatedContext,
-    filePath: label,
-    languageId: 'diff',
-    label,
-    content: diffText,
+    filePath,
+    languageId,
+    label: resolved.label,
+    content: resolved.content,
+    selectionSnippet: resolved.selectionSnippet,
     reviewerPersonaId: readConfiguredPersonaId(),
+    reviewLevelId: levelId,
   };
 }
 
@@ -385,10 +345,13 @@ function readConfiguredPersonaId(): ReviewPersonaId {
   return isPersonaId(raw) ? raw : DEFAULT_PERSONA_ID;
 }
 
-async function openVirtualDiffDoc(diffText: string): Promise<vscode.TextDocument> {
+async function openVirtualDiffDoc(
+  diffText: string,
+  languageId: string = 'diff'
+): Promise<vscode.TextDocument> {
   const doc = await vscode.workspace.openTextDocument({
     content: diffText,
-    language: 'diff',
+    language: languageId,
   });
   await vscode.window.showTextDocument(doc, { preview: true, preserveFocus: true });
   return doc;

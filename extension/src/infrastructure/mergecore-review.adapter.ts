@@ -94,6 +94,7 @@ export class MergeCoreReviewAdapter implements ReviewEngine {
           content: request.content,
           selectionSnippet: request.selectionSnippet,
           reviewerPersonaId: request.reviewerPersonaId,
+          reviewLevelId: request.reviewLevelId,
         }),
         signal: controller.signal,
       });

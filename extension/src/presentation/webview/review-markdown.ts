@@ -20,6 +20,10 @@ export function formatReviewAsMarkdown(
     lines.push(`**Reviewer:** ${display.personaTitle}`);
     lines.push('');
   }
+  if (display?.levelTitle) {
+    lines.push(`**Level:** ${display.levelTitle}`);
+    lines.push('');
+  }
   lines.push(`**Score:** ${formatScoreForExport(result.score)}/10`);
   lines.push('');
   const insight = buildScoreInsight(result);

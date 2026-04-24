@@ -1,4 +1,5 @@
 import type { ProjectProfile } from '@mergecore/intelligence';
+import type { ReviewLevelId } from './review-levels';
 import type { ReviewPersonaId } from './review-personas';
 
 export type Severity = 'critical' | 'error' | 'warning' | 'info' | 'hint';
@@ -66,6 +67,12 @@ export interface ReviewRequest {
    * the API selects from projectProfile — pack-agnostic by design.
    */
   readonly reviewerPersonaId?: ReviewPersonaId;
+  /**
+   * Review level (Quick / File / Flow / PR / Disaster). Pack-agnostic lens
+   * that tunes prompt emphasis and triage breadth on top of the persona.
+   * Levels never replace the persona; the server layers them.
+   */
+  readonly reviewLevelId?: ReviewLevelId;
 }
 
 export interface ReviewResult {

@@ -33,6 +33,7 @@ export function buildReviewPanelHtml(
           <div class="mc-brand-name">MergeCore</div>
           <div class="mc-brand-sub-row">
             <div id="brand-sub" class="mc-brand-sub">Second opinion against a senior bar</div>
+            <span id="brand-level" class="mc-level-chip mc-hidden" hidden></span>
             <span id="brand-persona" class="mc-persona-chip mc-hidden" hidden></span>
           </div>
           <div id="brand-file" class="mc-brand-file" title=""></div>
@@ -40,6 +41,13 @@ export function buildReviewPanelHtml(
       </div>
       <button id="btn-export" type="button" class="mc-btn-ghost" title="Copy report as Markdown">Export MD</button>
     </header>
+
+    <section class="mc-section mc-levels" aria-label="Review levels">
+      <div class="mc-section-head">
+        <h2 class="mc-section-title">Review</h2>
+      </div>
+      <div id="review-levels" class="mc-level-grid" role="group" aria-label="Multi-level review buttons"></div>
+    </section>
 
     <section class="mc-hero" aria-label="Quality score">
       <div class="mc-score-ring" id="score-ring">

@@ -101,6 +101,22 @@
   border: 1px solid color-mix(in srgb, var(--vscode-widget-border) 70%, transparent);
 }
 
+.mc-level-chip {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  line-height: 1;
+  padding: 2px 7px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--vscode-focusBorder) 22%, transparent);
+  color: var(--vscode-foreground);
+  border: 1px solid color-mix(in srgb, var(--vscode-focusBorder) 45%, transparent);
+  text-transform: uppercase;
+}
+
 .mc-brand-file {
   font-size: 10px;
   color: color-mix(in srgb, var(--vscode-descriptionForeground) 88%, transparent);
@@ -681,4 +697,99 @@
 
 .mc-btn-secondary:hover:not(:disabled) {
   background: color-mix(in srgb, var(--vscode-toolbar-hoverBackground) 65%, var(--vscode-button-secondaryBackground));
+}
+
+/* --- Multi-level review buttons --- */
+.mc-levels {
+  margin-top: 12px;
+}
+
+.mc-level-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+/*
+ * On very narrow sidebars (the common case when the MergeCore activity view
+ * is docked next to the editor), fall back to a single column so each
+ * button keeps its full title + tagline legible instead of being clipped.
+ */
+@media (max-width: 320px) {
+  .mc-level-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.mc-level-btn {
+  appearance: none;
+  cursor: pointer;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding: 9px 10px;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--vscode-widget-border) 85%, transparent);
+  background: color-mix(in srgb, var(--vscode-editor-background) 55%, var(--vscode-sideBar-background));
+  color: var(--vscode-foreground);
+  transition: background-color 0.12s ease, border-color 0.12s ease, transform 0.12s ease;
+}
+
+.mc-level-btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--vscode-toolbar-hoverBackground) 60%, var(--vscode-editor-background));
+  border-color: color-mix(in srgb, var(--vscode-focusBorder) 45%, var(--vscode-widget-border));
+}
+
+.mc-level-btn:active:not(:disabled) {
+  transform: translateY(0.5px);
+}
+
+.mc-level-btn:focus-visible {
+  outline: 2px solid var(--vscode-focusBorder);
+  outline-offset: 2px;
+}
+
+.mc-level-btn:disabled {
+  cursor: not-allowed;
+}
+
+.mc-level-btn.is-dimmed {
+  opacity: 0.45;
+}
+
+.mc-level-btn.is-loading {
+  border-color: color-mix(in srgb, var(--vscode-focusBorder) 80%, transparent);
+  background: color-mix(in srgb, var(--vscode-focusBorder) 12%, var(--vscode-editor-background));
+}
+
+.mc-level-btn.is-loading::after {
+  content: 'Reviewing…';
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--vscode-focusBorder);
+  margin-top: 4px;
+}
+
+.mc-level-btn-title {
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.2;
+  color: var(--vscode-foreground);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mc-level-btn-tagline {
+  font-size: 11px;
+  line-height: 1.3;
+  color: var(--vscode-descriptionForeground);
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
 }

@@ -4,6 +4,7 @@
  */
 
 import { getPersonaById, type ReviewPersonaId } from './personas.js';
+import { getReviewLevelById, type ReviewLevelId } from './review-levels.js';
 
 export interface ReviewPromptInput {
   readonly scope: 'selection' | 'file' | 'git-diff';
@@ -19,6 +20,11 @@ export interface ReviewPromptInput {
    * overrides ground rules (schema, evidence, insufficient_context).
    */
   readonly reviewerPersonaId?: ReviewPersonaId;
+  /**
+   * Optional review level (quick, file, flow, pr, disaster). Tunes triage
+   * depth and breadth on top of the persona; never overrides ground rules.
+   */
+  readonly reviewLevelId?: ReviewLevelId;
 }
 
 const SYSTEM = `You are MergeCore, a stack-aware code reviewer. You MUST respond with a single JSON object that conforms exactly to the provided JSON Schema (schema_version "1.0"). UK English in all prose fields.
@@ -33,19 +39,36 @@ Ground rules:
 7. suggested_rewrite and patch: produce only when the reviewed scope is self-contained AND you can supply a safe full replacement or unified diff. Otherwise set both to null. Never include secrets or credentials.
 8. why_it_matters must be specific to the active language/framework pack's maintainability, security, performance, operability, or correctness concerns — no generic advice.`;
 
-export function buildSystemPrompt(personaId?: ReviewPersonaId): string {
+export function buildSystemPrompt(
+  personaId?: ReviewPersonaId,
+  levelId?: ReviewLevelId
+): string {
   const persona = getPersonaById(personaId);
-  if (persona.id === 'auto') {
-    return SYSTEM;
-  }
-  return `${SYSTEM}
+  const level = getReviewLevelById(levelId);
+  const parts: string[] = [SYSTEM];
 
-Reviewer persona: ${persona.title}
+  if (persona.id !== 'auto') {
+    parts.push(
+      `Reviewer persona: ${persona.title}
 ${persona.promptInstruction}
-Persona emphasis MUST NOT override the ground rules above: never invent evidence, never alter the schema, and still set insufficient_context=true when the input is not covered by the supplied packs.`;
+Persona emphasis MUST NOT override the ground rules above: never invent evidence, never alter the schema, and still set insufficient_context=true when the input is not covered by the supplied packs.`
+    );
+  }
+
+  // Every review runs at some level; the default (file) is an intentional
+  // no-op emphasis, but we still surface it so the prompt is consistent
+  // between requests and future levels plug in without a code change here.
+  parts.push(
+    `Review level: ${level.title}
+${level.promptInstruction}
+Review-level emphasis MUST NOT override the ground rules above and MUST NOT replace the reviewer persona; it layers on top. Never invent evidence, never alter the schema.`
+  );
+
+  return parts.join('\n\n');
 }
 
 export function buildUserPrompt(input: ReviewPromptInput): string {
+  const level = getReviewLevelById(input.reviewLevelId);
   const header =
     input.scope === 'git-diff'
       ? 'Review the following git diff as a stack-aware code change.'
@@ -56,6 +79,7 @@ export function buildUserPrompt(input: ReviewPromptInput): string {
 File path: ${input.filePath}
 Language: ${input.languageId}
 Scope: ${input.scope}
+Review level: ${level.id}
 Max findings: ${input.maxFindings}
 
 --- Project rules digest (compressed ids and titles; obey when relevant) ---

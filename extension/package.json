@@ -40,6 +40,11 @@
     "onCommand:mergecore.reviewSelection",
     "onCommand:mergecore.reviewGitDiff",
     "onCommand:mergecore.reviewStagedDiff",
+    "onCommand:mergecore.review.quick",
+    "onCommand:mergecore.review.file",
+    "onCommand:mergecore.review.flow",
+    "onCommand:mergecore.review.pr",
+    "onCommand:mergecore.review.disaster",
     "onCommand:mergecore.applyImprovedCode",
     "onCommand:mergecore.applyPatch",
     "onCommand:mergecore.exportReviewMarkdown",
@@ -51,6 +56,26 @@
   "main": "./out/extension.js",
   "contributes": {
     "commands": [
+      {
+        "command": "mergecore.review.quick",
+        "title": "MergeCore: Quick Review (current function)"
+      },
+      {
+        "command": "mergecore.review.file",
+        "title": "MergeCore: File Review (active file)"
+      },
+      {
+        "command": "mergecore.review.flow",
+        "title": "MergeCore: Flow Review (linked files + business process)"
+      },
+      {
+        "command": "mergecore.review.pr",
+        "title": "MergeCore: PR Review (changed files + impact)"
+      },
+      {
+        "command": "mergecore.review.disaster",
+        "title": "MergeCore: Disaster Review (find everything wrong)"
+      },
       {
         "command": "mergecore.reviewSelection",
         "title": "MergeCore: Review Selection"
@@ -105,19 +130,34 @@
     "menus": {
       "editor/context": [
         {
-          "command": "mergecore.reviewSelection",
-          "when": "editorHasSelection",
+          "command": "mergecore.review.quick",
+          "when": "resourceScheme == file",
           "group": "mergecore@1"
         },
         {
-          "command": "mergecore.reviewFile",
+          "command": "mergecore.review.file",
           "when": "resourceScheme == file",
           "group": "mergecore@2"
+        },
+        {
+          "command": "mergecore.review.flow",
+          "when": "resourceScheme == file",
+          "group": "mergecore@3"
+        },
+        {
+          "command": "mergecore.review.pr",
+          "when": "resourceScheme == file",
+          "group": "mergecore@4"
+        },
+        {
+          "command": "mergecore.review.disaster",
+          "when": "resourceScheme == file",
+          "group": "mergecore@5"
         }
       ],
       "editor/title": [
         {
-          "command": "mergecore.reviewFile",
+          "command": "mergecore.review.file",
           "when": "resourceScheme == file",
           "group": "navigation@mergecore"
         },
@@ -128,6 +168,11 @@
         }
       ],
       "commandPalette": [
+        { "command": "mergecore.review.quick" },
+        { "command": "mergecore.review.file" },
+        { "command": "mergecore.review.flow" },
+        { "command": "mergecore.review.pr" },
+        { "command": "mergecore.review.disaster" },
         { "command": "mergecore.reviewSelection" },
         { "command": "mergecore.reviewFile" },
         { "command": "mergecore.reviewGitDiff" },

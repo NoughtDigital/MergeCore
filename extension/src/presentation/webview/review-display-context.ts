@@ -1,6 +1,7 @@
 import type { ProjectProfile } from '@mergecore/intelligence';
 import type { ReviewRequest } from '../../domain/review-types';
 import { getPersonaById } from '../../domain/review-personas';
+import { getReviewLevelById } from '../../domain/review-levels';
 
 const SIGNAL_LABELS: Readonly<Record<string, string>> = {
   filament: 'Filament',
@@ -24,16 +25,23 @@ export interface ReviewDisplayInfo {
   readonly personaBadge?: string;
   /** Full persona title for accessibility tooltips and exports. */
   readonly personaTitle?: string;
+  /** Short review-level chip ("Quick", "File", "Flow", "PR", "Disaster"). */
+  readonly levelBadge?: string;
+  /** Full review-level title for tooltips and exports. */
+  readonly levelTitle?: string;
 }
 
 export function buildReviewDisplayInfo(request: ReviewRequest): ReviewDisplayInfo {
   const persona = getPersonaById(request.reviewerPersonaId);
-  const showBadge = persona.id !== 'auto';
+  const showPersonaBadge = persona.id !== 'auto';
+  const level = getReviewLevelById(request.reviewLevelId);
   return {
     stackLine: stackLineFor(request),
     fileLabel: fileLabelFor(request),
-    personaBadge: showBadge ? persona.badge : undefined,
-    personaTitle: showBadge ? persona.title : undefined,
+    personaBadge: showPersonaBadge ? persona.badge : undefined,
+    personaTitle: showPersonaBadge ? persona.title : undefined,
+    levelBadge: level.badge,
+    levelTitle: level.title,
   };
 }
 

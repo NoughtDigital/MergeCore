@@ -13,6 +13,7 @@
   const brandSubEl = document.getElementById('brand-sub');
   const brandFileEl = document.getElementById('brand-file');
   const brandPersonaEl = document.getElementById('brand-persona');
+  const brandLevelEl = document.getElementById('brand-level');
   const summaryEl = document.getElementById('summary');
   const findingsEl = document.getElementById('findings');
   const findingsCount = document.getElementById('findings-count');
@@ -24,14 +25,42 @@
   const btnApplyCode = document.getElementById('btn-apply-code');
   const btnApplyPatch = document.getElementById('btn-apply-patch');
   const btnExport = document.getElementById('btn-export');
+  const reviewLevelsEl = document.getElementById('review-levels');
+
+  // Tracks the in-flight review so we can disable all level buttons while
+  // one is running and give clear feedback on which one was clicked.
+  let inFlightLevelId = null;
 
   window.addEventListener('message', function (event) {
     const msg = event.data;
-    if (!msg || msg.type !== 'review') {
+    if (!msg) {
       return;
     }
-    render(msg.payload);
+    if (msg.type === 'review') {
+      inFlightLevelId = null;
+      refreshLevelButtons();
+      render(msg.payload);
+      return;
+    }
+    if (msg.type === 'reviewLevels') {
+      renderLevelButtons(Array.isArray(msg.payload) ? msg.payload : []);
+      return;
+    }
+    if (msg.type === 'reviewState' && msg.payload && typeof msg.payload === 'object') {
+      // Future hook: the host can force a state change (e.g. cancellation)
+      // without sending a new result. Keeping this here now means we don't
+      // need another message listener when additional levels are added.
+      if (msg.payload.running === false) {
+        inFlightLevelId = null;
+        refreshLevelButtons();
+      }
+      return;
+    }
   });
+
+  // Ask the host for the canonical level list so new levels added in the
+  // domain layer light up in the sidebar without touching this file.
+  vscode.postMessage({ type: 'requestReviewLevels' });
 
   btnApplyCode.addEventListener('click', function () {
     vscode.postMessage({ type: 'applyImproved' });
@@ -74,6 +103,22 @@
         brandPersonaEl.title = '';
         brandPersonaEl.hidden = true;
         brandPersonaEl.classList.add('mc-hidden');
+      }
+    }
+
+    if (brandLevelEl) {
+      const lb = typeof display.levelBadge === 'string' ? display.levelBadge.trim() : '';
+      const lt = typeof display.levelTitle === 'string' ? display.levelTitle.trim() : '';
+      if (lb) {
+        brandLevelEl.textContent = lb;
+        brandLevelEl.title = lt || lb;
+        brandLevelEl.hidden = false;
+        brandLevelEl.classList.remove('mc-hidden');
+      } else {
+        brandLevelEl.textContent = '';
+        brandLevelEl.title = '';
+        brandLevelEl.hidden = true;
+        brandLevelEl.classList.add('mc-hidden');
       }
     }
 
@@ -429,6 +474,84 @@
       return 'is-mixed';
     }
     return 'is-poor';
+  }
+
+  // ------------------------------------------------------------------
+  // Multi-level review buttons
+  // ------------------------------------------------------------------
+
+  /**
+   * The host sends `reviewLevels` once after the webview loads. Rendering from
+   * that payload (rather than hardcoding ids here) means a new level added in
+   * the domain layer automatically appears in the sidebar.
+   */
+  function renderLevelButtons(levels) {
+    if (!reviewLevelsEl) {
+      return;
+    }
+    reviewLevelsEl.innerHTML = '';
+    if (!levels || levels.length === 0) {
+      const empty = document.createElement('p');
+      empty.className = 'mc-empty';
+      empty.textContent = 'No review levels available.';
+      reviewLevelsEl.appendChild(empty);
+      return;
+    }
+    levels.forEach(function (level) {
+      if (!level || typeof level.id !== 'string') {
+        return;
+      }
+      reviewLevelsEl.appendChild(renderLevelButton(level));
+    });
+  }
+
+  function renderLevelButton(level) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'mc-level-btn';
+    btn.dataset.levelId = level.id;
+    btn.setAttribute('aria-label', String(level.title || level.id));
+    btn.title = String(level.tagline || '');
+
+    const title = document.createElement('span');
+    title.className = 'mc-level-btn-title';
+    title.textContent = String(level.title || level.id);
+
+    const tagline = document.createElement('span');
+    tagline.className = 'mc-level-btn-tagline';
+    tagline.textContent = String(level.tagline || '');
+
+    btn.appendChild(title);
+    btn.appendChild(tagline);
+
+    btn.addEventListener('click', function () {
+      if (inFlightLevelId) {
+        return;
+      }
+      inFlightLevelId = level.id;
+      refreshLevelButtons();
+      vscode.postMessage({ type: 'runReviewLevel', levelId: level.id });
+    });
+    return btn;
+  }
+
+  /**
+   * Applies the "inFlight" visual state to every level button. Centralised
+   * here so future hooks (queued, cooling-down, disabled-by-quota) can be
+   * added to this single function.
+   */
+  function refreshLevelButtons() {
+    if (!reviewLevelsEl) {
+      return;
+    }
+    const btns = reviewLevelsEl.querySelectorAll('.mc-level-btn');
+    btns.forEach(function (b) {
+      const isInFlight = inFlightLevelId && b.dataset.levelId === inFlightLevelId;
+      const isOtherInFlight = inFlightLevelId && b.dataset.levelId !== inFlightLevelId;
+      b.disabled = Boolean(inFlightLevelId);
+      b.classList.toggle('is-loading', Boolean(isInFlight));
+      b.classList.toggle('is-dimmed', Boolean(isOtherInFlight));
+    });
   }
 
   function scoreCaptionFor(n, stackLine) {
