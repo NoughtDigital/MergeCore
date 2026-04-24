@@ -6,6 +6,19 @@
 import { getPersonaById, type ReviewPersonaId } from './personas.js';
 import { getReviewLevelById, type ReviewLevelId } from './review-levels.js';
 
+/**
+ * A compact, wire-friendly shape for a single detected repo convention.
+ * Mirrors `ProjectConvention` in `@mergecore/intelligence` but avoids a
+ * cross-package import so the engine pipeline stays standalone.
+ */
+export interface ProjectConventionDigest {
+  readonly id: string;
+  readonly label: string;
+  readonly confidence: 'high' | 'medium' | 'low';
+  readonly category: string;
+  readonly evidence?: readonly string[];
+}
+
 export interface ReviewPromptInput {
   readonly scope: 'selection' | 'file' | 'git-diff';
   readonly filePath: string;
@@ -25,6 +38,12 @@ export interface ReviewPromptInput {
    * depth and breadth on top of the persona; never overrides ground rules.
    */
   readonly reviewLevelId?: ReviewLevelId;
+  /**
+   * Detected project conventions — the "contextual memory" of the repo.
+   * When provided, the reviewer is told to critique divergences against
+   * these patterns (e.g. a new service where the repo uses Actions).
+   */
+  readonly conventions?: readonly ProjectConventionDigest[];
 }
 
 const SYSTEM = `You are MergeCore, a stack-aware code reviewer. You MUST respond with a single JSON object that conforms exactly to the provided JSON Schema (schema_version "1.0"). UK English in all prose fields.
@@ -49,7 +68,13 @@ D. Every finding message MUST name (i) the concrete problem in this snippet, and
 E. fix_hint MUST describe a concrete next action, not a feeling. Good: "Extract the persistence block into a repository method and call it from the controller." Bad: "Could be cleaner."
 F. why_it_matters MUST state the evidenced risk or cost in direct terms (outage, data loss, exploit, unreviewable change surface, test gap, revert cost). Hedged phrasing such as "might cause issues" is not acceptable; if the risk is speculative, drop the finding rather than soften it.
 G. Tone: factual, senior, unsparing but not abusive. Never personal, never sarcastic, never condescending. The staff-mentor persona is still allowed to explain principles, but explanations must remain direct and non-hedged.
-H. Evidence still dominates. Strong wording NEVER justifies inventing evidence or exceeding ground rules 1–3. If evidence is insufficient, omit the finding; do not compensate by sounding confident.`;
+H. Evidence still dominates. Strong wording NEVER justifies inventing evidence or exceeding ground rules 1–3. If evidence is insufficient, omit the finding; do not compensate by sounding confident.
+
+Contextual memory (applies whenever project conventions are provided):
+I. Treat the listed project conventions as this repo's declared standards. A finding that contradicts a stated convention is evidence against the reviewed input, not against the convention.
+J. When the reviewed input diverges from a high-confidence convention (e.g. adds a Service in an Actions-pattern repo, introduces a FormRequest bypass in a typed-requests repo, adds a PHPUnit class in a Pest-first repo), raise a finding that names the convention id, quotes the divergent snippet, and states the concrete fix that aligns with the convention.
+K. Do not invent conventions that were not provided. If an expected convention is absent from the list, do not assert it.
+L. Convention-driven findings still obey ground rules 1–3 (verbatim evidence, no fabricated files, no invented line numbers). Comment-strength rules A–H apply unchanged.`;
 
 export function buildSystemPrompt(
   personaId?: ReviewPersonaId,
@@ -86,6 +111,14 @@ export function buildUserPrompt(input: ReviewPromptInput): string {
       ? 'Review the following git diff as a stack-aware code change.'
       : 'Review the following code with the applicable MergeCore pack(s).';
 
+  const conventionsBlock = formatConventionsBlock(input.conventions);
+  const relatedBlock = input.relatedContextDigest
+    ? `--- Auto-scanned related project context ---
+${input.relatedContextDigest}
+
+`
+    : '';
+
   return `${header}
 
 File path: ${input.filePath}
@@ -100,15 +133,35 @@ ${input.projectRulesDigest}
 --- Deterministic engine output (JSON; authoritative for overlapping issues) ---
 ${input.deterministicFindingsJson}
 
-${input.relatedContextDigest ? `--- Auto-scanned related project context ---
-${input.relatedContextDigest}
-
-` : ''}
---- Input to review ---
+${conventionsBlock}${relatedBlock}--- Input to review ---
 ${input.codeOrDiff}
 --- End input ---
 
 Return JSON only. Score must reflect both severity of evidenced issues and positive signals (tests, typing, safe queries) only when evidenced in the reviewed input or auto-scanned context.
 
-Comment-strength reminder (applies to every finding's message, why_it_matters and fix_hint): be direct, name the problem in THIS snippet, and state the decision you are asking for. Do not open with "Consider", "Maybe", "Might", "Could", "Perhaps", "Try to" or any softener. Vague verdicts ("needs work", "a bit messy", "suboptimal", bare "refactor") are defects — rewrite them as a concrete instruction or drop the finding. If evidence is insufficient, omit the finding; never compensate with stronger tone.`;
+Comment-strength reminder (applies to every finding's message, why_it_matters and fix_hint): be direct, name the problem in THIS snippet, and state the decision you are asking for. Do not open with "Consider", "Maybe", "Might", "Could", "Perhaps", "Try to" or any softener. Vague verdicts ("needs work", "a bit messy", "suboptimal", bare "refactor") are defects — rewrite them as a concrete instruction or drop the finding. If evidence is insufficient, omit the finding; never compensate with stronger tone.
+
+Contextual-memory reminder: when the Project conventions block above is present, treat its entries as this repo's declared standards. Name the convention id in findings that call out a divergence, and do not invent conventions that were not listed.`;
+}
+
+/**
+ * Renders the detected project conventions as a compact, stable block
+ * the model can quote back when raising a convention-divergence finding.
+ * Empty when no conventions are supplied, so prompts for brand-new
+ * repos stay identical to the pre-contextual-memory shape.
+ */
+function formatConventionsBlock(
+  conventions: readonly ProjectConventionDigest[] | undefined
+): string {
+  if (!conventions || conventions.length === 0) {
+    return '';
+  }
+  const lines = ['--- Project conventions (contextual memory; critique divergences) ---'];
+  for (const c of conventions) {
+    const evidence = c.evidence && c.evidence.length > 0 ? ` — ${c.evidence.join('; ')}` : '';
+    lines.push(`- [${c.confidence}] ${c.id} (${c.category}): ${c.label}${evidence}`);
+  }
+  lines.push('');
+  lines.push('');
+  return `${lines.join('\n')}`;
 }

@@ -5,7 +5,7 @@ const cache = new Map<string, { expires: number; profile: ProjectProfile }>();
 const TTL_MS = 30_000;
 
 const WATCH_GLOB =
-  '**/{composer.json,composer.lock,package.json,package-lock.json,pnpm-lock.yaml,yarn.lock}';
+  '**/{composer.json,composer.lock,package.json,package-lock.json,pnpm-lock.yaml,yarn.lock,tsconfig.json,.mergecore/conventions.json,.mergecore.conventions.json,mergecore.conventions.json}';
 
 export async function getProjectProfileCached(workspaceRoot: string): Promise<ProjectProfile> {
   const now = Date.now();

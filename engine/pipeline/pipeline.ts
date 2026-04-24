@@ -5,7 +5,12 @@
 
 import type { ModelProfile } from './models.js';
 import { ESCALATION, PRIMARY_EDITOR } from './models.js';
-import { buildSystemPrompt, buildUserPrompt, type ReviewPromptInput } from './prompts.js';
+import {
+  buildSystemPrompt,
+  buildUserPrompt,
+  type ProjectConventionDigest,
+  type ReviewPromptInput,
+} from './prompts.js';
 import { contentSha256, buildReviewCacheKey, normaliseDiffForCache } from './cache.js';
 import {
   auditCommentStrength,
@@ -36,6 +41,13 @@ export interface PipelineInput {
    * hash so a Quick Review never reuses a Disaster Review payload.
    */
   readonly reviewLevelId?: ReviewLevelId;
+  /**
+   * Detected project conventions (contextual memory). Passed to the prompt
+   * so the LLM can critique divergences from the repo's declared standards.
+   * Also folded into the cache key so a convention change busts the cache
+   * for any reviewed input.
+   */
+  readonly conventions?: readonly ProjectConventionDigest[];
 }
 
 export interface CachePort {
@@ -101,8 +113,10 @@ export async function runReviewPipeline(
   const persona = getPersonaById(input.reviewerPersonaId);
   const level = getReviewLevelById(input.reviewLevelId);
 
+  const conventionsDigest = digestConventions(input.conventions);
+
   const sha = contentSha256(
-    `${input.rulesetVersion}|${persona.id}|${level.id}|${digest}|${relatedContextDigest}|${text}`
+    `${input.rulesetVersion}|${persona.id}|${level.id}|${digest}|${relatedContextDigest}|${conventionsDigest}|${text}`
   );
 
   const cacheKey = buildReviewCacheKey({
@@ -133,6 +147,7 @@ export async function runReviewPipeline(
     maxFindings,
     reviewerPersonaId: persona.id,
     reviewLevelId: level.id,
+    conventions: input.conventions,
   });
 
   const system = buildSystemPrompt(persona.id, level.id);
@@ -278,4 +293,21 @@ export function roughTokenEstimateForBudget(input: PipelineInput): number {
     input.text.length + (input.relatedContextDigest?.length ?? 0),
     PRIMARY_EDITOR.maxOutputTokens
   );
+}
+
+/**
+ * Folds the conventions list into a compact, order-stable string so cache
+ * keys change exactly when the remembered context changes. We deliberately
+ * ignore evidence here — evidence is diagnostic only; changing the count
+ * of "action files" shouldn't invalidate a cached review if the convention
+ * itself (id, label, confidence) is unchanged.
+ */
+function digestConventions(
+  conventions: readonly ProjectConventionDigest[] | undefined
+): string {
+  if (!conventions || conventions.length === 0) {
+    return 'conv:none';
+  }
+  const sorted = [...conventions].sort((a, b) => a.id.localeCompare(b.id));
+  return sorted.map((c) => `${c.id}@${c.confidence}`).join(',');
 }

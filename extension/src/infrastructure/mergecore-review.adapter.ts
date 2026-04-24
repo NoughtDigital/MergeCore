@@ -86,6 +86,10 @@ export class MergeCoreReviewAdapter implements ReviewEngine {
           scope: request.scope,
           workspaceRoot: request.workspaceRoot,
           projectProfile: request.projectProfile,
+          // Lift contextual memory to a top-level field so the server
+          // pipeline can feed it to `buildUserPrompt` without re-reading
+          // the nested profile shape (which may evolve independently).
+          conventions: request.projectProfile?.conventions,
           relatedContext: request.relatedContext,
           relatedContextDigest: formatRelatedContextDigest(request.relatedContext),
           filePath: request.filePath,

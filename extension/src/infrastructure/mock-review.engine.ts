@@ -1,3 +1,4 @@
+import type { ProjectConvention } from '@mergecore/intelligence';
 import type { ReviewEngine } from '../application/ports/review-engine.port';
 import type { ReviewRequest, ReviewResult } from '../domain/review-types';
 import { getPersonaById, type ReviewPersonaId } from '../domain/review-personas';
@@ -301,6 +302,12 @@ export class MockReviewEngine implements ReviewEngine {
       }
     }
 
+    const conventions = request.projectProfile?.conventions ?? [];
+    const divergences = detectConventionDivergences(conventions, request.content);
+    for (const divergence of divergences) {
+      findings.push(divergence);
+    }
+
     const cappedFindings = findings.slice(0, levelTone.findingCap);
 
     // Persona shifts severity weighting; level scales how harshly we feel it
@@ -329,17 +336,128 @@ export class MockReviewEngine implements ReviewEngine {
     const contextHint = contextCount > 0
       ? ` Auto-scanned ${contextCount} related file${contextCount === 1 ? '' : 's'} for entrypoints, domain logic, tests, config, and schema signals.`
       : '';
+    const memoryHint = formatRememberedConventions(conventions);
     const personaPrefix = tone.summaryPrefix ? `${tone.summaryPrefix} ` : '';
     const levelPrefix = levelTone.summaryPrefix ? `${levelTone.summaryPrefix} ` : '';
 
     return {
       findings: cappedFindings,
       score,
-      summary: levelPrefix + personaPrefix + baseSummary + profileHint + contextHint,
+      summary: levelPrefix + personaPrefix + baseSummary + profileHint + contextHint + memoryHint,
       improvedCode: undefined,
       patch: undefined,
     };
   }
+}
+
+/**
+ * Offline critique against the repo's remembered conventions. The mock only
+ * emits a finding when the divergence is visible in the reviewed input
+ * itself — we never fabricate evidence. The real reviewer does a much
+ * richer job; this exists so users see the memory feature working without
+ * an API token.
+ */
+function detectConventionDivergences(
+  conventions: readonly ProjectConvention[],
+  content: string
+): Array<{
+  id: string;
+  severity: 'warning' | 'info';
+  message: string;
+  whyItMatters: string;
+  fixHint: string;
+  category: string;
+  code: string;
+}> {
+  if (conventions.length === 0) {
+    return [];
+  }
+  const out: ReturnType<typeof detectConventionDivergences> = [];
+  const has = (id: string): boolean => conventions.some((c) => c.id === id);
+
+  if (has('arch:actions-pattern') && /\bclass\s+[A-Z][A-Za-z0-9_]*Service\b/.test(content)) {
+    out.push({
+      id: 'mock-convention-service-in-actions-repo',
+      severity: 'warning',
+      message:
+        'New Service class diverges from the repo convention `arch:actions-pattern`. Add it as an invokable Action, not a Service.',
+      whyItMatters:
+        'The repo is already organised around single-responsibility Actions. Introducing a Service at this seam splits the team across two competing patterns and makes future refactors harder.',
+      fixHint:
+        'Rename to `<Verb><Noun>Action`, move under `Actions/`, and expose the work through `handle()` or `__invoke()`.',
+      category: 'architecture',
+      code: 'MERGECORE_CONVENTION_DIVERGENCE',
+    });
+  }
+
+  if (
+    has('testing:pest-first') &&
+    /\bclass\s+\w+\s+extends\s+TestCase\b/.test(content) &&
+    !/^\s*(it|test|describe)\s*\(/m.test(content)
+  ) {
+    out.push({
+      id: 'mock-convention-phpunit-in-pest-repo',
+      severity: 'warning',
+      message:
+        'PHPUnit class-based test added in a Pest-first repo. Convention `testing:pest-first` expects `it()`/`test()`/`describe()` style.',
+      whyItMatters:
+        'Mixing test styles fragments the test runner output and the mental model for every contributor touching tests afterwards.',
+      fixHint: 'Rewrite as a Pest test using `it(...)` / `test(...)` in the same folder; delete the TestCase subclass.',
+      category: 'testing',
+      code: 'MERGECORE_CONVENTION_DIVERGENCE',
+    });
+  }
+
+  if (
+    has('data:typed-requests') &&
+    /\$request->(all|input)\s*\(|\breq\.body\b|\bbody\s*:\s*any\b/.test(content)
+  ) {
+    out.push({
+      id: 'mock-convention-untyped-request',
+      severity: 'warning',
+      message:
+        'Reviewed code reads the raw request body; convention `data:typed-requests` expects a typed request/schema at this boundary.',
+      whyItMatters:
+        'Skipping the typed-request layer removes the project-wide validation guarantee and leaks unshaped input into the domain.',
+      fixHint:
+        'Extract a typed request/schema object (FormRequest / Zod / Pydantic, whichever this repo uses) and bind the handler to it.',
+      category: 'security',
+      code: 'MERGECORE_CONVENTION_DIVERGENCE',
+    });
+  }
+
+  if (
+    has('types:typescript-strict') &&
+    /\bas\s+any\b|:\s*any\b/.test(content)
+  ) {
+    out.push({
+      id: 'mock-convention-any-in-strict-repo',
+      severity: 'warning',
+      message:
+        '`any` leaks into a strict-TypeScript repo. Convention `types:typescript-strict` expects narrowed types at every boundary.',
+      whyItMatters:
+        'An `any` in a strict codebase silently opts the rest of the team out of the guarantees they rely on during reviews.',
+      fixHint: 'Model the real shape (or `unknown` + narrow) rather than widening to `any`.',
+      category: 'maintainability',
+      code: 'MERGECORE_CONVENTION_DIVERGENCE',
+    });
+  }
+
+  return out;
+}
+
+/**
+ * Builds the "Remembered: …" trailer appended to the mock summary so the
+ * user can see which conventions the plugin is critiquing against without
+ * running the real reviewer.
+ */
+function formatRememberedConventions(conventions: readonly ProjectConvention[]): string {
+  if (conventions.length === 0) {
+    return '';
+  }
+  const top = conventions.slice(0, 4).map((c) => c.label);
+  const suffix = conventions.length > top.length ? `, +${conventions.length - top.length} more` : '';
+  return ` Remembered: ${top.join('; ')}${suffix}.`;
 }
 
 function severityCost(severity: 'critical' | 'error' | 'warning' | 'info' | 'hint'): number {

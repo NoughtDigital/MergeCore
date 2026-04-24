@@ -18,6 +18,13 @@ const SIGNAL_LABELS: Readonly<Record<string, string>> = {
   'path:php-app-layout': 'PHP app layout',
 };
 
+export interface ReviewConventionBadge {
+  readonly id: string;
+  readonly label: string;
+  readonly confidence: 'high' | 'medium' | 'low';
+  readonly category: string;
+}
+
 export interface ReviewDisplayInfo {
   readonly stackLine: string;
   readonly fileLabel: string;
@@ -29,12 +36,19 @@ export interface ReviewDisplayInfo {
   readonly levelBadge?: string;
   /** Full review-level title for tooltips and exports. */
   readonly levelTitle?: string;
+  /**
+   * Detected project conventions ("contextual memory"). Rendered by the
+   * sidebar and the markdown export so users can see exactly which repo
+   * patterns the reviewer is critiquing against.
+   */
+  readonly conventions?: readonly ReviewConventionBadge[];
 }
 
 export function buildReviewDisplayInfo(request: ReviewRequest): ReviewDisplayInfo {
   const persona = getPersonaById(request.reviewerPersonaId);
   const showPersonaBadge = persona.id !== 'auto';
   const level = getReviewLevelById(request.reviewLevelId);
+  const conventions = conventionBadgesFor(request);
   return {
     stackLine: stackLineFor(request),
     fileLabel: fileLabelFor(request),
@@ -42,7 +56,21 @@ export function buildReviewDisplayInfo(request: ReviewRequest): ReviewDisplayInf
     personaTitle: showPersonaBadge ? persona.title : undefined,
     levelBadge: level.badge,
     levelTitle: level.title,
+    conventions,
   };
+}
+
+function conventionBadgesFor(request: ReviewRequest): readonly ReviewConventionBadge[] | undefined {
+  const conventions = request.projectProfile?.conventions;
+  if (!conventions || conventions.length === 0) {
+    return undefined;
+  }
+  return conventions.map((c) => ({
+    id: c.id,
+    label: c.label,
+    confidence: c.confidence,
+    category: c.category,
+  }));
 }
 
 function fileLabelFor(request: ReviewRequest): string {

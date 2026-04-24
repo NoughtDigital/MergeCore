@@ -24,6 +24,16 @@ export function formatReviewAsMarkdown(
     lines.push(`**Level:** ${display.levelTitle}`);
     lines.push('');
   }
+  if (display?.conventions && display.conventions.length > 0) {
+    lines.push('## Contextual memory');
+    lines.push('');
+    lines.push('Patterns the reviewer is critiquing against in this repo:');
+    lines.push('');
+    for (const c of display.conventions) {
+      lines.push(`- **[${c.confidence}] ${c.label}** — \`${c.id}\` (${c.category})`);
+    }
+    lines.push('');
+  }
   lines.push(`**Score:** ${formatScoreForExport(result.score)}/10`);
   lines.push('');
   const insight = buildScoreInsight(result);
