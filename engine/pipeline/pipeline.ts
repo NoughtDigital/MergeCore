@@ -7,6 +7,11 @@ import type { ModelProfile } from './models.js';
 import { ESCALATION, PRIMARY_EDITOR } from './models.js';
 import { buildSystemPrompt, buildUserPrompt, type ReviewPromptInput } from './prompts.js';
 import { contentSha256, buildReviewCacheKey, normaliseDiffForCache } from './cache.js';
+import {
+  auditCommentStrength,
+  stripHedgedOpening,
+  type CommentStrengthIssue,
+} from './comment-strength.js';
 import { DEFAULT_QUOTA, estimateBillableTokensRough, shouldEscalate } from './cost-controls.js';
 import { getPersonaById, type ReviewPersonaId } from './personas.js';
 import { getReviewLevelById, type ReviewLevelId } from './review-levels.js';
@@ -60,6 +65,17 @@ export interface PipelineResult {
   readonly rawJson: string;
   readonly cacheHit: boolean;
   readonly escalated: boolean;
+  /**
+   * Per-finding comment-strength issues detected AFTER any in-place tone
+   * rewrite. Empty when every finding was already direct. Host UIs can use
+   * this to highlight weak findings in debug builds or to suppress them
+   * behind a setting. Not persisted in the cache — regenerated on every run.
+   */
+  readonly commentStrength?: ReadonlyArray<{
+    readonly findingIndex: number;
+    readonly findingId: string | undefined;
+    readonly issues: readonly CommentStrengthIssue[];
+  }>;
 }
 
 /**
@@ -149,9 +165,94 @@ export async function runReviewPipeline(
     }
   }
 
+  // Comment-strength pass: strip hedged openings in place (safe, tone-only)
+  // and collect a report of residual weaknesses. Runs on BOTH primary and
+  // escalation output because new packs inherit the same rules and we want
+  // one chokepoint. Cache stores the post-rewrite JSON so strong wording
+  // is preserved on future cache hits.
+  const { json: strongJson, report } = enforceCommentStrength(merged);
+  merged = strongJson;
+
   await deps.cache.set(cacheKey, merged, 86400);
 
-  return { rawJson: merged, cacheHit: false, escalated };
+  return {
+    rawJson: merged,
+    cacheHit: false,
+    escalated,
+    commentStrength: report.length > 0 ? report : undefined,
+  };
+}
+
+interface StrengthReportEntry {
+  readonly findingIndex: number;
+  readonly findingId: string | undefined;
+  readonly issues: readonly CommentStrengthIssue[];
+}
+
+/**
+ * Rewrites weak openings (e.g. "Consider …") on every finding's message /
+ * whyItMatters / fixHint and returns a report of residual issues that cannot
+ * be fixed mechanically (empty verdicts, too-short messages). Never touches
+ * non-comment fields. If the JSON is malformed we fall through untouched —
+ * the existing response guard in the host is responsible for shape errors.
+ */
+function enforceCommentStrength(
+  json: string
+): { json: string; report: readonly StrengthReportEntry[] } {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(json);
+  } catch {
+    return { json, report: [] };
+  }
+  if (!isRecord(parsed)) {
+    return { json, report: [] };
+  }
+
+  const findingsRaw = parsed.findings;
+  if (!Array.isArray(findingsRaw)) {
+    return { json, report: [] };
+  }
+
+  const report: StrengthReportEntry[] = [];
+  let mutated = false;
+
+  findingsRaw.forEach((finding, index) => {
+    if (!isRecord(finding)) {
+      return;
+    }
+    for (const field of ['message', 'whyItMatters', 'fixHint'] as const) {
+      const current = finding[field];
+      if (typeof current === 'string' && current.length > 0) {
+        const rewritten = stripHedgedOpening(current);
+        if (rewritten !== current) {
+          finding[field] = rewritten;
+          mutated = true;
+        }
+      }
+    }
+    const audit = auditCommentStrength({
+      message: typeof finding.message === 'string' ? finding.message : undefined,
+      whyItMatters: typeof finding.whyItMatters === 'string' ? finding.whyItMatters : undefined,
+      fixHint: typeof finding.fixHint === 'string' ? finding.fixHint : undefined,
+    });
+    if (!audit.ok) {
+      report.push({
+        findingIndex: index,
+        findingId: typeof finding.id === 'string' ? finding.id : undefined,
+        issues: audit.issues,
+      });
+    }
+  });
+
+  return {
+    json: mutated ? JSON.stringify(parsed) : json,
+    report,
+  };
+}
+
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === 'object' && v !== null && !Array.isArray(v);
 }
 
 function parseScore(json: string): number {
