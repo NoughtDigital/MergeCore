@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Analytics } from "@vercel/analytics/next";
 import { DM_Sans, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { homepageCopy } from "@/lib/copy";
@@ -27,7 +28,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en-GB" className={`${dmSans.variable} ${jetbrainsMono.variable}`}>
-      <body>{children}</body>
+      <body>
+        {children}
+        <Analytics />
+      </body>
     </html>
   );
 }
