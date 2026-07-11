@@ -21,6 +21,7 @@
     "*.ts",
     "detectors/**/*.ts",
     "conventions/**/*.ts",
-    "prod-risks/**/*.ts"
+    "prod-risks/**/*.ts",
+    "rag/**/*.ts"
   ]
 }

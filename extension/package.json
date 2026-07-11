@@ -1,26 +1,27 @@
 {
   "name": "mergecore",
   "displayName": "MergeCore",
-  "description": "Stack-aware AI review: a senior-style second opinion so you can compare code that works against code that would hold up to scrutiny.",
+  "description": "Local-first repository cognition: understand architecture, explain code on hover, and preserve engineering knowledge — not another autocomplete tool.",
   "version": "0.1.0",
   "publisher": "mergecore",
   "engines": {
     "vscode": "^1.85.0"
   },
   "categories": [
-    "Linters",
-    "Other"
+    "Other",
+    "Programming Languages",
+    "Education"
   ],
   "keywords": [
     "php",
-    "typescript",
-    "python",
-    "go",
-    "rules",
-    "packs",
-    "ai",
-    "review",
-    "merge"
+    "laravel",
+    "architecture",
+    "rag",
+    "local",
+    "onboarding",
+    "hover",
+    "understanding",
+    "engineering"
   ],
   "activationEvents": [
     "onStartupFinished",
@@ -36,6 +37,9 @@
     "onLanguage:swift",
     "onLanguage:rust",
     "onCommand:mergecore.showSidebar",
+    "onCommand:mergecore.indexRepository",
+    "onCommand:mergecore.setExplanationMode",
+    "onCommand:mergecore.setIntelligenceProfile",
     "onCommand:mergecore.reviewFile",
     "onCommand:mergecore.reviewSelection",
     "onCommand:mergecore.reviewGitDiff",
@@ -57,6 +61,18 @@
   "main": "./out/extension.js",
   "contributes": {
     "commands": [
+      {
+        "command": "mergecore.indexRepository",
+        "title": "MergeCore: Index Repository"
+      },
+      {
+        "command": "mergecore.setExplanationMode",
+        "title": "MergeCore: Set Explanation Mode"
+      },
+      {
+        "command": "mergecore.setIntelligenceProfile",
+        "title": "MergeCore: Set Intelligence Profile"
+      },
       {
         "command": "mergecore.review.quick",
         "title": "MergeCore: Quick Review (current function)"
@@ -135,6 +151,16 @@
     "menus": {
       "editor/context": [
         {
+          "command": "mergecore.indexRepository",
+          "when": "resourceScheme == file",
+          "group": "mergecore@0"
+        },
+        {
+          "command": "mergecore.setExplanationMode",
+          "when": "resourceScheme == file",
+          "group": "mergecore@0"
+        },
+        {
           "command": "mergecore.review.quick",
           "when": "resourceScheme == file",
           "group": "mergecore@1"
@@ -167,6 +193,11 @@
       ],
       "editor/title": [
         {
+          "command": "mergecore.indexRepository",
+          "when": "resourceScheme == file",
+          "group": "navigation@mergecore0"
+        },
+        {
           "command": "mergecore.review.file",
           "when": "resourceScheme == file",
           "group": "navigation@mergecore"
@@ -178,6 +209,9 @@
         }
       ],
       "commandPalette": [
+        { "command": "mergecore.indexRepository" },
+        { "command": "mergecore.setExplanationMode" },
+        { "command": "mergecore.setIntelligenceProfile" },
         { "command": "mergecore.review.quick" },
         { "command": "mergecore.review.file" },
         { "command": "mergecore.review.flow" },
@@ -219,10 +253,62 @@
     "configuration": {
       "title": "MergeCore",
       "properties": {
+        "mergecore.explanationMode": {
+          "type": "string",
+          "default": "junior",
+          "enum": ["junior", "mid", "senior", "expert"],
+          "enumDescriptions": [
+            "Fundamentals, concepts, common mistakes, simple reasoning.",
+            "Practical architecture, maintainability, workflow reasoning.",
+            "Scalability, coupling, tradeoffs, operational concerns.",
+            "Architecture critique, performance, concurrency, enterprise scale."
+          ],
+          "markdownDescription": "Adaptive explanation depth for hover intelligence. Change via **MergeCore: Set Explanation Mode**."
+        },
+        "mergecore.intelligenceProfile": {
+          "type": "string",
+          "default": "default",
+          "enum": [
+            "default",
+            "startup-mvp",
+            "enterprise",
+            "performance",
+            "security",
+            "solo-founder",
+            "rapid-prototyping",
+            "ai-safety"
+          ],
+          "enumDescriptions": [
+            "Balanced engineering reasoning.",
+            "Ship-fast bias with reversible decisions.",
+            "Governance, consistency, long-lived systems.",
+            "Latency, throughput, and resource cost.",
+            "Threat model and abuse paths.",
+            "Cognitive load and bus-factor survival.",
+            "Exploration over permanence.",
+            "Side effects of AI-generated systems."
+          ],
+          "markdownDescription": "Optional reasoning lens layered on top of explanation mode. Change via **MergeCore: Set Intelligence Profile**."
+        },
+        "mergecore.local.ollamaBaseUrl": {
+          "type": "string",
+          "default": "http://127.0.0.1:11434",
+          "description": "Base URL for a local Ollama instance used for embeddings and explanations. Source code stays on this machine."
+        },
+        "mergecore.local.chatModel": {
+          "type": "string",
+          "default": "llama3.2",
+          "description": "Ollama chat model for hover explanations. Falls back to offline templates when Ollama is unavailable."
+        },
+        "mergecore.local.embedModel": {
+          "type": "string",
+          "default": "nomic-embed-text",
+          "description": "Ollama embedding model for local RAG. Lexical retrieval still works without embeddings."
+        },
         "mergecore.apiBaseUrl": {
           "type": "string",
           "default": "https://api.mergecore.example",
-          "description": "Base URL for the MergeCore API. Must use https:// unless mergecore.allowInsecureLocalApi is enabled for localhost development."
+          "description": "Base URL for MergeCore licensing/API (optional). Local cognition does not require this."
         },
         "mergecore.allowInsecureLocalApi": {
           "type": "boolean",
@@ -270,7 +356,7 @@
             "Simplify aggressively. Delete more than you add.",
             "Teaches juniors. Explains the why, not just the what."
           ],
-          "markdownDescription": "Which reviewer persona MergeCore should use. Works for every rules pack — the persona tunes emphasis and tone, while the active pack(s) still decide what counts as a finding. Change via the **MergeCore: Choose Reviewer Persona** command for a richer picker."
+          "markdownDescription": "Secondary review persona (optional). Primary cognition depth is controlled by **mergecore.explanationMode**."
         }
       }
     }
@@ -287,7 +373,8 @@
   },
   "dependencies": {
     "@mergecore/intelligence": "file:../engine/intelligence",
-    "diff": "^5.2.0"
+    "diff": "^5.2.0",
+    "sql.js": "^1.14.1"
   },
   "devDependencies": {
     "@types/diff": "^5.2.0",

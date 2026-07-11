@@ -10,6 +10,10 @@
   },
   "devDependencies": {
     "@types/node": "^20.11.0",
+    "@types/sql.js": "^1.4.11",
     "typescript": "^5.4.0"
+  },
+  "dependencies": {
+    "sql.js": "^1.14.1"
   }
 }

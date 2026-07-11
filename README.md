@@ -1,8 +1,8 @@
 # MergeCore
 
-**Stack-aware AI code review inside your editor.** MergeCore scores changes, surfaces findings with evidence, and can suggest rewrites or patches—grounded in **project context** (dependencies, tests, and conventions) rather than generic trivia.
+**Understand codebases, not just generate code.** MergeCore is a local-first engineering cognition layer for VS Code and Cursor: it indexes your repository privately, retrieves architecture and markdown memory, and explains symbols on hover with junior or senior depth.
 
-We care about **real stacks**: MergeCore is organised around versioned rules packs, so TypeScript, React, Vue, Python, Go, Swift, PHP, and future ecosystems can share the same review pipeline without turning one framework into the centre of gravity. Built for teams who want review that respects frameworks and tests, not a laundry list of style nits.
+It is **not** another Copilot, autocomplete tool, or PR comment bot. Review commands remain as secondary tooling.
 
 ---
 
@@ -10,13 +10,13 @@ We care about **real stacks**: MergeCore is organised around versioned rules pac
 
 | Layer | Role |
 |--------|------|
-| **VS Code / Cursor extension** | Runs reviews on selection, whole file, or git diff; shows results in the **Review** side bar; optional apply for improved code or unified diff. |
-| **MergeCore API** (optional) | Full review when `mergecore.apiToken` is set; sends code, scope, **project profile**, and bounded related-file context so analysis can follow your actual stack (PHP, TS/JS, Python, Go, and more as packs land). |
-| **Mock reviewer** | Ships by default so you can try the UX without an account; clearly labelled in the summary. Turn it off when the API is configured. |
-| **Rules packs** | Open rubrics for languages, frameworks, and workflows; usable by hosts that consume `pack.json`, `rubric.json`, `smells.json`, and `agents.md`. |
-| **Engine (`engine/`)** | Server-side pipeline sketch (LLM, cache, prompts) and **`@mergecore/intelligence`** for workspace fingerprinting. |
+| **VS Code / Cursor extension** | Local index, hover explanations, explanation modes; optional secondary review panel. |
+| **Local RAG (`.mergecore/rag/`)** | Per-repo chunk store with lexical retrieval and optional Ollama embeddings. |
+| **Markdown intelligence** | README, decisions, agents, `.cursorrules`, and Laravel pack memory. |
+| **`@mergecore/intelligence`** | Workspace fingerprinting, prod-risk scan, and RAG indexing. |
+| **Rules packs** | Versioned engineering guidance (Laravel-first depth). |
 
-MergeCore is opinionated: **security and correctness before micro-style**, **evidence quoted from the reviewed input or auto-scanned context**, **UK English** in generated prose where applicable.
+Philosophy: **security and correctness before micro-style**, **evidence from the repo**, **UK English**, **source stays local**.
 
 ---
 
@@ -57,6 +57,14 @@ npx @vscode/vsce package
 ```
 
 Install the generated `.vsix` via **Extensions → … → Install from VSIX…**.
+
+### First cognition run
+
+1. Open a Laravel/PHP workspace.
+2. Run **MergeCore: Index Repository**.
+3. Run **MergeCore: Set Explanation Mode** (Junior or Senior).
+4. Hover a PHP method or class for a six-section explanation.
+5. Optional: run Ollama locally and set `mergecore.local.*` for richer explanations.
 
 ### Configuration
 

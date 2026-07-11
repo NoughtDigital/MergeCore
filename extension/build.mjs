@@ -21,7 +21,7 @@ const common = {
   target: 'node18',
   sourcemap: true,
   minify,
-  external: ['vscode'],
+  external: ['vscode', 'sql.js'],
   logLevel: 'info',
 };
 
