@@ -247,7 +247,7 @@ export default function HomePage() {
             <div className="marquee-row-label future">Future rule packs</div>
             <RulePackMarqueeRow
               items={futureRulePacks}
-              direction="right"
+              direction="left"
               duration={46}
               delayMs={260}
             />

@@ -434,12 +434,14 @@ h2 {
   }
 }
 
+/* Same start as marquee-left (x=0) so short rows fill from the left edge;
+   direction differs only in animation timing/feel via duration, not offset. */
 @keyframes marquee-right {
   from {
-    transform: translate3d(calc(var(--marquee-distance, 0px) * -1), 0, 0);
+    transform: translate3d(0, 0, 0);
   }
   to {
-    transform: translate3d(0, 0, 0);
+    transform: translate3d(calc(var(--marquee-distance, 0px) * -1), 0, 0);
   }
 }
 
