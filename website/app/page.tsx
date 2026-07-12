@@ -5,16 +5,52 @@ const c = homepageCopy;
 
 const currentRulePacks = [
   {
+    title: "Laravel",
+    sub: "PHP core rules",
+    accent: "red",
+    icon: "php",
+  },
+  {
+    title: "Filament",
+    sub: "Admin panels",
+    accent: "purple",
+    icon: "panel",
+  },
+  {
+    title: "Pest",
+    sub: "PHP testing",
+    accent: "green",
+    icon: "flask",
+  },
+  {
+    title: "Livewire",
+    sub: "Full-stack PHP",
+    accent: "cyan",
+    icon: "pulse",
+  },
+  {
+    title: "Alpine",
+    sub: "Lightweight JS",
+    accent: "teal",
+    icon: "mountain",
+  },
+  {
+    title: "React",
+    sub: "Component rules",
+    accent: "cyan",
+    icon: "react",
+  },
+  {
     title: "TypeScript",
     sub: "Type & app rules",
     accent: "blue",
     icon: "ts",
   },
   {
-    title: "React",
-    sub: "Component review",
-    accent: "cyan",
-    icon: "react",
+    title: "Vue",
+    sub: "Composition API",
+    accent: "green",
+    icon: "vue",
   },
   {
     title: "Python",
@@ -23,16 +59,34 @@ const currentRulePacks = [
     icon: "python",
   },
   {
+    title: "PyTorch",
+    sub: "ML & training",
+    accent: "red",
+    icon: "bolt",
+  },
+  {
     title: "Go",
     sub: "API & concurrency",
     accent: "teal",
     icon: "go",
   },
   {
+    title: "Tauri",
+    sub: "Desktop & Rust",
+    accent: "purple",
+    icon: "rust",
+  },
+  {
     title: "Swift",
-    sub: "App rules",
+    sub: "Apple platforms",
     accent: "purple",
     icon: "hex",
+  },
+  {
+    title: "SwiftUI",
+    sub: "Declarative UI",
+    accent: "blue",
+    icon: "panel",
   },
 ];
 
@@ -172,11 +226,11 @@ export default function HomePage() {
                 <span>{"// Rule Packs"}</span>
               </div>
               <div>
-                <h2 id="capabilities-heading">Current rule packs, plus the next wave on the roadmap.</h2>
+                <h2 id="capabilities-heading">Fourteen first-party packs shipping today.</h2>
                 <p className="lead">
-                  Shipping today from the repo: language, framework, testing, frontend, backend,
-                  mobile, and systems packs. Planned next: more community packs, domain packs, and
-                  stronger pack resolution.
+                  Laravel-first, plus Filament, Pest, Livewire, Alpine, React, TypeScript, Vue,
+                  Python, PyTorch, Go, Tauri, Swift, and SwiftUI. Roadmap next: more frameworks,
+                  test runners, Node, and team domain packs.
                 </p>
               </div>
             </div>
@@ -244,6 +298,25 @@ export default function HomePage() {
                       <li key={f}>{f}</li>
                     ))}
                   </ul>
+                </article>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section aria-labelledby="profiles-heading">
+          <div className="wrap">
+            <p className="section-label">{c.intelligenceProfilesIntro.eyebrow}</p>
+            <h2 id="profiles-heading">{c.intelligenceProfilesIntro.headline}</h2>
+            <p className="lead">{c.intelligenceProfilesIntro.body}</p>
+            <div className="level-grid">
+              {c.intelligenceProfiles.map((profile) => (
+                <article key={profile.id} className="card level-card">
+                  <div className="level-header">
+                    <span className="level-badge">{profile.badge}</span>
+                  </div>
+                  <h3>{profile.title}</h3>
+                  <p>{profile.tagline}</p>
                 </article>
               ))}
             </div>

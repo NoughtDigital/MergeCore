@@ -99,6 +99,26 @@ function Icon({ kind }: { kind: string }) {
           <path d="M13 2 3 14h7l-1 8 10-12h-7z"></path>
         </svg>
       );
+    case "php":
+      return (
+        <svg {...common}>
+          <ellipse cx="12" cy="12" rx="9" ry="6"></ellipse>
+          <path d="M8 10v4M8 12h2.5a1.5 1.5 0 0 0 0-3H8M14 14V9.5a1.5 1.5 0 0 1 3 0V14M14 12h3"></path>
+        </svg>
+      );
+    case "vue":
+      return (
+        <svg {...common}>
+          <path d="M2 4h5l5 9 5-9h5L12 22 2 4z"></path>
+        </svg>
+      );
+    case "rust":
+      return (
+        <svg {...common}>
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"></path>
+        </svg>
+      );
     default:
       return null;
   }

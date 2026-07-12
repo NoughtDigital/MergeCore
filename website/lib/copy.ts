@@ -26,6 +26,13 @@ export type Persona = {
   focus: string[];
 };
 
+export type IntelligenceProfile = {
+  id: string;
+  title: string;
+  badge: string;
+  tagline: string;
+};
+
 export type ReviewLevel = {
   id: string;
   title: string;
@@ -90,6 +97,12 @@ export type HomepageCopy = {
     body: string;
   };
   personas: Persona[];
+  intelligenceProfilesIntro: {
+    eyebrow: string;
+    headline: string;
+    body: string;
+  };
+  intelligenceProfiles: IntelligenceProfile[];
   reviewLevelsIntro: {
     eyebrow: string;
     headline: string;
@@ -154,7 +167,7 @@ export const homepageCopy: HomepageCopy = {
   meta: {
     title: "MergeCore — understand codebases, not just generate code",
     description:
-      "Local-first repository cognition for VS Code and Cursor. Index privately, explain architecture on hover, and preserve engineering knowledge with adaptive junior/senior depth.",
+      "Local-first repository cognition for VS Code and Cursor. Index privately, explain architecture on hover, and preserve engineering knowledge with adaptive junior-to-expert depth.",
   },
   hero: {
     badge: "Local engineering intelligence",
@@ -167,9 +180,9 @@ export const homepageCopy: HomepageCopy = {
   panelOverview: {
     eyebrow: "The workflow",
     headline: "Hover to understand. Index once. Keep knowledge local.",
-    body: "MergeCore watches the repo, builds a private knowledge store under .mergecore/rag/, and explains functions with summary, risks, related systems, and architectural context — tuned for junior or senior depth.",
+    body: "MergeCore indexes on workspace open, watches the repo, builds a private knowledge store under .mergecore/rag/, and explains functions with summary, risks, related systems, and architectural context — tuned from junior through expert depth.",
     commandLine:
-      "MergeCore: Index Repository · Set Explanation Mode · Hover PHP symbols",
+      "MergeCore: Index Repository · Set Explanation Mode · Set Intelligence Profile · Hover PHP symbols",
     panelNote:
       "It is not another Copilot, autocomplete tool, or PR comment bot. It is an engineering understanding system.",
   },
@@ -181,7 +194,7 @@ export const homepageCopy: HomepageCopy = {
   features: [
     {
       title: "Local repository intelligence",
-      body: "Watches the repo, indexes on save, and builds a live knowledge store that stays on your machine.",
+      body: "Indexes on workspace open, re-indexes on save, and builds a live knowledge store that stays on your machine.",
     },
     {
       title: "Local RAG database",
@@ -197,7 +210,7 @@ export const homepageCopy: HomepageCopy = {
     },
     {
       title: "Adaptive explanation depth",
-      body: "Junior mode teaches fundamentals; senior mode surfaces coupling, tradeoffs, and operational concerns.",
+      body: "Junior, mid, senior, and expert modes — from fundamentals to architecture critique, concurrency, and enterprise scale.",
     },
     {
       title: "Local-first by default",
@@ -238,19 +251,60 @@ export const homepageCopy: HomepageCopy = {
       tagline: "Architecture critique, performance, concurrency, enterprise scale.",
       focus: ["critique", "performance", "concurrency", "enterprise"],
     },
+  ],
+  intelligenceProfilesIntro: {
+    eyebrow: "Intelligence profiles",
+    headline: "Same depth. A different reasoning lens.",
+    body: "Profiles bias how MergeCore weighs tradeoffs — ship-fast, enterprise governance, security, performance, or AI-generated side effects — without changing explanation mode.",
+  },
+  intelligenceProfiles: [
     {
-      id: "auto",
-      title: "Local-first",
-      badge: "Local",
-      tagline: "Repositories, embeddings, and business logic stay on the machine.",
-      focus: ["privacy", "compliance", "offline", "ollama"],
+      id: "default",
+      title: "Default",
+      badge: "Balanced",
+      tagline: "Balanced engineering reasoning.",
     },
     {
-      id: "principal-engineer",
-      title: "Intelligence profiles",
-      badge: "Profiles",
-      tagline: "Startup, enterprise, performance, security, and AI-safety lenses.",
-      focus: ["startup-mvp", "enterprise", "security", "ai-safety"],
+      id: "startup-mvp",
+      title: "Startup MVP",
+      badge: "Ship-fast",
+      tagline: "Ship-fast bias with reversible decisions.",
+    },
+    {
+      id: "enterprise",
+      title: "Enterprise",
+      badge: "Governance",
+      tagline: "Governance, consistency, long-lived systems.",
+    },
+    {
+      id: "performance",
+      title: "Performance",
+      badge: "Hot path",
+      tagline: "Latency, throughput, and resource cost.",
+    },
+    {
+      id: "security",
+      title: "Security",
+      badge: "Threat model",
+      tagline: "Threat model and abuse paths.",
+    },
+    {
+      id: "solo-founder",
+      title: "Solo founder",
+      badge: "Bus factor",
+      tagline: "Cognitive load and bus-factor survival.",
+    },
+    {
+      id: "rapid-prototyping",
+      title: "Rapid prototyping",
+      badge: "Explore",
+      tagline: "Exploration over permanence.",
+    },
+    {
+      id: "ai-safety",
+      title: "AI safety",
+      badge: "AI-aware",
+      tagline: "Side effects of AI-generated systems.",
     },
   ],
   reviewLevelsIntro: {
@@ -291,7 +345,8 @@ export const homepageCopy: HomepageCopy = {
       id: "mvp",
       title: "Phase 1 MVP",
       badge: "Now",
-      tagline: "VS Code extension, local index, RAG, hovers, junior/senior, Laravel first.",
+      tagline:
+        "VS Code extension, local index, RAG, hovers, junior–expert modes, intelligence profiles, Laravel first.",
       scope: "Shipped path",
     },
   ],
@@ -335,12 +390,16 @@ export const homepageCopy: HomepageCopy = {
       body: "agents.md and .cursorrules become contextual engineering rules for local explanations.",
     },
     {
+      title: "Convention detection",
+      body: "Inferred stack conventions (actions, DTOs, Pest-first, TypeScript strict) plus optional .mergecore/conventions.json for team-declared rules.",
+    },
+    {
       title: "Laravel-first packs",
       body: "laravel-core agents.md loads automatically when artisan / Laravel signals are present.",
     },
     {
       title: "Live index",
-      body: "Saves update .mergecore/rag/ incrementally — no manual sync step.",
+      body: "Indexes on open; saves update .mergecore/rag/ incrementally — no manual sync step.",
     },
   ],
   memoryNote:
@@ -408,13 +467,15 @@ export const homepageCopy: HomepageCopy = {
     {
       label: "Junior depth",
       weak: "This uses a service.",
-      strong: "This controller should stay thin: validate the request, call one service/action, return a response. Putting pricing rules here makes them hard to test.",
+      strong:
+        "This controller should stay thin: validate the request, call one service/action, return a response. Putting pricing rules here makes them hard to test.",
       sideEffectTag: "Fundamentals",
     },
     {
       label: "Senior depth",
       weak: "Looks fine.",
-      strong: "The job and HTTP path share a write without an idempotency key; a timeout retry can double-apply under load.",
+      strong:
+        "The job and HTTP path share a write without an idempotency key; a timeout retry can double-apply under load.",
       sideEffectTag: "Tradeoff",
     },
     {
@@ -429,18 +490,23 @@ export const homepageCopy: HomepageCopy = {
   reviewModesIntro: {
     eyebrow: "Entry points",
     headline: "Start with understanding. Review remains optional.",
-    body: "Index the repository, set junior or senior mode, then hover Laravel/PHP symbols. Secondary review commands remain for merge-time checks.",
+    body: "Index the repository, set junior-to-expert depth and an intelligence profile, then hover Laravel/PHP symbols. Secondary review commands remain for merge-time checks.",
   },
   reviewModes: [
     {
       title: "Index repository",
-      body: "Build or refresh the local RAG store under .mergecore/rag/.",
+      body: "Build or refresh the local RAG store under .mergecore/rag/ — also runs on workspace open.",
       command: "mergecore.indexRepository",
     },
     {
       title: "Set explanation mode",
-      body: "Switch between junior and senior explanation depth.",
+      body: "Switch between junior, mid, senior, and expert explanation depth.",
       command: "mergecore.setExplanationMode",
+    },
+    {
+      title: "Set intelligence profile",
+      body: "Bias reasoning toward startup, enterprise, security, performance, or AI-safety lenses.",
+      command: "mergecore.setIntelligenceProfile",
     },
     {
       title: "Hover intelligence",
@@ -456,7 +522,7 @@ export const homepageCopy: HomepageCopy = {
   setupIntro: {
     eyebrow: "Fits your setup",
     headline: "Works offline. Optional local models. No code required in the cloud.",
-    body: "Install the extension, open a Laravel (or PHP) workspace, run Index Repository, and hover. Connect Ollama when you want richer local LLM explanations.",
+    body: "Install the extension, open a Laravel (or PHP) workspace, let it index (or run Index Repository), set explanation mode and profile, then hover. Connect Ollama when you want richer local LLM explanations.",
   },
   setupItems: [
     {
