@@ -155,6 +155,19 @@ function Card({ item, prominent }: { item: MarqueeItem; prominent: boolean }) {
   );
 }
 
+/** Repeat short lists so one set always fills wide viewports. */
+function expandItems(items: MarqueeItem[], minCards = 12): MarqueeItem[] {
+  if (items.length >= minCards) {
+    return items;
+  }
+
+  const expanded: MarqueeItem[] = [];
+  while (expanded.length < minCards) {
+    expanded.push(...items);
+  }
+  return expanded;
+}
+
 export function RulePackMarqueeRow({
   items,
   direction,
@@ -169,6 +182,8 @@ export function RulePackMarqueeRow({
   const contentRef = useRef<HTMLDivElement | null>(null);
   const [distance, setDistance] = useState(0);
   const [ready, setReady] = useState(false);
+  const loopItems = expandItems(items);
+  const itemsKey = items.map((item) => item.title).join("|");
 
   useEffect(() => {
     const measure = () => {
@@ -176,7 +191,6 @@ export function RulePackMarqueeRow({
         return;
       }
 
-      // Include trailing padding so the loop seam matches card spacing.
       const nextDistance = contentRef.current.offsetWidth;
       if (nextDistance > 0) {
         setDistance(nextDistance);
@@ -204,7 +218,7 @@ export function RulePackMarqueeRow({
       observer?.disconnect();
       window.removeEventListener("resize", measure);
     };
-  }, [items]);
+  }, [itemsKey]);
 
   const style = {
     "--marquee-distance": `${distance}px`,
@@ -212,18 +226,29 @@ export function RulePackMarqueeRow({
     animationDelay: `${delayMs}ms`,
   } as CSSProperties;
 
+  // Always animate 0 → -distance (flush left). Flip the row for rightward motion.
   return (
     <div className={`marquee-row-clip row-enter${ready ? " is-ready" : ""}`} style={style}>
-      <div className={`marquee-track marquee-${direction}${ready ? " is-ready" : ""}`}>
-        <div className="marquee-content" ref={contentRef}>
-          {items.map((item, index) => (
-            <Card key={`${item.title}-${index}`} item={item} prominent={index === 2} />
-          ))}
-        </div>
-        <div className="marquee-content" aria-hidden="true">
-          {items.map((item, index) => (
-            <Card key={`${item.title}-clone-${index}`} item={item} prominent={index === 2} />
-          ))}
+      <div className={direction === "right" ? "marquee-dir-right" : undefined}>
+        <div className={`marquee-track marquee-left${ready ? " is-ready" : ""}`}>
+          <div className="marquee-content" ref={contentRef}>
+            {loopItems.map((item, index) => (
+              <Card
+                key={`${item.title}-${index}`}
+                item={item}
+                prominent={index % items.length === 2}
+              />
+            ))}
+          </div>
+          <div className="marquee-content" aria-hidden="true">
+            {loopItems.map((item, index) => (
+              <Card
+                key={`${item.title}-clone-${index}`}
+                item={item}
+                prominent={index % items.length === 2}
+              />
+            ))}
+          </div>
         </div>
       </div>
     </div>

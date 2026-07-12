@@ -325,13 +325,13 @@ h2 {
   animation: marquee-left var(--marquee-duration, 34s) linear infinite;
 }
 
-.marquee-track.marquee-right {
-  animation: marquee-right var(--marquee-duration, 38s) linear infinite;
+/* Mirror the track so leftward animation reads as rightward motion, flush from x=0. */
+.marquee-dir-right {
+  transform: scaleX(-1);
 }
 
-/* Right-scrolling rows start already offset so the first paint is flush left. */
-.marquee-track.marquee-right.is-ready {
-  transform: translate3d(calc(var(--marquee-distance, 0px) * -1), 0, 0);
+.marquee-dir-right .flex-card {
+  transform: scaleX(-1);
 }
 
 .marquee-content {
@@ -442,16 +442,6 @@ h2 {
   }
   to {
     transform: translate3d(calc(var(--marquee-distance, 0px) * -1), 0, 0);
-  }
-}
-
-/* Rightward loop: start on the duplicate set (flush left), ease back to the original. */
-@keyframes marquee-right {
-  from {
-    transform: translate3d(calc(var(--marquee-distance, 0px) * -1), 0, 0);
-  }
-  to {
-    transform: translate3d(0, 0, 0);
   }
 }
 
@@ -964,8 +954,7 @@ footer .footer-credit {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .marquee-track.marquee-left,
-  .marquee-track.marquee-right {
+  .marquee-track.marquee-left {
     animation: none;
   }
 
