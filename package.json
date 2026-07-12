@@ -6,11 +6,13 @@
   "scripts": {
     "typecheck:engine": "npm run build --prefix engine/intelligence",
     "typecheck:extension": "npm run lint --prefix extension",
+    "typecheck:mcp": "npm run lint --prefix mcp",
     "typecheck:website": "npm run build --prefix website -- --no-lint",
     "test:extension": "npm run test --prefix extension",
+    "package:extension": "npm run package --prefix extension",
     "validate:packs": "node scripts/validate-rule-packs.mjs",
     "audit:npm": "npm audit --omit=dev --audit-level=high",
-    "ci": "npm run typecheck:engine && npm run typecheck:extension && npm run test:extension && npm run validate:packs"
+    "ci": "npm run typecheck:engine && npm run typecheck:extension && npm run typecheck:mcp && npm run test:extension && npm run validate:packs"
   },
   "devDependencies": {
     "ajv": "^8.17.0",

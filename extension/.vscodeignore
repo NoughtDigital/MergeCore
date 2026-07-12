@@ -6,3 +6,7 @@ src/**
 tsconfig.json
 .gitignore
 **/node_modules/**
+build.mjs
+out/**
+!out/extension.js
+media/**/*.map

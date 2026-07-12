@@ -18,6 +18,16 @@ export type SetupItem = {
   body: string;
 };
 
+export type InstallPath = {
+  id: "editor" | "agent";
+  title: string;
+  body: string;
+  steps: string[];
+  configLabel?: string;
+  configSnippet?: string;
+  note?: string;
+};
+
 export type Persona = {
   id: string;
   title: string;
@@ -148,6 +158,7 @@ export type HomepageCopy = {
     body: string;
   };
   setupItems: SetupItem[];
+  installPaths: InstallPath[];
   finalCta: {
     headline: string;
     body: string;
@@ -521,8 +532,8 @@ export const homepageCopy: HomepageCopy = {
   ],
   setupIntro: {
     eyebrow: "Fits your setup",
-    headline: "Works offline. Optional local models. No code required in the cloud.",
-    body: "Install the extension, open a Laravel (or PHP) workspace, let it index (or run Index Repository), set explanation mode and profile, then hover. Connect Ollama when you want richer local LLM explanations.",
+    headline: "Install the editor extension. Connect agents with MCP.",
+    body: "Humans get hover explanations and indexing in VS Code or Cursor. Agents (Cursor, Codex) query the same local cognition over MCP. Optional Skill tells the agent when to call those tools.",
   },
   setupItems: [
     {
@@ -536,6 +547,42 @@ export const homepageCopy: HomepageCopy = {
     {
       label: "Licensing later",
       body: "Cloud can manage auth and seats later; Phase 1 cognition does not depend on it.",
+    },
+  ],
+  installPaths: [
+    {
+      id: "editor",
+      title: "VS Code / Cursor extension",
+      body: "Human path: index the repo, set explanation mode, hover PHP symbols. One extension covers both editors.",
+      steps: [
+        "Build a VSIX: cd extension && npm install && npm run package",
+        "Install via Extensions → Install from VSIX… (or use the CI mergecore-vsix artefact)",
+        "Open a workspace, run MergeCore: Index Repository, then hover",
+      ],
+      note: "Cursor hosts VS Code extensions — you do not need a separate Cursor plugin.",
+    },
+    {
+      id: "agent",
+      title: "Cursor / Codex MCP",
+      body: "Agent path: expose local RAG, packs, and prod-risk scan as tools. Point MERGECORE_WORKSPACE at the project root.",
+      steps: [
+        "Build the server: cd mcp && npm install && npm run build",
+        "Add the stdio server to your MCP host config",
+        "Optional: install the MergeCore Skill so the agent prefers MCP over guessing architecture",
+      ],
+      configLabel: "MCP config (Cursor / Codex)",
+      configSnippet: `{
+  "mcpServers": {
+    "mergecore": {
+      "command": "node",
+      "args": ["/absolute/path/to/MergeCore/mcp/dist/index.js"],
+      "env": {
+        "MERGECORE_WORKSPACE": "/absolute/path/to/your/project"
+      }
+    }
+  }
+}`,
+      note: "Tools: mergecore_index, mergecore_retrieve, mergecore_explain_context, mergecore_scan_prod_risks, mergecore_list_packs, mergecore_read_pack_guidance.",
     },
   ],
   finalCta: {

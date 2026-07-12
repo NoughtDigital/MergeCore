@@ -470,6 +470,34 @@ export default function HomePage() {
                   </li>
                 ))}
               </ul>
+              <div className="install-paths grid grid-2">
+                {c.installPaths.map((path) => (
+                  <article
+                    key={path.id}
+                    className="install-path"
+                    id={path.id === "editor" ? "install-editor" : "install-agent"}
+                  >
+                    <h3>{path.title}</h3>
+                    <p>{path.body}</p>
+                    <ol className="install-steps">
+                      {path.steps.map((step) => (
+                        <li key={step}>{step}</li>
+                      ))}
+                    </ol>
+                    {path.configSnippet ? (
+                      <div className="install-config">
+                        {path.configLabel ? (
+                          <p className="card-meta">{path.configLabel}</p>
+                        ) : null}
+                        <pre>
+                          <code>{path.configSnippet}</code>
+                        </pre>
+                      </div>
+                    ) : null}
+                    {path.note ? <p className="install-note">{path.note}</p> : null}
+                  </article>
+                ))}
+              </div>
             </div>
           </div>
         </section>
@@ -478,7 +506,7 @@ export default function HomePage() {
           <div className="wrap">
             <h2 id="final-heading">{c.finalCta.headline}</h2>
             <p className="lead">{c.finalCta.body}</p>
-            <a className="btn-primary" href="#features-heading">
+            <a className="btn-primary" href="#install-editor">
               {c.finalCta.button}
             </a>
           </div>

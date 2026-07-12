@@ -369,7 +369,7 @@
     "watch": "tsc -watch -p ./",
     "lint": "tsc --noEmit -p ./",
     "test": "tsx --test src/infrastructure/__tests__/*.test.ts",
-    "package": "npm run bundle && vsce package"
+    "package": "npm run bundle && vsce package --no-dependencies --allow-missing-repository"
   },
   "dependencies": {
     "@mergecore/intelligence": "file:../engine/intelligence",
@@ -380,6 +380,7 @@
     "@types/diff": "^5.2.0",
     "@types/node": "^20.11.0",
     "@types/vscode": "^1.85.0",
+    "@vscode/vsce": "^3.3.2",
     "esbuild": "^0.20.0",
     "tsx": "^4.7.0",
     "typescript": "^5.4.0"

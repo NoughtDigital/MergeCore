@@ -1,0 +1,29 @@
+{
+  "name": "@mergecore/mcp",
+  "version": "0.1.0",
+  "private": true,
+  "description": "MergeCore MCP server — local RAG, packs, and prod-risk tools for Cursor and Codex agents.",
+  "type": "module",
+  "bin": {
+    "mergecore-mcp": "./dist/index.js"
+  },
+  "main": "./dist/index.js",
+  "scripts": {
+    "build:engine": "npm run build --prefix ../engine/intelligence",
+    "build": "npm run build:engine && tsc -p ./",
+    "lint": "tsc --noEmit -p ./",
+    "start": "node ./dist/index.js"
+  },
+  "dependencies": {
+    "@mergecore/intelligence": "file:../engine/intelligence",
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "typescript": "^5.4.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

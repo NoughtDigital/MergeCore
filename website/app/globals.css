@@ -600,6 +600,55 @@ h2 {
   color: var(--text);
 }
 
+.install-paths {
+  margin-top: 2rem;
+}
+
+.install-path {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.25rem 1.35rem;
+}
+
+.install-path h3 {
+  margin: 0 0 0.5rem;
+  font-size: 1.1rem;
+}
+
+.install-path > p {
+  margin: 0 0 0.85rem;
+  color: var(--muted);
+}
+
+.install-steps {
+  margin: 0 0 1rem;
+  padding-left: 1.2rem;
+  color: var(--muted);
+}
+
+.install-steps li + li {
+  margin-top: 0.45rem;
+}
+
+.install-config pre {
+  margin: 0.35rem 0 0;
+  padding: 0.85rem 1rem;
+  overflow-x: auto;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: #0b0c0f;
+  color: #e8eaed;
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.install-note {
+  margin: 0.85rem 0 0;
+  font-size: 0.88rem;
+  color: var(--muted);
+}
+
 .pricing .footnote {
   font-size: 0.85rem;
   color: var(--muted);

@@ -11,6 +11,8 @@ It is **not** another Copilot, autocomplete tool, or PR comment bot. Review comm
 | Layer | Role |
 |--------|------|
 | **VS Code / Cursor extension** | Local index, hover explanations, explanation modes; optional secondary review panel. |
+| **MCP server (`mcp/`)** | Same local cognition as tools for Cursor / Codex agents. |
+| **Skill (`skills/mergecore/`)** | Thin agent bootstrap: when to call MergeCore MCP. |
 | **Local RAG (`.mergecore/rag/`)** | Per-repo chunk store with lexical retrieval and optional Ollama embeddings. |
 | **Markdown intelligence** | README, decisions, agents, `.cursorrules`, and Laravel pack memory. |
 | **`@mergecore/intelligence`** | Workspace fingerprinting, prod-risk scan, and RAG indexing. |
@@ -34,9 +36,21 @@ Philosophy: **security and correctness before micro-style**, **evidence from the
 
 ## Install
 
-### From source (development)
+MergeCore has two install surfaces: the **VS Code / Cursor extension** (human UI) and the **MCP server** (Cursor / Codex agents).
+
+### Editor — VSIX (recommended)
 
 Requirements: **Node 20+**, **VS Code ≥ 1.85** (or Cursor).
+
+```bash
+cd extension
+npm install
+npm run package
+```
+
+Install the generated `.vsix` via **Extensions → … → Install from VSIX…**. CI also uploads a `mergecore-vsix` artefact on every green `main` build.
+
+### Editor — from source (development)
 
 ```bash
 git clone https://github.com/<org>/MergeCore.git
@@ -47,21 +61,36 @@ npm run compile
 
 Open the repo in VS Code, **Run → Start Debugging** and pick **Launch Extension**, or use **F1 → Developer: Install Extension from Location…** and select the `extension` folder.
 
-### VSIX package
+### Agent — MCP (Cursor / Codex)
 
 ```bash
-cd extension
+cd mcp
 npm install
-npm run compile
-npx @vscode/vsce package
+npm run build
 ```
 
-Install the generated `.vsix` via **Extensions → … → Install from VSIX…**.
+Point your host at the stdio server (set `MERGECORE_WORKSPACE` to the repo you want indexed):
+
+```json
+{
+  "mcpServers": {
+    "mergecore": {
+      "command": "node",
+      "args": ["/absolute/path/to/MergeCore/mcp/dist/index.js"],
+      "env": {
+        "MERGECORE_WORKSPACE": "/absolute/path/to/your/project"
+      }
+    }
+  }
+}
+```
+
+Optional: copy [`skills/mergecore/SKILL.md`](skills/mergecore/SKILL.md) into your Cursor skills so the agent knows when to call MergeCore tools.
 
 ### First cognition run
 
 1. Open a Laravel/PHP workspace.
-2. Run **MergeCore: Index Repository**.
+2. Run **MergeCore: Index Repository** (or call MCP `mergecore_index`).
 3. Run **MergeCore: Set Explanation Mode** (Junior or Senior).
 4. Hover a PHP method or class for a six-section explanation.
 5. Optional: run Ollama locally and set `mergecore.local.*` for richer explanations.
@@ -99,7 +128,9 @@ Without a token, the extension uses the mock reviewer so you can validate wiring
 ## Repository layout
 
 ```
-extension/              # VS Code extension (TypeScript)
+extension/              # VS Code / Cursor extension (TypeScript)
+mcp/                    # @mergecore/mcp — stdio MCP for Cursor / Codex agents
+skills/mergecore/       # Thin Skill bootstrap for agent hosts
 engine/
   intelligence/         # @mergecore/intelligence — workspace profile detection
   pipeline/             # Server review pipeline (cache, prompts, schema)
