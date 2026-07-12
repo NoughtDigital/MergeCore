@@ -8,31 +8,31 @@ const currentRulePacks = [
     title: "Laravel",
     sub: "PHP core rules",
     accent: "red",
-    icon: "php",
+    icon: "laravel",
   },
   {
     title: "Filament",
     sub: "Admin panels",
     accent: "purple",
-    icon: "panel",
+    icon: "filament",
   },
   {
     title: "Pest",
     sub: "PHP testing",
     accent: "green",
-    icon: "flask",
+    icon: "pest",
   },
   {
     title: "Livewire",
     sub: "Full-stack PHP",
-    accent: "cyan",
-    icon: "pulse",
+    accent: "pink",
+    icon: "livewire",
   },
   {
     title: "Alpine",
     sub: "Lightweight JS",
     accent: "teal",
-    icon: "mountain",
+    icon: "alpine",
   },
   {
     title: "React",
@@ -44,7 +44,7 @@ const currentRulePacks = [
     title: "TypeScript",
     sub: "Type & app rules",
     accent: "blue",
-    icon: "ts",
+    icon: "typescript",
   },
   {
     title: "Vue",
@@ -61,8 +61,8 @@ const currentRulePacks = [
   {
     title: "PyTorch",
     sub: "ML & training",
-    accent: "red",
-    icon: "bolt",
+    accent: "orange",
+    icon: "pytorch",
   },
   {
     title: "Go",
@@ -74,19 +74,19 @@ const currentRulePacks = [
     title: "Tauri",
     sub: "Desktop & Rust",
     accent: "purple",
-    icon: "rust",
+    icon: "tauri",
   },
   {
     title: "Swift",
     sub: "Apple platforms",
-    accent: "purple",
-    icon: "hex",
+    accent: "orange",
+    icon: "swift",
   },
   {
     title: "SwiftUI",
     sub: "Declarative UI",
     accent: "blue",
-    icon: "panel",
+    icon: "swiftui",
   },
 ];
 
@@ -95,13 +95,13 @@ const futureRulePacks = [
     title: "More Frameworks",
     sub: "Web & app packs",
     accent: "green",
-    icon: "panel",
+    icon: "frameworks",
   },
   {
     title: "More Test Runners",
     sub: "Coverage & quality",
     accent: "purple",
-    icon: "flask",
+    icon: "tests",
   },
   {
     title: "Node",
@@ -113,7 +113,7 @@ const futureRulePacks = [
     title: "Domain Packs",
     sub: "Team-specific rules",
     accent: "red",
-    icon: "bolt",
+    icon: "domain",
   },
 ];
 
@@ -247,11 +247,10 @@ export default function HomePage() {
             <div className="marquee-row-label future">Future rule packs</div>
             <RulePackMarqueeRow
               items={futureRulePacks}
-              direction="left"
+              direction="right"
               duration={46}
               delayMs={260}
-            />
-          </div>
+            />          </div>
         </section>
 
         <section aria-labelledby="packs-heading">

@@ -315,7 +315,7 @@ h2 {
 .marquee-track {
   display: flex;
   width: max-content;
-  gap: 1.4rem;
+  gap: 0;
   will-change: transform;
   transform: translate3d(0, 0, 0);
   animation-play-state: paused;
@@ -329,10 +329,16 @@ h2 {
   animation: marquee-right var(--marquee-duration, 38s) linear infinite;
 }
 
+/* Right-scrolling rows start already offset so the first paint is flush left. */
+.marquee-track.marquee-right.is-ready {
+  transform: translate3d(calc(var(--marquee-distance, 0px) * -1), 0, 0);
+}
+
 .marquee-content {
   display: flex;
   gap: 1.4rem;
   flex-shrink: 0;
+  padding-right: 1.4rem;
 }
 
 .flex-card {
@@ -406,6 +412,11 @@ h2 {
   background: rgba(58, 155, 138, 0.12);
 }
 
+.flex-icon.pink {
+  color: #fb70a9;
+  background: rgba(251, 112, 169, 0.12);
+}
+
 .flex-info {
   min-width: 0;
 }
@@ -434,14 +445,13 @@ h2 {
   }
 }
 
-/* Same start as marquee-left (x=0) so short rows fill from the left edge;
-   direction differs only in animation timing/feel via duration, not offset. */
+/* Rightward loop: start on the duplicate set (flush left), ease back to the original. */
 @keyframes marquee-right {
   from {
-    transform: translate3d(0, 0, 0);
+    transform: translate3d(calc(var(--marquee-distance, 0px) * -1), 0, 0);
   }
   to {
-    transform: translate3d(calc(var(--marquee-distance, 0px) * -1), 0, 0);
+    transform: translate3d(0, 0, 0);
   }
 }
 

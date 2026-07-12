@@ -9,118 +9,135 @@ type MarqueeItem = {
   icon: string;
 };
 
-function Icon({ kind }: { kind: string }) {
-  const common = {
-    xmlns: "http://www.w3.org/2000/svg",
-    width: 20,
-    height: 20,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    stroke: "currentColor",
-    strokeWidth: 2,
-  };
+const svgBase = {
+  xmlns: "http://www.w3.org/2000/svg",
+  width: 22,
+  height: 22,
+  viewBox: "0 0 24 24",
+  "aria-hidden": true as const,
+};
 
+function Icon({ kind }: { kind: string }) {
   switch (kind) {
-    case "hex":
+    case "laravel":
       return (
-        <svg {...common}>
-          <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+        <svg {...svgBase} fill="currentColor">
+          <path d="M1.4 8.1 6.8 5l5.4 3.1v6.2L6.8 17.4 1.4 14.3V8.1zm10.8-.1 4.7-2.7 4.7 2.7v1l-4.7 2.7-4.7-2.7V8zm0 7.2 4.7 2.7V22l-4.7-2.7v-4.1zM7 18.6l4.7 2.7V22L7 19.3v-.7z" />
         </svg>
       );
-    case "panel":
+    case "filament":
       return (
-        <svg {...common}>
-          <rect x="3" y="4" width="18" height="16" rx="2"></rect>
-          <path d="M8 9h8M8 13h5"></path>
+        <svg {...svgBase} fill="currentColor">
+          <path d="M5.5 3h5.1c4.2 0 6.9 2.3 6.9 6 0 2.5-1.3 4.4-3.5 5.3L17.5 21h-4.5l-3.4-6.5H9.2V21H5.5V3zm3.7 8.1h1.4c1.9 0 3.1-1 3.1-2.6S12.5 6 10.6 6H9.2v5.1z" />
         </svg>
       );
-    case "flask":
+    case "pest":
       return (
-        <svg {...common}>
-          <path d="M9 3h6"></path>
-          <path d="M10 9h4"></path>
-          <path d="M8 3v6l-4 8a2 2 0 0 0 1.8 3h12.4a2 2 0 0 0 1.8-3l-4-8V3"></path>
+        <svg {...svgBase} fill="currentColor">
+          <path d="M12 3c1.8 0 3.2.8 4 2.1h.8c2 0 3.2 1.2 3.2 3 0 1.2-.6 2.2-1.6 2.7 1.1.7 1.8 1.8 1.8 3.2 0 2.4-2 4.1-4.9 4.1-.9 0-1.7-.2-2.4-.5-.6 1.2-1.9 2.1-3.7 2.1-2.5 0-4.2-1.6-4.2-4 0-1.2.5-2.2 1.3-2.9-.8-.7-1.3-1.7-1.3-2.9 0-1.9 1.3-3.2 3.3-3.2h.6C8.7 3.9 10.1 3 12 3zm-.9 4.5c-.8.8-1.2 1.9-1.2 3.3v2.4c0 1.4.4 2.5 1.2 3.3.8-.8 1.2-1.9 1.2-3.3v-2.4c0-1.4-.4-2.5-1.2-3.3z" />
         </svg>
       );
-    case "pulse":
+    case "livewire":
       return (
-        <svg {...common}>
-          <path d="M3 12h4l3 8 4-16 3 8h4"></path>
+        <svg {...svgBase} fill="currentColor">
+          <path d="M4.2 5.2c2.8-2.1 6.6-1.7 8.9.9l.4.5.4-.5c2.3-2.6 6.1-3 8.9-.9 2.5 1.9 3.1 5.3 1.5 8.1L13.5 21.2 2.7 13.3C1.1 10.5 1.7 7.1 4.2 5.2zm8.1 4.1-1.7 6.3 5.3-3.5-3.6-2.8z" />
         </svg>
       );
-    case "mountain":
+    case "alpine":
       return (
-        <svg {...common}>
-          <path d="m4 15 4-6 4 4 4-8 4 10"></path>
-        </svg>
-      );
-    case "ts":
-      return (
-        <svg {...common}>
-          <path d="M4 5h16v14H4z"></path>
-          <path d="M9 9h6M12 9v8M9 17h6"></path>
+        <svg {...svgBase} fill="currentColor">
+          <path d="M12 3.2 2.5 20.8h3.9L12 9.4l5.6 11.4h3.9L12 3.2zm0 8.4-2.8 5.8h5.6L12 11.6z" />
         </svg>
       );
     case "react":
       return (
-        <svg {...common}>
-          <circle cx="12" cy="12" r="1.5"></circle>
-          <path d="M19.4 11.1c.5 2.5-.7 4.9-3.1 6.1-2.6 1.3-6 1.5-8.3-.2-2-1.5-2.7-4.3-1.8-6.6 1-2.6 3.6-4.9 6.3-5.7 2.5-.7 5.4-.3 6.9 1.9 1 1.4 1.2 3 .9 4.5Z"></path>
+        <svg {...svgBase} fill="none" stroke="currentColor" strokeWidth="1.6">
+          <circle cx="12" cy="12" r="2.2" fill="currentColor" stroke="none" />
+          <ellipse cx="12" cy="12" rx="10" ry="4.2" />
+          <ellipse cx="12" cy="12" rx="10" ry="4.2" transform="rotate(60 12 12)" />
+          <ellipse cx="12" cy="12" rx="10" ry="4.2" transform="rotate(120 12 12)" />
         </svg>
       );
-    case "node":
+    case "typescript":
       return (
-        <svg {...common}>
-          <path d="M12 2 4 7v10l8 5 8-5V7z"></path>
-          <path d="M9 10v4M15 10v4M9 14h6"></path>
-        </svg>
-      );
-    case "python":
-      return (
-        <svg {...common}>
-          <path d="M8 7a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2H8z"></path>
-          <path d="M16 17a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2v-2h8z"></path>
-          <circle cx="10" cy="8.5" r="0.5"></circle>
-          <circle cx="14" cy="15.5" r="0.5"></circle>
-        </svg>
-      );
-    case "go":
-      return (
-        <svg {...common}>
-          <path d="M4 12h8"></path>
-          <path d="M4 8h10"></path>
-          <path d="M4 16h7"></path>
-          <circle cx="16.5" cy="12" r="3.5"></circle>
-        </svg>
-      );
-    case "bolt":
-      return (
-        <svg {...common}>
-          <path d="M13 2 3 14h7l-1 8 10-12h-7z"></path>
-        </svg>
-      );
-    case "php":
-      return (
-        <svg {...common}>
-          <ellipse cx="12" cy="12" rx="9" ry="6"></ellipse>
-          <path d="M8 10v4M8 12h2.5a1.5 1.5 0 0 0 0-3H8M14 14V9.5a1.5 1.5 0 0 1 3 0V14M14 12h3"></path>
+        <svg {...svgBase} fill="currentColor">
+          <path d="M1.5 1.5h21v21h-21v-21zm11.2 9.4H9.3v1.7h2.1c-.1 2.3-.9 3.9-3.3 3.9-2.1 0-3.5-1.5-3.5-3.8s1.4-3.9 3.6-3.9c1.2 0 2.2.4 2.9 1.1l1.4-1.5C11.4 7.1 10 6.4 8.2 6.4c-3.4 0-5.8 2.5-5.8 5.8s2.4 5.8 5.7 5.8c3.5 0 5.4-2.3 5.6-5.5v-.2h-.01zm8.1-.2h-2.3V8.4h-2.1v2.3H14v2.1h2.4v4.9h2.1v-4.9h2.3v-2.1z" />
         </svg>
       );
     case "vue":
       return (
-        <svg {...common}>
-          <path d="M2 4h5l5 9 5-9h5L12 22 2 4z"></path>
+        <svg {...svgBase} fill="currentColor">
+          <path d="M1.5 3.5h4.3L12 14.2 18.2 3.5h4.3L12 21.2 1.5 3.5zm6.2 0h3.1L12 7.4l1.2-3.9h3.1L12 12.1 7.7 3.5z" />
         </svg>
       );
-    case "rust":
+    case "python":
       return (
-        <svg {...common}>
-          <circle cx="12" cy="12" r="3"></circle>
-          <path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"></path>
+        <svg {...svgBase} fill="currentColor">
+          <path d="M12 2.2c-2.9 0-2.7 1.3-2.7 1.3v1.9h2.8v.3H7.3S4.5 5.5 4.5 9.3c0 3.8 2.1 3.6 2.1 3.6h1.3v-1.7s-.1-2 2.2-2h3.8s2.1.1 2.1-2V4.8S16.4 2.2 12 2.2zm-1.5 1.2a.8.8 0 1 1 0 1.6.8.8 0 0 1 0-1.6z" />
+          <path d="M12 21.8c2.9 0 2.7-1.3 2.7-1.3v-1.9h-2.8v-.3h4.8s2.8.2 2.8-3.6c0-3.8-2.1-3.6-2.1-3.6h-1.3v1.7s.1 2-2.2 2H9.9s-2.1-.1-2.1 2v3.4s-.4 2.6 4.2 2.6zm1.5-1.2a.8.8 0 1 1 0-1.6.8.8 0 0 1 0 1.6z" />
+        </svg>
+      );
+    case "pytorch":
+      return (
+        <svg {...svgBase} fill="currentColor">
+          <path d="M12.1 2.3c.4 0 .8.2 1 .5l2.2 3.1c.5-.3 1.1-.4 1.7-.4 2.4 0 4.3 1.9 4.3 4.3 0 .4 0 .7-.1 1.1 1.3.8 2.1 2.2 2.1 3.8 0 2.5-2 4.5-4.5 4.5-.5 0-1-.1-1.4-.2-.7 1.7-2.4 2.9-4.4 2.9-1.9 0-3.5-1.1-4.3-2.7-.5.2-1 .3-1.6.3-2.5 0-4.5-2-4.5-4.5 0-1.5.7-2.8 1.9-3.6-.1-.4-.2-.8-.2-1.2 0-2.4 1.9-4.3 4.3-4.3.5 0 1 .1 1.5.3L11 2.8c.3-.3.7-.5 1.1-.5zm0 4.5-2.2 3.1c.5.5.8 1.2.8 1.9 0 1.5-1.2 2.7-2.7 2.7S5.3 13.3 5.3 11.8c0-.4.1-.8.3-1.1C4.8 11 4.5 11.6 4.5 12.4c0 1.4 1.1 2.5 2.5 2.5.4 0 .8-.1 1.1-.3.5 1.4 1.8 2.4 3.4 2.4 1.5 0 2.8-.9 3.3-2.2.4.2.8.3 1.3.3 1.4 0 2.5-1.1 2.5-2.5 0-.8-.4-1.5-.9-2 .2-.3.3-.7.3-1.1 0-1.5-1.2-2.7-2.7-2.7-.6 0-1.1.2-1.6.5L12.1 6.8z" />
+        </svg>
+      );
+    case "go":
+      return (
+        <svg {...svgBase} fill="currentColor">
+          <path d="M3.2 9.2h2.4c.2-1.3 1-2.1 2.3-2.1.9 0 1.5.4 1.5 1.1 0 .6-.4 1-1.3 1.2l-1.3.3c-1.7.4-2.6 1.3-2.6 2.8 0 1.7 1.2 2.8 3.1 2.8 1.4 0 2.5-.6 3.1-1.7l-1.4-.8c-.3.6-.9.9-1.6.9-.8 0-1.3-.4-1.3-1 0-.5.3-.8 1.1-1l1.4-.3c2-.5 2.9-1.5 2.9-3.1 0-1.9-1.5-3.1-3.6-3.1-2.3 0-3.9 1.3-4.3 3.4zm9.5 6.5h1.7l.3-1.5h.1c.5.9 1.4 1.6 2.7 1.6 2.3 0 3.7-1.8 3.7-4.5S19.8 7 17.6 7c-1.2 0-2.1.5-2.7 1.4h-.1l.3-3.1h-1.7l-1 10.4zm4.1-1.5c-1.2 0-2-.9-2-2.4s.8-2.4 2-2.4 2 .9 2 2.4-.8 2.4-2 2.4z" />
+        </svg>
+      );
+    case "tauri":
+      return (
+        <svg {...svgBase} fill="currentColor">
+          <path d="M12 2.4c1.4 0 2.6.5 3.5 1.4L12 12l-3.5-8.2C9.4 2.9 10.6 2.4 12 2.4zm0 19.2c-1.4 0-2.6-.5-3.5-1.4L12 12l3.5 8.2c-.9.9-2.1 1.4-3.5 1.4zM3.8 8.5c.9-1.1 2.2-1.8 3.7-1.8L12 12 4.8 14.8c-.9-1.1-1.3-2.5-1-3.9.1-.8.4-1.6 1-2.4zm16.4 0c.6.8.9 1.6 1 2.4.3 1.4-.1 2.8-1 3.9L12 12l4.5-5.3c1.5 0 2.8.7 3.7 1.8z" />
+        </svg>
+      );
+    case "swift":
+      return (
+        <svg {...svgBase} fill="currentColor">
+          <path d="M17.8 2.6c.3.4.7 1.2.7 2.2 0 3.5-2.9 8.1-7.4 11.6-1.3 1-2.7 1.8-4.1 2.3 2.4.5 5 .2 7.3-1.2 3.6-2.1 6-5.5 6.5-9.1.6 1.3.9 2.7.9 4.1 0 5.7-4.6 10.3-10.3 10.3-2.2 0-4.2-.7-5.9-1.9C2.5 18.6 1.5 14.8 3 11.4c1.1 1.9 2.7 3.5 4.6 4.7C5.6 12.8 5 9.2 6.2 6.3c.4 1.1 1.1 2.2 2 3.1C8.5 5.5 10.6 2.8 14 2.2c1.1-.2 2.6-.1 3.8.4z" />
+        </svg>
+      );
+    case "swiftui":
+      return (
+        <svg {...svgBase} fill="currentColor">
+          <path d="M6.2 3.5h11.6c1.5 0 2.7 1.2 2.7 2.7v11.6c0 1.5-1.2 2.7-2.7 2.7H6.2c-1.5 0-2.7-1.2-2.7-2.7V6.2c0-1.5 1.2-2.7 2.7-2.7zm5.6 3.4c.2.3.5.8.5 1.5 0 2.3-1.9 5.3-4.8 7.6 1.6.3 3.3.1 4.8-.8 2.4-1.4 3.9-3.6 4.2-6-.1.9-.3 1.7-.7 2.5-.8 1.9-2.5 3.3-4.6 3.8 1.5.7 3.3.8 4.9.2 1.1-.4 2-1.1 2.7-2-1.2 2.3-3.6 3.9-6.4 3.9-2.9 0-5.4-1.7-6.5-4.1.8 1.2 1.9 2.2 3.2 2.8C7.5 12.4 7.2 9.8 8.2 7.9c.3.8.8 1.5 1.4 2.1.2-2.3 1.5-4.1 3.5-4.7.6-.1 1.4-.1 2 .2-.4.3-.8.7-1.1 1.2-.1.2-.2.3-.2.4z" />
+        </svg>
+      );
+    case "node":
+      return (
+        <svg {...svgBase} fill="currentColor">
+          <path d="M12 1.8 3.6 6.6v10.8L12 22.2l8.4-4.8V6.6L12 1.8zm0 2.3 6.1 3.5v7l-2.1 1.2V10L12 12.3 7.9 10v5.8L5.9 14.6v-7L12 4.1zm0 8.3 2.7-1.5v3.1L12 15.8l-2.7-1.5v-3.1L12 12.4z" />
+        </svg>
+      );
+    case "frameworks":
+      return (
+        <svg {...svgBase} fill="none" stroke="currentColor" strokeWidth="1.8">
+          <rect x="3" y="4" width="18" height="16" rx="2" />
+          <path d="M8 9h8M8 13h5" />
+        </svg>
+      );
+    case "tests":
+      return (
+        <svg {...svgBase} fill="none" stroke="currentColor" strokeWidth="1.8">
+          <path d="M9 3h6M10 9h4M8 3v6l-4 8a2 2 0 0 0 1.8 3h12.4a2 2 0 0 0 1.8-3l-4-8V3" />
+        </svg>
+      );
+    case "domain":
+      return (
+        <svg {...svgBase} fill="none" stroke="currentColor" strokeWidth="1.8">
+          <path d="M13 2 3 14h7l-1 8 10-12h-7z" />
         </svg>
       );
     default:
-      return null;
+      return (
+        <svg {...svgBase} fill="none" stroke="currentColor" strokeWidth="1.8">
+          <circle cx="12" cy="12" r="8" />
+        </svg>
+      );
   }
 }
 
@@ -159,7 +176,8 @@ export function RulePackMarqueeRow({
         return;
       }
 
-      const nextDistance = contentRef.current.getBoundingClientRect().width;
+      // Include trailing padding so the loop seam matches card spacing.
+      const nextDistance = contentRef.current.offsetWidth;
       if (nextDistance > 0) {
         setDistance(nextDistance);
         requestAnimationFrame(() => setReady(true));
@@ -186,7 +204,7 @@ export function RulePackMarqueeRow({
       observer?.disconnect();
       window.removeEventListener("resize", measure);
     };
-  }, []);
+  }, [items]);
 
   const style = {
     "--marquee-distance": `${distance}px`,
