@@ -19,12 +19,25 @@ export class MergeCoreSidebarProvider implements vscode.WebviewViewProvider {
   /** Resolvers waiting for the webview to attach; resolved from `resolveWebviewView`. */
   private readonly viewReadyResolvers: PendingResolver[] = [];
   private readonly disposables: vscode.Disposable[] = [];
+  private onResolveHook: (() => void) | undefined;
 
   constructor(
     private readonly extensionUri: vscode.Uri,
     /** Bumped with each extension release so media URIs cache-bust when panel code changes. */
     private readonly assetVersion: string
   ) {}
+
+  /** Invoked once when the sidebar webview is first resolved (e.g. to defer indexing). */
+  onDidResolve(hook: () => void): vscode.Disposable {
+    this.onResolveHook = hook;
+    return {
+      dispose: () => {
+        if (this.onResolveHook === hook) {
+          this.onResolveHook = undefined;
+        }
+      },
+    };
+  }
 
   resolveWebviewView(
     webviewView: vscode.WebviewView,
@@ -41,6 +54,7 @@ export class MergeCoreSidebarProvider implements vscode.WebviewViewProvider {
 
     this.flushPendingReview(webviewView);
     this.flushViewReadyResolvers(webviewView);
+    this.onResolveHook?.();
 
     webviewView.onDidDispose(
       () => {
@@ -115,6 +129,17 @@ export class MergeCoreSidebarProvider implements vscode.WebviewViewProvider {
         'MergeCore: Review panel did not open. Click the MergeCore icon in the activity bar, or run "MergeCore: Open Review Panel".'
       );
     }
+  }
+
+  /** Notify the sidebar so level buttons leave/enter the in-flight disabled state. */
+  async setReviewRunning(running: boolean): Promise<void> {
+    if (!this.view) {
+      return;
+    }
+    await this.view.webview.postMessage({
+      type: 'reviewState',
+      payload: { running },
+    });
   }
 
   dispose(): void {

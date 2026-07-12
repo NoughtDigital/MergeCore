@@ -7,6 +7,12 @@
   "engines": {
     "vscode": "^1.85.0"
   },
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": false,
+      "description": "MergeCore reads workspace files, runs git, indexes the repository, and may call local Ollama or a configured review API. It does not activate in Restricted Mode."
+    }
+  },
   "categories": [
     "Other",
     "Programming Languages",
@@ -24,7 +30,6 @@
     "engineering"
   ],
   "activationEvents": [
-    "onStartupFinished",
     "onLanguage:php",
     "onLanguage:blade",
     "onLanguage:typescript",
@@ -56,7 +61,8 @@
     "onCommand:mergecore.clearApiToken",
     "onCommand:mergecore.showLogs",
     "onCommand:mergecore.chooseReviewerPersona",
-    "onCommand:mergecore.scanProdRisks"
+    "onCommand:mergecore.scanProdRisks",
+    "onView:mergecore.sidebar"
   ],
   "main": "./out/extension.js",
   "contributes": {

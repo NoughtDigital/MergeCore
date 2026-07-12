@@ -1,6 +1,7 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
 import type { RelatedContextFile, ReviewRelatedContext, ReviewScope } from '../domain/review-types';
+import { resolveInsideWorkspace } from './workspace-path';
 
 const MAX_RELATED_FILES = 16;
 const MAX_TOTAL_EXCERPT_CHARS = 24_000;
@@ -463,19 +464,23 @@ function relativeImportSpecs(content: string): string[] {
   return [...specs];
 }
 
-function resolveRelativeImport(workspaceRoot: string, fromRelPath: string, spec: string): string[] {
-  void workspaceRoot;
-  const base = normaliseRel(path.join(path.dirname(fromRelPath), spec));
-  const ext = path.extname(base);
+function resolveRelativeImport(_workspaceRoot: string, fromRelPath: string, spec: string): string[] {
+  const fromDir = path.posix.dirname(fromRelPath.replace(/\\/g, '/'));
+  const finalBase = path.posix.normalize(path.posix.join(fromDir, spec));
+  // Reject imports that resolve outside the workspace-relative tree.
+  if (finalBase === '..' || finalBase.startsWith('../')) {
+    return [];
+  }
+  const ext = path.extname(finalBase);
   if (ext && SOURCE_EXTENSIONS.includes(ext as (typeof SOURCE_EXTENSIONS)[number])) {
-    return [base];
+    return [finalBase];
   }
   const out: string[] = [];
   for (const sourceExt of SOURCE_EXTENSIONS) {
-    out.push(`${base}${sourceExt}`);
+    out.push(`${finalBase}${sourceExt}`);
   }
   for (const sourceExt of SOURCE_EXTENSIONS) {
-    out.push(`${base}/index${sourceExt}`);
+    out.push(`${finalBase}/index${sourceExt}`);
   }
   return out;
 }
@@ -573,7 +578,11 @@ function firstTermIndex(content: string, terms: readonly string[]): number {
 
 async function readUtf8(workspaceRoot: string, relPath: string): Promise<string | undefined> {
   try {
-    const uri = vscode.Uri.file(path.join(workspaceRoot, normaliseRel(relPath)));
+    const resolved = resolveInsideWorkspace(workspaceRoot, relPath);
+    if (!resolved) {
+      return undefined;
+    }
+    const uri = vscode.Uri.file(resolved);
     const bytes = await vscode.workspace.fs.readFile(uri);
     return Buffer.from(bytes).toString('utf8');
   } catch {
@@ -587,9 +596,17 @@ function basenameWithoutExt(relPath: string): string {
 
 function toRel(workspaceRoot: string, filePath: string): string {
   if (!path.isAbsolute(filePath)) {
-    return normaliseRel(filePath);
+    const normalised = normaliseRel(filePath);
+    if (normalised.startsWith('..')) {
+      return '';
+    }
+    return normalised;
   }
-  return normaliseRel(path.relative(workspaceRoot, filePath));
+  const rel = normaliseRel(path.relative(workspaceRoot, filePath));
+  if (!rel || rel.startsWith('..')) {
+    return '';
+  }
+  return rel;
 }
 
 function normaliseRel(relPath: string): string {
@@ -656,6 +673,9 @@ function pluralise(input: string): string {
 }
 
 function isCollectablePath(filePath: string): boolean {
+  if (!filePath || filePath.startsWith('..')) {
+    return false;
+  }
   const ext = path.extname(filePath).toLowerCase();
   if (BINARY_EXTENSIONS.has(ext)) {
     return false;

@@ -10,15 +10,19 @@ import { ExplanationCache } from '../../infrastructure/explain/explanation-cache
 import type { Explainer } from '../../infrastructure/explain/explainer';
 import type { IndexerService } from '../../infrastructure/index/indexer.service';
 import { workspaceRootForDocument } from '../../infrastructure/index/indexer.service';
-import { collectRelatedContext } from '../../infrastructure/related-context.collector';
 import { resolvePhpSymbolAt } from './php-symbol';
 
 export interface HoverProviderDeps {
   readonly indexer: IndexerService;
   readonly explainer: Explainer;
-  readonly embedQuery: (text: string) => Promise<readonly number[] | undefined>;
+  readonly embedQuery: (
+    text: string,
+    signal?: AbortSignal
+  ) => Promise<readonly number[] | undefined>;
   readonly getMode: () => ExplanationMode;
   readonly getProfile: () => IntelligenceProfile;
+  /** Lazily ensure the workspace has been indexed at least once. */
+  readonly ensureIndexed?: (workspaceRoot: string) => Promise<void>;
 }
 
 /**
@@ -52,7 +56,8 @@ export class MergeCoreHoverProvider implements vscode.HoverProvider {
     }
 
     const mode = this.deps.getMode();
-    const fileHash = sha256(document.getText());
+    // Prefer VS Code's document version over hashing the full buffer on every miss.
+    const fileHash = `${document.version}:${sha256(symbol.code)}`;
     const cacheKey = `${fileHash}|${symbol.symbol}|${mode}`;
     const flightKey = `${document.uri.fsPath}|${cacheKey}`;
 
@@ -78,77 +83,93 @@ export class MergeCoreHoverProvider implements vscode.HoverProvider {
     fileHash: string,
     token: vscode.CancellationToken
   ): Promise<vscode.Hover | null> {
-    const store = await this.deps.indexer.getStore(workspaceRoot);
-    const cache = new ExplanationCache(store);
-    const cached = cache.get(fileHash, symbol.symbol, mode);
-    if (cached) {
-      return new vscode.Hover(new vscode.MarkdownString(cached.markdown, true));
-    }
+    const abort = new AbortController();
+    const cancelSub = token.onCancellationRequested(() => abort.abort());
 
-    if (token.isCancellationRequested) {
-      return null;
-    }
+    try {
+      const store = await this.deps.indexer.getStore(workspaceRoot);
+      const cache = new ExplanationCache(store);
+      const cached = cache.get(fileHash, symbol.symbol, mode);
+      if (cached) {
+        const md = new vscode.MarkdownString(cached.markdown, true);
+        md.isTrusted = false;
+        return new vscode.Hover(md);
+      }
 
-    const relPath = path.relative(workspaceRoot, document.uri.fsPath).replace(/\\/g, '/');
-    const profile = this.deps.getProfile();
+      if (token.isCancellationRequested) {
+        return null;
+      }
 
-    const related = await collectRelatedContext({
-      scope: 'file',
-      workspaceRoot,
-      filePath: relPath,
-      content: document.getText(),
-    });
+      if (this.deps.ensureIndexed) {
+        void this.deps.ensureIndexed(workspaceRoot);
+      }
 
-    const relatedSummary =
-      related?.files
+      const relPath = path.relative(workspaceRoot, document.uri.fsPath).replace(/\\/g, '/');
+      const profile = this.deps.getProfile();
+
+      // Hover relies on RAG retrieve rather than a full related-context pack,
+      // which keeps the hot path off dozens of findFiles + disk reads.
+      const queryEmbedding = await this.deps.embedQuery(
+        `${symbol.symbol}\n${symbol.code.slice(0, 1500)}`,
+        abort.signal
+      );
+
+      if (token.isCancellationRequested) {
+        return null;
+      }
+
+      const hits = await this.deps.indexer.retrieve(
+        workspaceRoot,
+        `${symbol.symbol} ${relPath} ${symbol.code.slice(0, 400)}`,
+        { k: 6, mode, profile, pathHint: relPath, preferMemory: true },
+        queryEmbedding
+      );
+
+      if (token.isCancellationRequested) {
+        return null;
+      }
+
+      const ragContext = formatHits(hits);
+      const architecturalHints = buildArchitecturalHints(relPath, hits);
+      const relatedSummary = hits
         .slice(0, 8)
-        .map((f) => `- \`${f.path}\` — ${f.reason}`)
-        .join('\n') ?? '';
+        .map((h) => `- \`${h.chunk.path}\`${h.chunk.symbol ? ` · ${h.chunk.symbol}` : ''}`)
+        .join('\n');
 
-    const queryEmbedding = await this.deps.embedQuery(
-      `${symbol.symbol}\n${symbol.code.slice(0, 1500)}`
-    );
+      const explanation = await this.deps.explainer.explain({
+        symbol: symbol.symbol,
+        filePath: relPath,
+        code: symbol.code,
+        mode,
+        profile,
+        relatedSummary,
+        ragContext,
+        architecturalHints,
+        signal: abort.signal,
+      });
 
-    const hits = await this.deps.indexer.retrieve(
-      workspaceRoot,
-      `${symbol.symbol} ${relPath} ${symbol.code.slice(0, 400)}`,
-      { k: 6, mode, profile, pathHint: relPath, preferMemory: true },
-      queryEmbedding
-    );
+      if (token.isCancellationRequested) {
+        return null;
+      }
 
-    if (token.isCancellationRequested) {
-      return null;
+      const modeInfo = getExplanationMode(mode);
+      const footer = `\n\n---\n_MergeCore · ${modeInfo.badge} mode · ${explanation.source === 'ollama' ? 'local model' : 'offline template'}_`;
+      const markdown = `${explanation.markdown}${footer}`;
+
+      cache.set({
+        key: cache.key(fileHash, symbol.symbol, mode),
+        markdown,
+        mode,
+        createdAt: Date.now(),
+      });
+      void cache.persist();
+
+      const md = new vscode.MarkdownString(markdown, true);
+      md.isTrusted = false;
+      return new vscode.Hover(md);
+    } finally {
+      cancelSub.dispose();
     }
-
-    const ragContext = formatHits(hits);
-    const architecturalHints = buildArchitecturalHints(relPath, hits);
-
-    const explanation = await this.deps.explainer.explain({
-      symbol: symbol.symbol,
-      filePath: relPath,
-      code: symbol.code,
-      mode,
-      profile,
-      relatedSummary,
-      ragContext,
-      architecturalHints,
-    });
-
-    const modeInfo = getExplanationMode(mode);
-    const footer = `\n\n---\n_MergeCore · ${modeInfo.badge} mode · ${explanation.source === 'ollama' ? 'local model' : 'offline template'}_`;
-    const markdown = `${explanation.markdown}${footer}`;
-
-    cache.set({
-      key: cache.key(fileHash, symbol.symbol, mode),
-      markdown,
-      mode,
-      createdAt: Date.now(),
-    });
-    void cache.persist();
-
-    const md = new vscode.MarkdownString(markdown, true);
-    md.isTrusted = false;
-    return new vscode.Hover(md);
   }
 }
 

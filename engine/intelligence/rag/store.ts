@@ -41,28 +41,63 @@ export function emptySnapshot(workspaceRoot: string): RagStoreSnapshot {
 async function loadSql(): Promise<{
   Database: new (data?: ArrayLike<number> | Buffer | null) => Database;
 }> {
-  const fs = await import('fs');
+  const fsSync = await import('fs');
   const pathMod = await import('path');
-  // Prefer WASM binary (includes FTS4). Fall back to asm.js.
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const initSqlJs = require('sql.js') as (cfg?: {
-    wasmBinary?: Buffer;
-  }) => Promise<{ Database: new (data?: ArrayLike<number> | Buffer | null) => Database }>;
-  try {
-    const wasmPath = require.resolve('sql.js/dist/sql-wasm.wasm');
-    const wasmBinary = fs.readFileSync(wasmPath);
-    return await initSqlJs({ wasmBinary });
-  } catch {
+  const { createRequire } = await import('module');
+  const nodeRequire = createRequire(__filename);
+
+  type SqlInit = (cfg?: { wasmBinary?: Buffer }) => Promise<{
+    Database: new (data?: ArrayLike<number> | Buffer | null) => Database;
+  }>;
+
+  const vendorDir = pathMod.join(__dirname, 'vendor', 'sql.js');
+  const vendorWasm = pathMod.join(vendorDir, 'dist', 'sql-wasm.wasm');
+  const vendorMain = pathMod.join(vendorDir, 'dist', 'sql-wasm.js');
+  const vendorAsm = pathMod.join(vendorDir, 'dist', 'sql-asm.js');
+
+  let initSqlJs: SqlInit | undefined;
+  let wasmPath: string | undefined;
+
+  if (fsSync.existsSync(vendorMain)) {
+    // Bundled VS Code extension: sql.js is copied next to out/extension.js
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const asm = require('sql.js/dist/sql-asm.js') as
-      | ((cfg?: object) => Promise<{ Database: new (data?: ArrayLike<number> | Buffer | null) => Database }>)
-      | {
-          default: (cfg?: object) => Promise<{
-            Database: new (data?: ArrayLike<number> | Buffer | null) => Database;
-          }>;
-        };
+    initSqlJs = nodeRequire(vendorMain) as SqlInit;
+    if (fsSync.existsSync(vendorWasm)) {
+      wasmPath = vendorWasm;
+    }
+  } else {
+    try {
+      initSqlJs = nodeRequire('sql.js') as SqlInit;
+      wasmPath = nodeRequire.resolve('sql.js/dist/sql-wasm.wasm');
+    } catch {
+      initSqlJs = undefined;
+    }
+  }
+
+  if (!initSqlJs) {
+    throw new Error('sql.js could not be loaded');
+  }
+
+  try {
+    if (wasmPath) {
+      const wasmBinary = fsSync.readFileSync(wasmPath);
+      return await initSqlJs({ wasmBinary });
+    }
+    throw new Error('wasm missing');
+  } catch {
+    // Fall back to asm.js (vendored or from node_modules).
+    let asmModule: unknown;
+    if (fsSync.existsSync(vendorAsm)) {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      asmModule = nodeRequire(vendorAsm);
+    } else {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      asmModule = nodeRequire('sql.js/dist/sql-asm.js');
+    }
+    const asm = asmModule as
+      | SqlInit
+      | { default: SqlInit };
     const init = typeof asm === 'function' ? asm : asm.default;
-    void pathMod;
     return init({});
   }
 }

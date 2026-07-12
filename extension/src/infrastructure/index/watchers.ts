@@ -4,6 +4,10 @@ import type { IndexerService } from './indexer.service';
 
 /**
  * Watches saves and common Laravel/source globs for incremental re-index.
+ *
+ * Save events cover editor writes. FileSystemWatcher only handles create/delete
+ * (and changes outside the editor) so a single save does not enqueue the same
+ * path twice via both channels.
  */
 export function installIndexWatchers(
   indexer: IndexerService,
@@ -70,7 +74,7 @@ export function installIndexWatchers(
           schedule(folder.uri.fsPath, rel);
         }
       };
-      watcher.onDidChange(enqueue);
+      // Skip onDidChange — saves already cover in-editor edits and would double-index.
       watcher.onDidCreate(enqueue);
       watcher.onDidDelete((uri) => {
         const rel = path.relative(folder.uri.fsPath, uri.fsPath).replace(/\\/g, '/');

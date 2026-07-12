@@ -11,6 +11,7 @@ import {
 } from '../../domain/explanation-modes';
 import type { IndexerService } from '../../infrastructure/index/indexer.service';
 import { MergeCoreLogger } from '../../infrastructure/logger';
+import { validateOllamaBaseUrl } from '../../infrastructure/ollama-base-url';
 
 export interface CognitionCommandDeps {
   readonly indexer: IndexerService;
@@ -134,8 +135,18 @@ export function readOllamaSettings(): {
   embedModel: string;
 } {
   const cfg = vscode.workspace.getConfiguration('mergecore');
+  const rawBase = cfg.get<string>('local.ollamaBaseUrl') ?? 'http://127.0.0.1:11434';
+  const validated = validateOllamaBaseUrl(rawBase);
+  const baseUrl = validated.ok && validated.url
+    ? validated.url.origin + (validated.url.pathname === '/' ? '' : validated.url.pathname.replace(/\/+$/, ''))
+    : 'http://127.0.0.1:11434';
+  if (!validated.ok) {
+    MergeCoreLogger.shared.warn(
+      `Invalid mergecore.local.ollamaBaseUrl (${validated.reason ?? 'unknown'}). Falling back to http://127.0.0.1:11434.`
+    );
+  }
   return {
-    baseUrl: cfg.get<string>('local.ollamaBaseUrl') ?? 'http://127.0.0.1:11434',
+    baseUrl,
     chatModel: cfg.get<string>('local.chatModel') ?? 'llama3.2',
     embedModel: cfg.get<string>('local.embedModel') ?? 'nomic-embed-text',
   };

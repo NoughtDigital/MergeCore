@@ -15,6 +15,16 @@ export class FindingDiagnostics implements vscode.Disposable {
     this.collection.set(document.uri, diagnostics);
   }
 
+  /** Replace all MergeCore diagnostics with findings for a single document. */
+  replaceAllForDocument(document: vscode.TextDocument, findings: readonly Finding[]): void {
+    this.collection.clear();
+    this.setForDocument(document, findings);
+  }
+
+  clearAll(): void {
+    this.collection.clear();
+  }
+
   clearDocument(uri: vscode.Uri): void {
     this.collection.delete(uri);
   }

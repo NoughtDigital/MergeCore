@@ -142,33 +142,61 @@ async function resolveFlowReview(): Promise<ResolvedScope | undefined> {
   };
 }
 
+export type GitReviewMode = 'working' | 'staged' | 'pr';
+
 /**
- * PR Review — the changed files in the working tree.
- *
- * We prefer the staged diff when it is non-empty (that is the change
- * actually being prepared), and fall back to the working-tree diff.
- * This matches the mental model of "review the PR I am about to open"
- * regardless of whether the user runs this before or after `git add`.
+ * Resolve a git-diff review for a specific mode:
+ * - `working` — unstaged working-tree diff only
+ * - `staged` — staged (`--cached`) diff only
+ * - `pr` — prefer staged when non-empty, else fall back to working tree
  */
-async function resolvePrReview(ctx: ScopeResolverContext): Promise<ResolvedScope | undefined> {
+export async function resolveGitDiffReview(
+  ctx: ScopeResolverContext,
+  mode: GitReviewMode
+): Promise<ResolvedScope | undefined> {
   const folder = vscode.workspace.workspaceFolders?.[0];
   if (!folder) {
     void vscode.window.showWarningMessage('MergeCore: open a workspace folder first.');
     return undefined;
   }
 
-  const staged = (await ctx.gitDiff.readDiff(folder.uri.fsPath, 'staged')).trim();
-  const working = staged.length > 0 ? '' : (await ctx.gitDiff.readDiff(folder.uri.fsPath, 'working')).trim();
-  const diffText = staged.length > 0 ? staged : working;
-  if (!diffText) {
-    void vscode.window.showInformationMessage(
-      'MergeCore PR Review: no staged or working-tree changes detected. Make a change first.'
-    );
-    return undefined;
+  const root = folder.uri.fsPath;
+  let diffText = '';
+  let labelFallback = 'git-diff';
+
+  if (mode === 'working') {
+    diffText = (await ctx.gitDiff.readDiff(root, 'working')).trim();
+    labelFallback = 'git-working-diff';
+    if (!diffText) {
+      void vscode.window.showInformationMessage(
+        'MergeCore: no working-tree changes detected. Make a change first.'
+      );
+      return undefined;
+    }
+  } else if (mode === 'staged') {
+    diffText = (await ctx.gitDiff.readDiff(root, 'staged')).trim();
+    labelFallback = 'git-staged-diff';
+    if (!diffText) {
+      void vscode.window.showInformationMessage(
+        'MergeCore: no staged changes detected. Stage changes with git add first.'
+      );
+      return undefined;
+    }
+  } else {
+    const staged = (await ctx.gitDiff.readDiff(root, 'staged')).trim();
+    const working = staged.length > 0 ? '' : (await ctx.gitDiff.readDiff(root, 'working')).trim();
+    diffText = staged.length > 0 ? staged : working;
+    labelFallback = staged.length > 0 ? 'git-staged-diff' : 'git-diff';
+    if (!diffText) {
+      void vscode.window.showInformationMessage(
+        'MergeCore PR Review: no staged or working-tree changes detected. Make a change first.'
+      );
+      return undefined;
+    }
   }
 
   const editor = vscode.window.activeTextEditor;
-  const label = editor?.document.uri.fsPath ?? (staged.length > 0 ? 'git-staged-diff' : 'git-diff');
+  const label = editor?.document.uri.fsPath ?? labelFallback;
   const document = editor?.document ?? (await ctx.openVirtualDiffDoc(diffText, 'diff'));
 
   return {
@@ -176,8 +204,18 @@ async function resolvePrReview(ctx: ScopeResolverContext): Promise<ResolvedScope
     document,
     label,
     content: diffText,
-    throttleKey: 'review.pr',
+    throttleKey: mode === 'pr' ? 'review.pr' : `review.git.${mode}`,
   };
+}
+
+/**
+ * PR Review — the changed files prepared for a pull request.
+ *
+ * Prefers the staged diff when non-empty, otherwise falls back to the
+ * working-tree diff.
+ */
+async function resolvePrReview(ctx: ScopeResolverContext): Promise<ResolvedScope | undefined> {
+  return resolveGitDiffReview(ctx, 'pr');
 }
 
 /**

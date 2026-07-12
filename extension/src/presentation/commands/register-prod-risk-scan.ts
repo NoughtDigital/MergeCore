@@ -134,7 +134,8 @@ async function publishProdRiskResult(
 
   deps.session.set({ findings, score, summary }, anchorUri, display);
 
-  // Apply diagnostics file-by-file so squiggles land on the right line.
+  // Replace prior review/prod-risk squiggles, then apply per-file diagnostics.
+  deps.diagnostics.clearAll();
   for (const [rel, items] of findingsByFile) {
     const uri = vscode.Uri.file(joinPath(workspaceRoot, rel));
     try {

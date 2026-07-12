@@ -60,8 +60,8 @@ export function createMergeCoreApp(context: vscode.ExtensionContext): void {
     }),
   };
   const explainer = new Explainer({
-    chat: (messages) => ollamaRef.current.chat(messages),
-    isAvailable: () => ollamaRef.current.isAvailable(),
+    chat: (messages, signal) => ollamaRef.current.chat(messages, signal),
+    isAvailable: (signal) => ollamaRef.current.isAvailable(signal),
   });
   const indexer = new IndexerService(logger, context.extensionPath);
   indexer.setEmbeddingPort({
@@ -73,6 +73,31 @@ export function createMergeCoreApp(context: vscode.ExtensionContext): void {
       ? context.extension.packageJSON.version
       : '0.0.0';
   const sidebar = new MergeCoreSidebarProvider(context.extensionUri, assetVersion);
+  const status = registerMergeCoreStatusBar(context, indexer);
+
+  const indexedRoots = new Set<string>();
+  const ensureIndexed = async (workspaceRoot: string): Promise<void> => {
+    if (indexedRoots.has(workspaceRoot)) {
+      return;
+    }
+    try {
+      const store = await indexer.getStore(workspaceRoot);
+      if (store.chunkCount > 0) {
+        indexedRoots.add(workspaceRoot);
+        return;
+      }
+    } catch {
+      // fall through to full index
+    }
+    indexedRoots.add(workspaceRoot);
+    try {
+      await indexer.indexRepository(workspaceRoot);
+    } catch (err) {
+      indexedRoots.delete(workspaceRoot);
+      logger.warn(`Deferred index skipped: ${err instanceof Error ? err.message : String(err)}`);
+      status.setMessage('Index pending', false);
+    }
+  };
 
   context.subscriptions.push(diagnostics);
   context.subscriptions.push({ dispose: () => sidebar.dispose() });
@@ -82,20 +107,30 @@ export function createMergeCoreApp(context: vscode.ExtensionContext): void {
     vscode.workspace.onDidChangeWorkspaceFolders(() => {
       clearProjectProfileCache();
       indexer.clear();
+      indexedRoots.clear();
     })
   );
   context.subscriptions.push(installIndexWatchers(indexer, logger));
+  context.subscriptions.push(
+    sidebar.onDidResolve(() => {
+      const folder = vscode.workspace.workspaceFolders?.[0];
+      if (folder) {
+        void ensureIndexed(folder.uri.fsPath);
+      }
+    })
+  );
 
   registerCognitionCommands(context, { indexer, logger });
   registerMergeCoreHoverProvider(context, {
     indexer,
     explainer,
-    embedQuery: async (text) => {
-      const vectors = await ollamaRef.current.embed([text]);
+    embedQuery: async (text, signal) => {
+      const vectors = await ollamaRef.current.embed([text], signal);
       return vectors?.[0];
     },
     getMode: () => readExplanationMode(),
     getProfile: () => readIntelligenceProfile(),
+    ensureIndexed,
   });
 
   registerMergeCoreCommands(context, {
@@ -122,17 +157,6 @@ export function createMergeCoreApp(context: vscode.ExtensionContext): void {
     },
   });
   context.subscriptions.push(provider);
-
-  const status = registerMergeCoreStatusBar(context, indexer);
-
-  // Background index on activate when a workspace is open
-  const folder = vscode.workspace.workspaceFolders?.[0];
-  if (folder) {
-    void indexer.indexRepository(folder.uri.fsPath).catch((err) => {
-      logger.warn(`Background index skipped: ${err instanceof Error ? err.message : String(err)}`);
-      status.setMessage('Index pending', false);
-    });
-  }
 
   context.subscriptions.push(
     vscode.workspace.onDidChangeConfiguration((e) => {

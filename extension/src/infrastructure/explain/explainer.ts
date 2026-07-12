@@ -15,6 +15,7 @@ export interface ExplainSymbolInput {
   readonly relatedSummary: string;
   readonly ragContext: string;
   readonly architecturalHints: string;
+  readonly signal?: AbortSignal;
 }
 
 export interface SymbolExplanation {
@@ -23,8 +24,11 @@ export interface SymbolExplanation {
 }
 
 export interface ExplainerPorts {
-  readonly chat: (messages: readonly OllamaChatMessage[]) => Promise<string | undefined>;
-  readonly isAvailable: () => Promise<boolean>;
+  readonly chat: (
+    messages: readonly OllamaChatMessage[],
+    signal?: AbortSignal
+  ) => Promise<string | undefined>;
+  readonly isAvailable: (signal?: AbortSignal) => Promise<boolean>;
 }
 
 const SECTION_HEADERS = [
@@ -45,7 +49,7 @@ export class Explainer {
 
   async explain(input: ExplainSymbolInput): Promise<SymbolExplanation> {
     if (this.ports) {
-      const available = await this.ports.isAvailable();
+      const available = await this.ports.isAvailable(input.signal);
       if (available) {
         const mode = getExplanationMode(input.mode);
         const profile = getIntelligenceProfile(input.profile);
@@ -81,10 +85,13 @@ export class Explainer {
           input.architecturalHints || '(none)',
         ].join('\n');
 
-        const content = await this.ports.chat([
-          { role: 'system', content: system },
-          { role: 'user', content: user },
-        ]);
+        const content = await this.ports.chat(
+          [
+            { role: 'system', content: system },
+            { role: 'user', content: user },
+          ],
+          input.signal
+        );
         if (content) {
           const audit = auditHoverExplanation(content);
           if (audit.ok) {

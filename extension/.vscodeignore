@@ -1,12 +1,16 @@
 .vscode/**
 .vscode-test/**
 src/**
-**/*.map
-**/*.ts
 tsconfig.json
 .gitignore
-**/node_modules/**
 build.mjs
+**/node_modules/**
+**/*.ts
+**/*.map
+
+# Ship only the bundled extension entry + vendored sql.js (not tsc emit tree).
 out/**
 !out/extension.js
-media/**/*.map
+!out/vendor/**
+!out/vendor/sql.js/**
+!out/vendor/sql.js/dist/**

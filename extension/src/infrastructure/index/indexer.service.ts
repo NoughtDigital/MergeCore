@@ -17,10 +17,15 @@ export type IndexStatusListener = (message: string, busy: boolean) => void;
 
 /**
  * Owns per-workspace RagStore instances, full/incremental indexing, and retrieve.
+ *
+ * Incremental path updates that arrive while a root is already indexing are
+ * queued and drained after the active run finishes, so watcher batches are
+ * never silently dropped during a full repository index.
  */
 export class IndexerService {
   private readonly stores = new Map<string, RagStore>();
   private readonly indexing = new Set<string>();
+  private readonly pendingPaths = new Map<string, Set<string>>();
   private listeners = new Set<IndexStatusListener>();
   private embedding: EmbeddingPort | undefined;
 
@@ -42,6 +47,34 @@ export class IndexerService {
     for (const l of this.listeners) {
       l(message, busy);
     }
+  }
+
+  private enqueuePending(workspaceRoot: string, relPaths: readonly string[]): void {
+    let set = this.pendingPaths.get(workspaceRoot);
+    if (!set) {
+      set = new Set();
+      this.pendingPaths.set(workspaceRoot, set);
+    }
+    for (const rel of relPaths) {
+      if (rel) {
+        set.add(rel);
+      }
+    }
+  }
+
+  /** Take queued paths and schedule an incremental run once the lock is free. */
+  private schedulePendingDrain(workspaceRoot: string): void {
+    const queued = this.pendingPaths.get(workspaceRoot);
+    if (!queued || queued.size === 0) {
+      this.pendingPaths.delete(workspaceRoot);
+      return;
+    }
+    this.pendingPaths.delete(workspaceRoot);
+    void this.indexPaths(workspaceRoot, [...queued]).catch((err) => {
+      this.logger.warn(
+        `Pending incremental index failed: ${err instanceof Error ? err.message : String(err)}`
+      );
+    });
   }
 
   async getStore(workspaceRoot: string): Promise<RagStore> {
@@ -96,11 +129,16 @@ export class IndexerService {
       throw err;
     } finally {
       this.indexing.delete(workspaceRoot);
+      this.schedulePendingDrain(workspaceRoot);
     }
   }
 
   async indexPaths(workspaceRoot: string, relPaths: readonly string[]): Promise<void> {
-    if (relPaths.length === 0 || this.indexing.has(workspaceRoot)) {
+    if (relPaths.length === 0) {
+      return;
+    }
+    if (this.indexing.has(workspaceRoot)) {
+      this.enqueuePending(workspaceRoot, relPaths);
       return;
     }
     this.indexing.add(workspaceRoot);
@@ -125,6 +163,7 @@ export class IndexerService {
       this.logger.warn(`Incremental index failed: ${msg}`);
     } finally {
       this.indexing.delete(workspaceRoot);
+      this.schedulePendingDrain(workspaceRoot);
     }
   }
 
@@ -141,8 +180,10 @@ export class IndexerService {
   clear(workspaceRoot?: string): void {
     if (workspaceRoot) {
       this.stores.delete(workspaceRoot);
+      this.pendingPaths.delete(workspaceRoot);
     } else {
       this.stores.clear();
+      this.pendingPaths.clear();
     }
   }
 }

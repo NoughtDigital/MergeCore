@@ -28,7 +28,12 @@ import { FindingDiagnostics } from '../diagnostics/finding-diagnostics';
 import { ReviewSessionState } from '../state/review-session.state';
 import type { MergeCoreSidebarProvider } from '../webview/mergecore-sidebar.provider';
 import { confirmApplyWithDiff } from '../apply-confirmation';
-import { resolverFor, type ResolvedScope, type ScopeResolverContext } from './review-scope-resolvers';
+import {
+  resolverFor,
+  resolveGitDiffReview,
+  type ResolvedScope,
+  type ScopeResolverContext,
+} from './review-scope-resolvers';
 
 interface Deps {
   review: ReviewCodeUseCase;
@@ -76,6 +81,7 @@ export function registerMergeCoreCommands(context: vscode.ExtensionContext, deps
       const controller = new AbortController();
       abortSignals.current = controller;
 
+      void deps.sidebar.setReviewRunning(true);
       try {
         await vscode.window.withProgress(
           {
@@ -90,12 +96,14 @@ export function registerMergeCoreCommands(context: vscode.ExtensionContext, deps
           }
         );
       } finally {
+        void deps.sidebar.setReviewRunning(false);
         release();
         if (abortSignals.current === controller) {
           abortSignals.current = undefined;
         }
       }
     } catch (e) {
+      void deps.sidebar.setReviewRunning(false);
       const message = e instanceof Error ? e.message : String(e);
       MergeCoreLogger.shared.error(`Command failed: ${key}`, e);
       void vscode.window.showErrorMessage(`MergeCore: ${message}`);
@@ -120,6 +128,17 @@ export function registerMergeCoreCommands(context: vscode.ExtensionContext, deps
     });
   };
 
+  const runGitDiff = async (mode: 'working' | 'staged'): Promise<void> => {
+    await run(`review.git.${mode}`, async () => {
+      const resolved = await resolveGitDiffReview(resolverContext, mode);
+      if (!resolved) {
+        return undefined;
+      }
+      const request = await buildRequestFromResolved(resolved, 'pr');
+      return { request, document: resolved.document };
+    });
+  };
+
   context.subscriptions.push(
     ...REVIEW_LEVELS.map((level) =>
       vscode.commands.registerCommand(commandIdForReviewLevel(level.id), () => runLevel(level.id))
@@ -129,8 +148,8 @@ export function registerMergeCoreCommands(context: vscode.ExtensionContext, deps
     // maps to the closest new level so behaviour is preserved.
     vscode.commands.registerCommand('mergecore.reviewSelection', () => runLevel('quick')),
     vscode.commands.registerCommand('mergecore.reviewFile', () => runLevel('file')),
-    vscode.commands.registerCommand('mergecore.reviewGitDiff', () => runLevel('pr')),
-    vscode.commands.registerCommand('mergecore.reviewStagedDiff', () => runLevel('pr')),
+    vscode.commands.registerCommand('mergecore.reviewGitDiff', () => runGitDiff('working')),
+    vscode.commands.registerCommand('mergecore.reviewStagedDiff', () => runGitDiff('staged')),
     vscode.commands.registerCommand('mergecore.showSidebar', async () => {
       await vscode.commands.executeCommand('workbench.view.extension.mergecore');
     }),
@@ -284,7 +303,7 @@ async function publishResult(
 ): Promise<void> {
   const display = buildReviewDisplayInfo(request);
   deps.session.set(result, document.uri, display);
-  deps.diagnostics.setForDocument(document, result.findings);
+  deps.diagnostics.replaceAllForDocument(document, result.findings);
   await deps.sidebar.showResult(result, display);
 }
 

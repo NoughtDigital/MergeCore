@@ -47,7 +47,12 @@ export function registerReviewWebviewMessages(
         if (typeof raw !== 'string' || !isReviewLevelId(raw)) {
           return;
         }
-        await vscode.commands.executeCommand(commandIdForReviewLevel(raw));
+        try {
+          await webview.postMessage({ type: 'reviewState', payload: { running: true } });
+          await vscode.commands.executeCommand(commandIdForReviewLevel(raw));
+        } finally {
+          await webview.postMessage({ type: 'reviewState', payload: { running: false } });
+        }
         return;
       }
       default:
