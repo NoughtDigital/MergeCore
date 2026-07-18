@@ -33,6 +33,7 @@ export function buildReviewPanelHtml(
           <div class="mc-brand-name">MergeCore</div>
           <div class="mc-brand-sub-row">
             <div id="brand-sub" class="mc-brand-sub">Second opinion against a senior bar</div>
+            <span id="brand-mock" class="mc-mock-chip mc-hidden" hidden></span>
             <span id="brand-level" class="mc-level-chip mc-hidden" hidden></span>
             <span id="brand-persona" class="mc-persona-chip mc-hidden" hidden></span>
           </div>

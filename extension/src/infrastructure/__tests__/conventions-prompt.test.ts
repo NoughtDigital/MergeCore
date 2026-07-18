@@ -49,8 +49,45 @@ test('buildUserPrompt omits the conventions block when there are none', () => {
   );
 });
 
+test('buildUserPrompt suppresses outvoted layering rivals', () => {
+  const prompt = buildUserPrompt({
+    scope: 'file',
+    filePath: 'app/Services/FooService.php',
+    languageId: 'php',
+    codeOrDiff: '<?php class FooService {}',
+    projectRulesDigest: 'php-rules: []',
+    deterministicFindingsJson: '[]',
+    maxFindings: 10,
+    conventions: [
+      {
+        id: 'layering:services-over-helpers',
+        label: 'Prefers services',
+        confidence: 'high',
+        category: 'layering',
+        evidence: ['24 service files in Services/'],
+      },
+      {
+        id: 'arch:actions-pattern',
+        label: 'Uses Actions',
+        confidence: 'medium',
+        category: 'architecture',
+        evidence: ['3 action files under Actions/'],
+      },
+    ],
+  });
+  assert.match(prompt, /layering:services-over-helpers/);
+  assert.match(prompt, /Suppressed \(do not critique against\)/);
+  assert.match(prompt, /arch:actions-pattern: outvoted by layering:services-over-helpers/);
+  assert.ok(
+    !/^- \[medium\] arch:actions-pattern/m.test(prompt),
+    'Actions should not remain in the active critique list when Services dominate'
+  );
+});
+
 test('buildSystemPrompt mentions the contextual memory rules', () => {
   const system = buildSystemPrompt();
   assert.match(system, /Contextual memory/);
   assert.match(system, /convention id/);
+  assert.match(system, /Suppressed/);
+  assert.match(system, /placement conflicts/);
 });

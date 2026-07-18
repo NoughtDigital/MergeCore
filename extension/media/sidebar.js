@@ -12,6 +12,7 @@
   const scoreResidualEl = document.getElementById('score-residual');
   const brandSubEl = document.getElementById('brand-sub');
   const brandFileEl = document.getElementById('brand-file');
+  const brandMockEl = document.getElementById('brand-mock');
   const brandPersonaEl = document.getElementById('brand-persona');
   const brandLevelEl = document.getElementById('brand-level');
   const summaryEl = document.getElementById('summary');
@@ -123,6 +124,22 @@
       brandFileEl.textContent = fl;
       brandFileEl.title = fl;
     }
+    if (brandMockEl) {
+      const ins = payload.scoreInsight || {};
+      const mockBadge = typeof ins.mockBadge === 'string' ? ins.mockBadge.trim() : '';
+      if (mockBadge) {
+        brandMockEl.textContent = mockBadge;
+        brandMockEl.title = mockBadge;
+        brandMockEl.hidden = false;
+        brandMockEl.classList.remove('mc-hidden');
+      } else {
+        brandMockEl.textContent = '';
+        brandMockEl.title = '';
+        brandMockEl.hidden = true;
+        brandMockEl.classList.add('mc-hidden');
+      }
+    }
+
     if (brandPersonaEl) {
       const badge = typeof display.personaBadge === 'string' ? display.personaBadge.trim() : '';
       const title = typeof display.personaTitle === 'string' ? display.personaTitle.trim() : '';
@@ -232,7 +249,11 @@
       spLabel.textContent = String(lab);
       const spLevel = document.createElement('span');
       spLevel.className = 'mc-dimension-level';
-      spLevel.textContent = String(d.level || '');
+      const levelText = d.level ? String(d.level) : '';
+      spLevel.textContent = levelText;
+      if (!levelText) {
+        spLevel.hidden = true;
+      }
       const spSub = document.createElement('span');
       spSub.className = 'mc-dimension-sub';
       spSub.textContent = String(sub) + '/10';
@@ -456,6 +477,9 @@
     }
     if (f.code) {
       bits.push(f.code);
+    }
+    if (f.source) {
+      bits.push('source: ' + f.source);
     }
     if (bits.length) {
       const meta = document.createElement('div');

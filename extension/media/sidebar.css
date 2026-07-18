@@ -117,6 +117,21 @@
   text-transform: uppercase;
 }
 
+.mc-mock-chip {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  line-height: 1;
+  padding: 2px 7px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--vscode-descriptionForeground) 18%, transparent);
+  color: var(--vscode-descriptionForeground);
+  border: 1px dashed color-mix(in srgb, var(--vscode-widget-border) 80%, transparent);
+}
+
 .mc-brand-file {
   font-size: 10px;
   color: color-mix(in srgb, var(--vscode-descriptionForeground) 88%, transparent);

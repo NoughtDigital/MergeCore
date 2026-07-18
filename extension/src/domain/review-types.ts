@@ -4,6 +4,9 @@ import type { ReviewPersonaId } from './review-personas';
 
 export type Severity = 'critical' | 'error' | 'warning' | 'info' | 'hint';
 
+/** Where a finding originated — mock heuristics vs model/API. */
+export type FindingSource = 'mock-rule' | 'model';
+
 export interface Finding {
   readonly id: string;
   readonly severity: Severity;
@@ -15,6 +18,8 @@ export interface Finding {
   readonly column?: number;
   readonly category?: string;
   readonly code?: string;
+  /** Present on deterministic mock findings; omitted for model/API results. */
+  readonly source?: FindingSource;
   /**
    * Short, lower-cased signal word (e.g. "silently", "implicit cast", "swallows
    * errors") extracted by the teaching-enforcement pass when the finding's

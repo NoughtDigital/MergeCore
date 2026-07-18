@@ -3,6 +3,7 @@
  * the model must not contradict grounded rule hits on severity for the same evidence.
  */
 
+import { resolveConventionConflicts } from '../intelligence/conventions/resolve-conflicts';
 import { getPersonaById, type ReviewPersonaId } from './personas.js';
 import { getReviewLevelById, type ReviewLevelId } from './review-levels.js';
 
@@ -81,8 +82,8 @@ H. Evidence still dominates. Strong wording NEVER justifies inventing evidence o
 
 Contextual memory (applies whenever project conventions are provided):
 I. Treat the listed project conventions as this repo's declared standards. A finding that contradicts a stated convention is evidence against the reviewed input, not against the convention.
-J. When the reviewed input diverges from a high-confidence convention (e.g. adds a Service in an Actions-pattern repo, introduces a FormRequest bypass in a typed-requests repo, adds a PHPUnit class in a Pest-first repo), raise a finding that names the convention id, quotes the divergent snippet, and states the concrete fix that aligns with the convention.
-K. Do not invent conventions that were not provided. If an expected convention is absent from the list, do not assert it.
+J. When the reviewed input diverges from a high-confidence active convention, raise a finding that names the convention id, quotes the divergent snippet, and states the concrete fix that aligns with the convention. Do not treat a Service class as divergence when layering:services-over-helpers is dominant or arch:actions-pattern is listed under Suppressed. When both Actions and Services remain active, only flag placement conflicts (e.g. a Service under Actions/, an Action under Services/) — never a pattern holy war that bans the majority layer. Other examples: FormRequest bypass in a typed-requests repo, PHPUnit class in a Pest-first repo.
+K. Do not invent conventions that were not provided. If an expected convention is absent from the list, do not assert it. Never critique against conventions listed under Suppressed.
 L. Convention-driven findings still obey ground rules 1–3 (verbatim evidence, no fabricated files, no invented line numbers). Comment-strength rules A–H apply unchanged.`;
 
 export function buildSystemPrompt(
@@ -152,14 +153,14 @@ Comment-strength reminder (applies to every finding's message, why_it_matters an
 
 Explain Why reminder (critical/error/warning findings): every criticism must teach. why_it_matters has to name a concrete cost (outage, data loss, exploit, broken caller, onboarding cost, revert cost, test gap) AND, when the reviewed input carries a hidden side effect (silent catch, implicit coercion, shared-state mutation, name shadowing, monkey-patch, leaked context), say it explicitly so readers leave with a reusable principle. A why_it_matters that restates the title, hedges the risk or stays under 60 characters is a defect — rewrite it or drop the finding rather than ship a label without a lesson.
 
-Contextual-memory reminder: when the Project conventions block above is present, treat its entries as this repo's declared standards. Name the convention id in findings that call out a divergence, and do not invent conventions that were not listed.`;
+Contextual-memory reminder: when the Project conventions block above is present, treat its active entries as this repo's declared standards. Name the convention id in findings that call out a divergence, do not invent conventions that were not listed, and never critique against entries under Suppressed.`;
 }
 
 /**
  * Renders the detected project conventions as a compact, stable block
  * the model can quote back when raising a convention-divergence finding.
- * Empty when no conventions are supplied, so prompts for brand-new
- * repos stay identical to the pre-contextual-memory shape.
+ * Rival layering conventions are resolved first so minority patterns are
+ * not treated as exclusive law. Empty when no conventions are supplied.
  */
 function formatConventionsBlock(
   conventions: readonly ProjectConventionDigest[] | undefined
@@ -167,10 +168,18 @@ function formatConventionsBlock(
   if (!conventions || conventions.length === 0) {
     return '';
   }
+  const resolved = resolveConventionConflicts(conventions);
   const lines = ['--- Project conventions (contextual memory; critique divergences) ---'];
-  for (const c of conventions) {
+  for (const c of resolved.activeConventions) {
     const evidence = c.evidence && c.evidence.length > 0 ? ` — ${c.evidence.join('; ')}` : '';
     lines.push(`- [${c.confidence}] ${c.id} (${c.category}): ${c.label}${evidence}`);
+  }
+  if (resolved.suppressedConventions.length > 0) {
+    lines.push('--- Suppressed (do not critique against) ---');
+    for (const s of resolved.suppressedConventions) {
+      const c = s.convention;
+      lines.push(`- ${c.id}: ${s.reason}`);
+    }
   }
   lines.push('');
   lines.push('');

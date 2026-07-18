@@ -1,6 +1,7 @@
-import type { ProjectConvention } from '@mergecore/intelligence';
+import { resolveConventionConflicts, type ProjectConvention } from '@mergecore/intelligence';
 import type { ReviewEngine } from '../application/ports/review-engine.port';
-import type { ReviewRequest, ReviewResult } from '../domain/review-types';
+import type { Finding, ReviewRequest, ReviewResult, ReviewScope } from '../domain/review-types';
+import { clampScore10, penaltyForSeverity } from '../domain/score-weights';
 import { getPersonaById, type ReviewPersonaId } from '../domain/review-personas';
 import { getReviewLevelById, type ReviewLevelId } from '../domain/review-levels';
 
@@ -207,36 +208,29 @@ const PERSONA_TONES: Readonly<Record<ReviewPersonaId, PersonaMockTone>> = {
 interface LevelMockTone {
   readonly summaryPrefix: string;
   readonly findingCap: number;
-  /** Scalar applied to the deterministic rule weight for scoring (higher = harsher). */
-  readonly weightScale: number;
 }
 
 const LEVEL_TONES: Readonly<Record<ReviewLevelId, LevelMockTone>> = {
   quick: {
     summaryPrefix: 'Quick Review lens: function-scoped sanity check.',
     findingCap: 5,
-    weightScale: 0.8,
   },
   file: {
     summaryPrefix: '',
     findingCap: 12,
-    weightScale: 1.0,
   },
   flow: {
     summaryPrefix:
       'Flow Review lens: tracing the business process across linked files (no real cross-file analysis in mock).',
     findingCap: 15,
-    weightScale: 1.05,
   },
   pr: {
     summaryPrefix: 'PR Review lens: change-impact analysis over your diff.',
     findingCap: 18,
-    weightScale: 1.1,
   },
   disaster: {
     summaryPrefix: 'Disaster Review lens: broad, unsparing sweep (mock still limited — real reviewer will find more).',
     findingCap: 25,
-    weightScale: 1.25,
   },
 };
 
@@ -303,24 +297,31 @@ export class MockReviewEngine implements ReviewEngine {
     }
 
     const conventions = request.projectProfile?.conventions ?? [];
-    const divergences = detectConventionDivergences(conventions, request.content);
+    const divergences = detectConventionDivergences(
+      conventions,
+      request.content,
+      request.filePath,
+      request.scope
+    );
     for (const divergence of divergences) {
       findings.push(divergence);
     }
 
-    const cappedFindings = findings.slice(0, levelTone.findingCap);
+    const cappedFindings: Finding[] = findings.slice(0, levelTone.findingCap).map((f) => ({
+      ...f,
+      source: 'mock-rule' as const,
+    }));
 
-    // Persona shifts severity weighting; level scales how harshly we feel it
-    // so Disaster Review scores lower than Quick Review for the same code.
-    const severityWeight = cappedFindings.reduce(
-      (sum, f) => sum + severityCost(f.severity) * levelTone.weightScale,
-      0
-    );
-    const seed = `${persona.id}\0${level.id}\0${request.filePath}\0${request.content.slice(0, 4000)}`;
-    const h = fnv1a32(seed);
-    const jitter = (h % 10000) / 10000 - 0.5;
-    const raw = 9.34 - severityWeight + jitter * 0.36;
-    const score = Math.round(Math.max(3, Math.min(10, raw)) * 100) / 100;
+    // One formula: 10 − Σ weight(severity). Jitter only when zero findings (±0.1 demo variance).
+    const severityWeight = cappedFindings.reduce((sum, f) => sum + penaltyForSeverity(f.severity), 0);
+    let raw = 10 - severityWeight;
+    if (cappedFindings.length === 0) {
+      const seed = `${persona.id}\0${level.id}\0${request.filePath}\0${request.content.slice(0, 4000)}`;
+      const h = fnv1a32(seed);
+      const jitter = ((h % 10000) / 10000 - 0.5) * 0.2; // ±0.1
+      raw += jitter;
+    }
+    const score = clampScore10(Math.max(3, raw));
 
     const baseSummary =
       request.scope === 'git-diff'
@@ -350,41 +351,94 @@ export class MockReviewEngine implements ReviewEngine {
   }
 }
 
+const SERVICE_CLASS_RE = /\bclass\s+[A-Z][A-Za-z0-9_]*Service\b/;
+const ACTION_CLASS_RE = /\bclass\s+[A-Z][A-Za-z0-9_]*Action\b/;
+const ADDED_SERVICE_CLASS_RE = /^\+.*\bclass\s+[A-Z][A-Za-z0-9_]*Service\b/m;
+const ADDED_ACTION_CLASS_RE = /^\+.*\bclass\s+[A-Z][A-Za-z0-9_]*Action\b/m;
+
+type MockFinding = Pick<
+  Finding,
+  'id' | 'severity' | 'message' | 'whyItMatters' | 'fixHint' | 'category' | 'code'
+>;
+
 /**
  * Offline critique against the repo's remembered conventions. The mock only
  * emits a finding when the divergence is visible in the reviewed input
- * itself — we never fabricate evidence. The real reviewer does a much
- * richer job; this exists so users see the memory feature working without
- * an API token.
+ * itself — we never fabricate evidence. Rival layering conventions are
+ * resolved first so Services-first repos are not punished for having Actions.
  */
-function detectConventionDivergences(
+export function detectConventionDivergences(
   conventions: readonly ProjectConvention[],
-  content: string
-): Array<{
-  id: string;
-  severity: 'warning' | 'info';
-  message: string;
-  whyItMatters: string;
-  fixHint: string;
-  category: string;
-  code: string;
-}> {
+  content: string,
+  filePath: string = '',
+  scope: ReviewScope = 'file'
+): MockFinding[] {
   if (conventions.length === 0) {
     return [];
   }
-  const out: ReturnType<typeof detectConventionDivergences> = [];
-  const has = (id: string): boolean => conventions.some((c) => c.id === id);
+  const resolved = resolveConventionConflicts(conventions);
+  const active = resolved.activeConventions;
+  const has = (id: string): boolean => active.some((c) => c.id === id);
+  const out: MockFinding[] = [];
 
-  if (has('arch:actions-pattern') && /\bclass\s+[A-Z][A-Za-z0-9_]*Service\b/.test(content)) {
+  const pathNorm = filePath.replace(/\\/g, '/');
+  const underServices = /\/services\//i.test(`/${pathNorm}`);
+  const underActions = /\/actions?\//i.test(`/${pathNorm}`);
+  const actionsActive = has('arch:actions-pattern');
+  const servicesActive = has('layering:services-over-helpers');
+  const dominant = resolved.dominantLayeringId;
+
+  const serviceVisible =
+    scope === 'git-diff' ? ADDED_SERVICE_CLASS_RE.test(content) : SERVICE_CLASS_RE.test(content);
+  const actionVisible =
+    scope === 'git-diff' ? ADDED_ACTION_CLASS_RE.test(content) : ACTION_CLASS_RE.test(content);
+
+  if (serviceVisible) {
+    if (actionsActive && !servicesActive) {
+      // Actions alone — never rename an existing *Service already under Services/.
+      // Full-file reviews only fire for wrong placement or non-Services paths when Actions dominate.
+      const allowFullFile =
+        scope === 'git-diff' || underActions || (!underServices && dominant === 'arch:actions-pattern');
+      if (allowFullFile && !underServices) {
+        out.push({
+          id: 'mock-convention-service-in-actions-repo',
+          severity: 'warning',
+          message:
+            'New Service class diverges from the repo convention `arch:actions-pattern`. Add it as an invokable Action, not a Service.',
+          whyItMatters:
+            'The repo is already organised around single-responsibility Actions. Introducing a Service at this seam splits the team across two competing patterns and makes future refactors harder.',
+          fixHint:
+            'Rename to `<Verb><Noun>Action`, move under `Actions/`, and expose the work through `handle()` or `__invoke()`.',
+          category: 'architecture',
+          code: 'MERGECORE_CONVENTION_DIVERGENCE',
+        });
+      }
+    } else if (actionsActive && servicesActive && underActions) {
+      // Both medium+ — placement only, not pattern holy war.
+      out.push({
+        id: 'mock-convention-service-placement',
+        severity: 'warning',
+        message:
+          'Service class sits under Actions/. Repo uses both Actions and Services — prefer Services/ for Service classes to match majority placement.',
+        whyItMatters:
+          'Keeping *Service classes under Actions/ mixes two layering conventions in one folder and makes the next contributor guess where similar work belongs.',
+        fixHint: 'Move the class under `Services/` (or rename to an Action if this seam should stay invokable).',
+        category: 'architecture',
+        code: 'MERGECORE_CONVENTION_DIVERGENCE',
+      });
+    }
+    // Services dominant (Actions suppressed) or Service under Services/ with both active → quiet.
+  }
+
+  if (actionVisible && actionsActive && servicesActive && underServices) {
     out.push({
-      id: 'mock-convention-service-in-actions-repo',
+      id: 'mock-convention-action-placement',
       severity: 'warning',
       message:
-        'New Service class diverges from the repo convention `arch:actions-pattern`. Add it as an invokable Action, not a Service.',
+        'Action class sits under Services/. Repo uses both Actions and Services — prefer Actions/ for Action classes.',
       whyItMatters:
-        'The repo is already organised around single-responsibility Actions. Introducing a Service at this seam splits the team across two competing patterns and makes future refactors harder.',
-      fixHint:
-        'Rename to `<Verb><Noun>Action`, move under `Actions/`, and expose the work through `handle()` or `__invoke()`.',
+        'An Action under Services/ muddies the majority placement signal and trains contributors to ignore folder conventions.',
+      fixHint: 'Move the class under `Actions/` or rename it to a Service if that matches the work.',
       category: 'architecture',
       code: 'MERGECORE_CONVENTION_DIVERGENCE',
     });
@@ -426,10 +480,7 @@ function detectConventionDivergences(
     });
   }
 
-  if (
-    has('types:typescript-strict') &&
-    /\bas\s+any\b|:\s*any\b/.test(content)
-  ) {
+  if (has('types:typescript-strict') && /\bas\s+any\b|:\s*any\b/.test(content)) {
     out.push({
       id: 'mock-convention-any-in-strict-repo',
       severity: 'warning',
@@ -458,20 +509,4 @@ function formatRememberedConventions(conventions: readonly ProjectConvention[]):
   const top = conventions.slice(0, 4).map((c) => c.label);
   const suffix = conventions.length > top.length ? `, +${conventions.length - top.length} more` : '';
   return ` Remembered: ${top.join('; ')}${suffix}.`;
-}
-
-function severityCost(severity: 'critical' | 'error' | 'warning' | 'info' | 'hint'): number {
-  switch (severity) {
-    case 'critical':
-      return 2.8;
-    case 'error':
-      return 2.0;
-    case 'warning':
-      return 1.25;
-    case 'info':
-      return 0.6;
-    case 'hint':
-    default:
-      return 0.4;
-  }
 }

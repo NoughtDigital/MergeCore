@@ -6,11 +6,21 @@ export type {
   PhpStackInfo,
   JavascriptStackInfo,
 } from './types';
+export { emptyPhpStack, emptyJsStack } from './types';
 export { PROJECT_DETECTORS, type ProjectDetector } from './registry';
 export {
   CONVENTION_DETECTORS,
   type ConventionDetector,
 } from './conventions/registry';
+export {
+  resolveConventionConflicts,
+  conventionStrength,
+  LAYERING_RIVAL_IDS,
+  type ConventionLike,
+  type ConventionConflictResolution,
+  type SuppressedConvention,
+  type LayeringRivalId,
+} from './conventions/resolve-conflicts';
 export {
   scanProdRisks,
   BUILTIN_PROD_RISK_RULES,

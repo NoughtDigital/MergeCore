@@ -37,14 +37,17 @@ export function formatReviewAsMarkdown(
   lines.push(`**Score:** ${formatScoreForExport(result.score)}/10`);
   lines.push('');
   const insight = buildScoreInsight(result);
+  if (insight.mockBadge) {
+    lines.push(`**${insight.mockBadge}**`);
+    lines.push('');
+  }
   lines.push('## Score detail');
   lines.push('');
   lines.push(insight.whyText);
   lines.push('');
   for (const d of insight.dimensions) {
-    lines.push(
-      `- **${d.label}:** ${d.level} (${formatScoreForExport(d.subScore)}/10)`
-    );
+    const levelBit = d.level ? `${d.level} ` : '';
+    lines.push(`- **${d.label}:** ${levelBit}(${formatScoreForExport(d.subScore)}/10)`);
   }
   lines.push('');
   lines.push('### What went well');
@@ -81,6 +84,9 @@ export function formatReviewAsMarkdown(
       }
       if (f.code) {
         lines.push(`- **Code:** ${f.code}`);
+      }
+      if (f.source) {
+        lines.push(`- **Source:** ${f.source}`);
       }
       if (f.sideEffectSignal) {
         lines.push(
