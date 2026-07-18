@@ -77,6 +77,7 @@
     "onCommand:mergecore.memory.refreshStale",
     "onCommand:mergecore.memory.openFolder",
     "onCommand:mergecore.generateTaskContext",
+    "onCommand:mergecore.copyMcpConfig",
     "onView:mergecore.sidebar"
   ],
   "main": "./out/extension.js",
@@ -227,6 +228,10 @@
       {
         "command": "mergecore.generateTaskContext",
         "title": "MergeCore: Generate Task Context"
+      },
+      {
+        "command": "mergecore.copyMcpConfig",
+        "title": "MergeCore: Copy MCP Client Config"
       }
     ],
     "menus": {
@@ -326,7 +331,8 @@
         { "command": "mergecore.memory.reject" },
         { "command": "mergecore.memory.refreshStale" },
         { "command": "mergecore.memory.openFolder" },
-        { "command": "mergecore.generateTaskContext" }
+        { "command": "mergecore.generateTaskContext" },
+        { "command": "mergecore.copyMcpConfig" }
       ]
     },
     "viewsContainers": {

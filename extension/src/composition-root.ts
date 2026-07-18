@@ -28,6 +28,7 @@ import { registerHoverCommands } from './presentation/hover/register-hover-comma
 import { registerExplainSelectedCode } from './presentation/explain/register-explain-selected';
 import { registerMemoryCommands } from './presentation/memory/register-memory-commands';
 import { registerGenerateTaskContext } from './presentation/context/register-task-context';
+import { registerCopyMcpConfig } from './presentation/commands/register-copy-mcp-config';
 import { ReviewSessionState } from './presentation/state/review-session.state';
 import { registerMergeCoreStatusBar } from './presentation/status/mergecore-status-bar';
 import { MergeCoreSidebarProvider } from './presentation/webview/mergecore-sidebar.provider';
@@ -191,6 +192,7 @@ export function createMergeCoreApp(context: vscode.ExtensionContext): void {
     session,
     sidebar,
   });
+  registerCopyMcpConfig(context);
 
   const provider = vscode.window.registerWebviewViewProvider(MergeCoreSidebarProvider.viewId, sidebar, {
     webviewOptions: {

@@ -244,12 +244,14 @@ export {
   parseTaskContextDepth,
   packHasRequiredSections,
   parseTaskContextFrontmatter,
+  detectTaskRiskIndicators,
   REQUIRED_TASK_CONTEXT_SECTIONS,
   TASK_CONTEXT_SCHEMA_VERSION,
   type TaskContextPack,
   type TaskContextInput,
   type TaskContextDepth,
   type TaskContextMeta,
+  type TaskRiskIndicator,
 } from './context/index';
 
 export {

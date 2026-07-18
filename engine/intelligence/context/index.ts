@@ -31,4 +31,4 @@ export {
   writeTaskContextPack,
   type WriteTaskContextPackResult,
 } from './write-task-context-pack';
-export { detectTaskRiskIndicators } from './task-risks';
+export { detectTaskRiskIndicators, type TaskRiskIndicator } from './task-risks';
