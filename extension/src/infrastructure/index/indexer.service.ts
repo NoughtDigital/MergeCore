@@ -13,6 +13,7 @@ import {
 } from '@mergecore/intelligence';
 import * as vscode from 'vscode';
 import { MergeCoreLogger } from '../logger';
+import { readVscodeExtraExclusions } from '../privacy/filter-model-evidence';
 
 export type IndexStatusListener = (message: string, busy: boolean) => void;
 export type IndexStatusDetailListener = (status: IndexStatus) => void;
@@ -97,6 +98,7 @@ export class IndexerService {
     const indexer = await createRepositoryFileIndexer({
       workspaceRoot,
       debugExclusions: true,
+      vscodeExtraExclusions: readVscodeExtraExclusions(),
       onStatus: (s) => {
         this.emit(s.phase === 'done' ? `Indexed ${s.chunkCount} chunks` : s.phase, s.busy);
         this.emitDetail(s);

@@ -162,6 +162,7 @@ export function createMergeCoreApp(context: vscode.ExtensionContext): void {
     explainer,
     getMode: () => readExplanationMode(),
     isModelExplanationEnabled,
+    globalState: context.globalState,
   });
   registerExplainSelectedCode(context, {
     indexer,

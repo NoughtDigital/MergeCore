@@ -15,6 +15,7 @@ import {
   PrivacyGateError,
   recordModelTransmission,
 } from '../../infrastructure/privacy/privacy-gate';
+import { filterOutboundEvidenceItems } from '../../infrastructure/privacy/filter-model-evidence';
 import {
   providerRequiresExternalRequests,
   readPrivacySettings,
@@ -67,9 +68,32 @@ async function buildPack(input: {
           purpose: 'Generate Task Context',
         }
       );
+      const filteredSources = await filterOutboundEvidenceItems(
+        input.workspaceRoot,
+        pack.meta.sources,
+        { purpose: 'Generate Task Context', allowEmpty: true }
+      );
+      const packForModel: TaskContextPack = {
+        ...pack,
+        meta: { ...pack.meta, sources: filteredSources.allowed },
+        evidenceRefs: pack.evidenceRefs.filter((s) =>
+          filteredSources.allowed.some(
+            (a) => a.path === s.path && a.startLine === s.startLine
+          )
+        ),
+      };
+      if (
+        pack.meta.sources.length > 0 &&
+        filteredSources.allowed.length === 0
+      ) {
+        throw new PrivacyGateError(
+          'All task-context sources are blocked for model transmission by privacy rules.',
+          'privacy_blocked'
+        );
+      }
       const ollama = readOllamaSettings();
       const enhanced = await enhanceTaskContextWithModel({
-        pack,
+        pack: packForModel,
         ports: input.modelPorts,
         modelId: ollama.chatModel,
       });

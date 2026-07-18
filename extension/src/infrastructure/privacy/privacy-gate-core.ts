@@ -7,7 +7,8 @@ export type PrivacyGateCode =
   | 'external_disabled'
   | 'consent_cancelled'
   | 'provider_none'
-  | 'missing_key';
+  | 'missing_key'
+  | 'privacy_blocked';
 
 export class PrivacyGateError extends Error {
   constructor(

@@ -16,6 +16,7 @@ import {
   type RepositoryFileIndexer,
 } from '../indexer/repository-file-indexer';
 import { discoverInstructionDocuments } from '../memory/discover-instructions';
+import { classificationAllowsModelEvidence } from '../privacy/filter-evidence';
 import type { EmbeddingPort, IndexProgressCallback } from '../rag/types';
 import { sha256 } from '../rag/hash';
 import { LexicalRepositoryRetriever } from '../retrieve/lexical-retriever';
@@ -47,6 +48,8 @@ export interface IndexOptions {
 
 export interface ContextPackOptions extends RetrieveQueryOptions {
   readonly includeInstructions?: boolean;
+  /** Strip never_send_to_model / local_only / metadata_only evidence from the pack. */
+  readonly forModelEvidence?: boolean;
 }
 
 /**
@@ -217,16 +220,34 @@ class RepositoryIndexImpl implements RepositoryIndex {
       ? await discoverInstructionDocuments(this.workspaceRoot)
       : [];
 
+    let claims = result.claims;
+    let references = result.references;
+    let incomplete = result.incomplete;
+    if (options.forModelEvidence) {
+      const store = this.fileIndexer.getRagStore();
+      claims = claims.filter((c) => {
+        const refPath = c.references[0]?.path;
+        if (!refPath) {
+          return true;
+        }
+        return classificationAllowsModelEvidence(store.getFile(refPath)?.privacy);
+      });
+      references = references.filter((r) =>
+        classificationAllowsModelEvidence(store.getFile(r.path)?.privacy)
+      );
+      incomplete = incomplete || claims.length === 0;
+    }
+
     const packId = sha256(`${this.workspaceRoot}|${query}|${Date.now()}`).slice(0, 20);
     return {
       id: `pack:${packId}`,
       workspaceRoot: this.workspaceRoot,
       query,
       createdAt: Date.now(),
-      claims: result.claims,
+      claims,
       instructions,
-      references: result.references,
-      incomplete: result.incomplete,
+      references,
+      incomplete,
     };
   }
 

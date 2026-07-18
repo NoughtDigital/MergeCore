@@ -49,6 +49,10 @@ export interface CreateRepositoryFileIndexerOptions {
   readonly onStatus?: (status: IndexStatus) => void;
   /** When false, skip compiler graph and use heuristic adapters only. Default true. */
   readonly useCompilerGraph?: boolean;
+  /** Additive never_index patterns from VS Code settings. */
+  readonly vscodeExtraExclusions?: readonly string[];
+  /** Skip reading ~/.config/mergecore/privacy.json (tests). */
+  readonly skipGlobalPrivacyFile?: boolean;
 }
 
 export interface RepositoryFileIndexer {
@@ -192,6 +196,8 @@ class RepositoryFileIndexerImpl implements RepositoryFileIndexer {
         workspaceRoot: this.workspaceRoot,
         debugExclusions: this.debugExclusions,
         signal,
+        vscodeExtraExclusions: this.options.vscodeExtraExclusions,
+        skipGlobalPrivacyFile: this.options.skipGlobalPrivacyFile,
       });
       this.exclusions = [...scan.exclusions];
       this.filesPending = scan.files.length;
@@ -432,6 +438,8 @@ class RepositoryFileIndexerImpl implements RepositoryFileIndexer {
     const evalResult = await evaluatePathForIndex(this.workspaceRoot, relPath, {
       debugExclusions: this.debugExclusions,
       maxFileBytes: this.maxFileBytes,
+      vscodeExtraExclusions: this.options.vscodeExtraExclusions,
+      skipGlobalPrivacyFile: this.options.skipGlobalPrivacyFile,
     });
     if (!evalResult.include) {
       this.filesSkipped++;
@@ -444,6 +452,8 @@ class RepositoryFileIndexerImpl implements RepositoryFileIndexer {
       }
       return;
     }
+
+    const privacyClassification = evalResult.privacy?.classification ?? 'normal';
 
     const abs = path.join(this.workspaceRoot, relPath);
     let content: Buffer;
@@ -483,13 +493,19 @@ class RepositoryFileIndexerImpl implements RepositoryFileIndexer {
     const existing = this.store.getFile(relPath);
     keep.add(relPath);
 
-    if (!force && existing && existing.hash === hash) {
+    if (
+      !force &&
+      existing &&
+      existing.hash === hash &&
+      existing.privacy === privacyClassification
+    ) {
       this.filesSkipped++;
       return;
     }
 
     const adapter = resolveLanguageAdapter(relPath, this.adapters);
-    const docChunks = adapter.chunk(relPath, text);
+    const storeContent = privacyClassification !== 'metadata_only';
+    const docChunks = storeContent ? adapter.chunk(relPath, text) : [];
 
     let symbols: readonly SymbolRecord[];
     let edges: readonly DependencyEdge[];
@@ -532,6 +548,7 @@ class RepositoryFileIndexerImpl implements RepositoryFileIndexer {
       byteLength: content.byteLength,
       indexedAt: Date.now(),
       parseStatus: 'ok',
+      privacy: privacyClassification,
     });
     this.filesIndexed++;
   }

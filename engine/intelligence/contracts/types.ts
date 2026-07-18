@@ -23,11 +23,67 @@ export type ExclusionReason =
   | 'symlink-escape'
   | 'unsupported'
   | 'temp-file'
-  | 'cancelled';
+  | 'cancelled'
+  | 'privacy-rule'
+  | 'global-exclusion'
+  | 'workspace-exclusion'
+  | 'language-exclusion';
 
 export interface ExclusionRecord {
   readonly path: string;
   readonly reason: ExclusionReason;
+  readonly detail?: string;
+}
+
+/**
+ * Per-path privacy classification for indexing and model transmission.
+ * Stronger classifications must not be weakened by nested config without confirmation.
+ */
+export type PrivacyClassification =
+  | 'normal'
+  | 'local_only'
+  | 'metadata_only'
+  | 'never_index'
+  | 'never_send_to_model';
+
+/** Where a privacy rule was defined. */
+export type PrivacyRuleSource =
+  | 'global'
+  | 'workspace'
+  | 'mergecoreignore'
+  | 'gitignore'
+  | 'vscode'
+  | 'default'
+  | 'override';
+
+export interface PrivacyRule {
+  readonly pattern: string;
+  readonly classification: PrivacyClassification;
+  /** When true, pattern is an inclusion that sets normal if no stronger rule applies. */
+  readonly include?: boolean;
+  readonly languages?: readonly string[];
+  readonly extensions?: readonly string[];
+  readonly source: PrivacyRuleSource;
+  /** Absolute or workspace-relative path of the defining file, when known. */
+  readonly rulePath?: string;
+}
+
+/**
+ * Resolved privacy decision for a single path.
+ * Hosts must honour allowsModelEvidence before any outbound pack.
+ */
+export interface PrivacyDecision {
+  readonly path: string;
+  readonly classification: PrivacyClassification;
+  readonly matchedPattern?: string;
+  readonly ruleSource: PrivacyRuleSource;
+  readonly rulePath?: string;
+  readonly exclusionReason?: ExclusionReason;
+  readonly allowsRetrieval: boolean;
+  readonly allowsModelEvidence: boolean;
+  readonly allowsContentStorage: boolean;
+  readonly allowsSymbolIndex: boolean;
+  readonly included: boolean;
   readonly detail?: string;
 }
 
@@ -63,6 +119,8 @@ export interface FileRecord {
   readonly parseStatus: ParseStatus;
   readonly chunkIds: readonly string[];
   readonly symbolIds?: readonly string[];
+  /** Privacy classification applied when the file was indexed. */
+  readonly privacy?: PrivacyClassification;
 }
 
 /** Location of a symbol within a file (1-based lines). */

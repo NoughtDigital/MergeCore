@@ -7,6 +7,16 @@ import {
 import type { Explainer } from '../../infrastructure/explain/explainer';
 import type { IndexerService } from '../../infrastructure/index/indexer.service';
 import { getExplanationMode, type ExplanationMode } from '../../domain/explanation-modes';
+import {
+  assertMaySendRepositoryEvidence,
+  PrivacyGateError,
+  recordModelTransmission,
+} from '../../infrastructure/privacy/privacy-gate';
+import { assertPathMaySendToModel } from '../../infrastructure/privacy/filter-model-evidence';
+import {
+  providerRequiresExternalRequests,
+  readPrivacySettings,
+} from '../../infrastructure/privacy/privacy-settings';
 import { HOVER_COMMANDS, type HoverCommandArgs } from './hover-markdown';
 import { openAttributedSource } from '../sources/open-attributed-source';
 
@@ -15,6 +25,7 @@ export interface HoverCommandDeps {
   readonly explainer: Explainer;
   readonly getMode: () => ExplanationMode;
   readonly isModelExplanationEnabled: () => boolean;
+  readonly globalState?: vscode.Memento;
 }
 
 function parseArgs(raw: unknown): HoverCommandArgs | undefined {
@@ -222,17 +233,56 @@ export function registerHoverCommands(
     let source: string;
 
     if (modelEnabled) {
-      const explanation = await deps.explainer.explain({
-        symbol: args.name,
-        filePath: args.path,
-        code,
-        mode,
-        relatedSummary,
-        ragContext: relatedSummary,
-        architecturalHints: '',
-      });
-      markdown = explanation.markdown;
-      source = explanation.source === 'ollama' ? 'local model' : 'offline template';
+      try {
+        const settings = readPrivacySettings();
+        const requiresExternal = providerRequiresExternalRequests(settings);
+        if (deps.globalState) {
+          await assertMaySendRepositoryEvidence(
+            { globalState: deps.globalState },
+            {
+              settings,
+              requiresExternal,
+              purpose: 'Hover open explanation',
+            }
+          );
+        }
+        await assertPathMaySendToModel(
+          args.workspaceRoot,
+          args.path,
+          'Hover open explanation'
+        );
+        const explanation = await deps.explainer.explain({
+          symbol: args.name,
+          filePath: args.path,
+          code,
+          mode,
+          relatedSummary,
+          ragContext: relatedSummary,
+          architecturalHints: '',
+        });
+        markdown = explanation.markdown;
+        source = explanation.source === 'ollama' ? 'local model' : 'offline template';
+        if (deps.globalState && explanation.source === 'ollama') {
+          await recordModelTransmission(
+            deps.globalState,
+            markdown.slice(0, 8000)
+          );
+        }
+      } catch (err) {
+        if (err instanceof PrivacyGateError) {
+          void vscode.window.showWarningMessage(err.message);
+        }
+        markdown = [
+          `## Function Summary`,
+          def?.jsdocSummary ?? `\`${args.name}\` (${def?.kind ?? 'symbol'}) in \`${args.path}\`.`,
+          '',
+          `_Model explanation blocked by privacy controls. Showing deterministic summary only._`,
+          '',
+          `## Related Systems`,
+          relatedSummary || '_None indexed._',
+        ].join('\n');
+        source = 'deterministic (privacy blocked)';
+      }
     } else {
       markdown = [
         `## Function Summary`,

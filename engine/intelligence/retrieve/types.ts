@@ -102,6 +102,11 @@ export interface SearchRepositoryContextOptions {
   readonly debug?: boolean;
   readonly mode?: string;
   readonly profile?: string;
+  /**
+   * When true, omit hits whose privacy classification blocks model evidence
+   * (never_send_to_model, local_only, metadata_only).
+   */
+  readonly forModelEvidence?: boolean;
 }
 
 export const DEFAULT_RETRIEVAL_BUDGETS: Required<RetrievalBudgets> = {

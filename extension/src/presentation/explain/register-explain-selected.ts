@@ -8,6 +8,10 @@ import {
   recordModelTransmission,
 } from '../../infrastructure/privacy/privacy-gate';
 import {
+  assertPathMaySendToModel,
+  filterOutboundEvidenceItems,
+} from '../../infrastructure/privacy/filter-model-evidence';
+import {
   providerRequiresExternalRequests,
   readPrivacySettings,
 } from '../../infrastructure/privacy/privacy-settings';
@@ -101,9 +105,31 @@ export function registerExplainSelectedCode(
                   purpose: 'Explain Selected Code',
                 }
               );
+              await assertPathMaySendToModel(
+                scope.workspaceRoot,
+                scope.relPath,
+                'Explain Selected Code'
+              );
+              const pathsForFilter =
+                explanation.attributedSources.length > 0
+                  ? explanation.attributedSources
+                  : explanation.sources.map((s) => ({ path: s.path }));
+              const sourceFilter = await filterOutboundEvidenceItems(
+                scope.workspaceRoot,
+                pathsForFilter,
+                { purpose: 'Explain Selected Code', allowEmpty: true }
+              );
+              const allowedPaths = new Set(sourceFilter.allowed.map((s) => s.path));
+              const explanationForModel = {
+                ...explanation,
+                attributedSources: explanation.attributedSources.filter((s) =>
+                  allowedPaths.has(s.path)
+                ),
+                sources: explanation.sources.filter((s) => allowedPaths.has(s.path)),
+              };
               const enhanced = await enhanceSelectedExplanationWithModel({
                 scope,
-                explanation,
+                explanation: explanationForModel,
                 ports: deps.modelPorts,
               });
               if (enhanced) {

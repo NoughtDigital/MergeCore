@@ -81,6 +81,7 @@
     "onCommand:mergecore.showPrivacyStatus",
     "onCommand:mergecore.showIndexedFiles",
     "onCommand:mergecore.showExcludedFiles",
+    "onCommand:mergecore.previewIndexRules",
     "onCommand:mergecore.openIndexLocation",
     "onCommand:mergecore.deleteLocalIndex",
     "onCommand:mergecore.rebuildLocalIndex",
@@ -256,6 +257,10 @@
         "title": "MergeCore: Show Excluded Files"
       },
       {
+        "command": "mergecore.previewIndexRules",
+        "title": "MergeCore: Preview Index Rules"
+      },
+      {
         "command": "mergecore.openIndexLocation",
         "title": "MergeCore: Open Index Location"
       },
@@ -386,6 +391,7 @@
         { "command": "mergecore.showPrivacyStatus" },
         { "command": "mergecore.showIndexedFiles" },
         { "command": "mergecore.showExcludedFiles" },
+        { "command": "mergecore.previewIndexRules" },
         { "command": "mergecore.openIndexLocation" },
         { "command": "mergecore.deleteLocalIndex" },
         { "command": "mergecore.rebuildLocalIndex" },
@@ -444,6 +450,17 @@
           "type": "boolean",
           "default": false,
           "markdownDescription": "When exporting diagnostics, replace repository folder names with anonymised labels."
+        },
+        "mergecore.privacy.extraExclusions": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": [],
+          "markdownDescription": "Additional gitignore-style patterns always classified as **never_index** (additive overlay on global/workspace privacy rules)."
+        },
+        "mergecore.privacy.confirmWeakenRestriction": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "When a workspace privacy rule would weaken a stronger global restriction, prompt for confirmation before writing an override."
         },
         "mergecore.taskContext.defaultDepth": {
           "type": "string",

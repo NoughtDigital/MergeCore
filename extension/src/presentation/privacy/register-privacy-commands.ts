@@ -1,7 +1,11 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { RAG_DIR } from '@mergecore/intelligence';
+import {
+  previewIndexRules,
+  RAG_DIR,
+  type IndexRulePreviewRow,
+} from '@mergecore/intelligence';
 import type { IndexerService } from '../../infrastructure/index/indexer.service';
 import type { MergeCoreSecretStore } from '../../infrastructure/secret-store';
 import { MergeCoreLogger } from '../../infrastructure/logger';
@@ -24,7 +28,13 @@ import {
   exportDiagnosticsToUri,
   serialiseDiagnostics,
 } from '../../infrastructure/privacy/diagnostics-export';
+import { readVscodeExtraExclusions } from '../../infrastructure/privacy/filter-model-evidence';
 import { showPrivacyStatusPanel } from './privacy-status-panel';
+import {
+  formatPreviewIndexRulesMarkdown,
+  runPreviewIndexRules,
+} from './preview-index-rules';
+import { confirmWeakenRestrictionsIfNeeded } from './confirm-weaken';
 
 export interface PrivacyCommandDeps {
   readonly indexer: IndexerService;
@@ -47,12 +57,27 @@ function workspaceRoot(): string | undefined {
   return vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
 }
 
+function formatDecisionLine(row: IndexRulePreviewRow): string {
+  return (
+    `- \`${row.path}\` — **${row.classification}**` +
+    (row.matchedPattern ? ` · pattern=\`${row.matchedPattern}\`` : '') +
+    ` · source=${row.ruleSource}` +
+    (row.rulePath ? ` · \`${row.rulePath}\`` : '') +
+    ` · retrieval=${row.allowsRetrieval ? 'yes' : 'no'}` +
+    ` · model=${row.allowsModelEvidence ? 'yes' : 'no'}`
+  );
+}
+
 export function registerPrivacyCommands(deps: PrivacyCommandDeps): void {
   const { context, indexer, secrets, logger } = deps;
 
   context.subscriptions.push(
     vscode.commands.registerCommand('mergecore.showPrivacyStatus', async () => {
       if (!requireTrusted()) return;
+      const root = workspaceRoot();
+      if (root) {
+        await confirmWeakenRestrictionsIfNeeded(root);
+      }
       const snapshot = await collectPrivacyStatus({
         indexer,
         secrets,
@@ -102,22 +127,45 @@ export function registerPrivacyCommands(deps: PrivacyCommandDeps): void {
         return;
       }
       try {
+        const preview = await previewIndexRules({
+          workspaceRoot: root,
+          maxFiles: 4000,
+          vscodeExtraExclusions: readVscodeExtraExclusions(),
+        });
         const status = await indexer.getIndexStatus(root);
         const exclusions = status.exclusions ?? [];
         const lines = [
-          `# Excluded / skipped files`,
+          `# Excluded / restricted files`,
           '',
-          `- filesSkipped: ${status.filesSkipped}`,
+          `- filesSkipped (last index): ${status.filesSkipped}`,
           `- exclusion records: ${exclusions.length}`,
+          `- preview excluded: ${preview.excluded.length}`,
+          `- preview restricted: ${preview.restricted.length}`,
           '',
-          ...exclusions
-            .slice(0, 500)
-            .map((e) => `- \`${e.path}\` — ${e.reason}${e.detail ? ` (${e.detail})` : ''}`),
+          '## Restricted (local only / never send to model)',
+          '',
         ];
-        if (exclusions.length === 0) {
+        if (preview.restricted.length === 0) {
+          lines.push('_None._', '');
+        } else {
+          for (const row of preview.restricted.slice(0, 400)) {
+            lines.push(formatDecisionLine(row));
+          }
+          lines.push('');
+        }
+        lines.push('## Excluded', '');
+        if (preview.excluded.length === 0) {
           lines.push(
-            '_No detailed exclusion records in the current status snapshot. Skipped count still applies._'
+            '_No preview exclusions. Index status exclusion records:_',
+            '',
+            ...exclusions
+              .slice(0, 500)
+              .map((e) => `- \`${e.path}\` — ${e.reason}${e.detail ? ` (${e.detail})` : ''}`)
           );
+        } else {
+          for (const row of preview.excluded.slice(0, 500)) {
+            lines.push(formatDecisionLine(row));
+          }
         }
         const doc = await vscode.workspace.openTextDocument({
           content: lines.join('\n'),
@@ -129,6 +177,49 @@ export function registerPrivacyCommands(deps: PrivacyCommandDeps): void {
           `Could not list exclusions: ${err instanceof Error ? err.message : String(err)}`
         );
       }
+    })
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand('mergecore.previewIndexRules', async () => {
+      if (!requireTrusted()) return;
+      const root = workspaceRoot();
+      if (!root) {
+        void vscode.window.showInformationMessage('Open a workspace folder first.');
+        return;
+      }
+      await vscode.window.withProgress(
+        {
+          location: vscode.ProgressLocation.Notification,
+          title: 'MergeCore: Preview Index Rules…',
+          cancellable: true,
+        },
+        async (_progress, token) => {
+          try {
+            const result = await runPreviewIndexRules(root, {
+              maxFiles: 8000,
+              vscodeExtraExclusions: readVscodeExtraExclusions(),
+            });
+            if (token.isCancellationRequested) {
+              return;
+            }
+            const markdown = formatPreviewIndexRulesMarkdown(result);
+            const doc = await vscode.workspace.openTextDocument({
+              content: markdown,
+              language: 'markdown',
+            });
+            await vscode.window.showTextDocument(doc, {
+              preview: true,
+              viewColumn: vscode.ViewColumn.Beside,
+            });
+          } catch (err) {
+            if (token.isCancellationRequested) return;
+            void vscode.window.showErrorMessage(
+              `Preview Index Rules failed: ${err instanceof Error ? err.message : String(err)}`
+            );
+          }
+        }
+      );
     })
   );
 
@@ -359,7 +450,6 @@ export function registerPrivacyCommands(deps: PrivacyCommandDeps): void {
     })
   );
 
-  // Warm helpers used by tests / future UI
   void buildDiagnosticsPayload;
   void serialiseDiagnostics;
   void readPrivacySettings;

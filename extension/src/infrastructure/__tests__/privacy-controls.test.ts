@@ -298,3 +298,15 @@ describe('secrets never written to diagnostics settings snapshot', () => {
     assert.ok(!json.includes('apiToken'));
   });
 });
+
+describe('model transmission path blocks', () => {
+  it('PrivacyGateError message shape for blocked classification', () => {
+    const err = new PrivacyGateError(
+      'Cannot send `.env` to a model for Explain Selected Code: classified as never_send_to_model',
+      'privacy_blocked'
+    );
+    assert.match(err.message, /never_send_to_model/);
+    assert.equal(err.name, 'PrivacyGateError');
+    assert.equal(err.code, 'privacy_blocked');
+  });
+});

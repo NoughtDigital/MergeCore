@@ -3,6 +3,7 @@ import { isDeterministicEdgeResolution } from '../contracts';
 import { createSourceReference } from '../attribution/index';
 import { createCodeGraphQuery } from '../graph/query';
 import type { InstructionResolver } from '../instructions/resolver';
+import { classificationAllowsModelEvidence } from '../privacy/filter-evidence';
 import { retrieve as lexicalRetrieve } from '../rag/retrieve';
 import { sha256 } from '../rag/hash';
 import type { RagStore } from '../rag/store';
@@ -738,11 +739,25 @@ export async function hybridSearchRepositoryContext(
     `Hybrid retrieval considered ${candidateCount} candidates; selected ${selected.length}.`
   );
 
+  let modelFiltered = selected;
+  if (options.forModelEvidence) {
+    const before = modelFiltered.length;
+    modelFiltered = modelFiltered.filter((hit) => {
+      const file = store.getFile(hit.path);
+      return classificationAllowsModelEvidence(file?.privacy);
+    });
+    if (modelFiltered.length < before) {
+      notes.push(
+        `Filtered ${before - modelFiltered.length} hit(s) blocked for model evidence by privacy classification.`
+      );
+    }
+  }
+
   let debug: RetrievalDebugInfo | undefined;
   if (options.debug) {
     debug = {
       candidateCount,
-      selectedCount: selected.length,
+      selectedCount: modelFiltered.length,
       rejected,
       filtering,
       scoreComponents: ranked.slice(0, 40).map((h) => ({
@@ -750,7 +765,7 @@ export async function hybridSearchRepositoryContext(
         breakdown: h.breakdown,
         total: h.score,
       })),
-      selectedIds: selected.map((h) => h.id),
+      selectedIds: modelFiltered.map((h) => h.id),
       rejectedIds: rejected.map((r) => r.id),
       elapsedMs: Date.now() - started,
       notes: [
@@ -764,9 +779,10 @@ export async function hybridSearchRepositoryContext(
   return {
     workspaceRoot: store.root,
     query: q,
-    results: selected,
+    results: modelFiltered,
     incomplete:
-      selected.length === 0 || selected.every((h) => h.confidence === 'uncertain'),
+      modelFiltered.length === 0 ||
+      modelFiltered.every((h) => h.confidence === 'uncertain'),
     notes,
     debug,
   };

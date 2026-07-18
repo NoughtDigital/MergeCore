@@ -39,6 +39,13 @@ export interface RagFileRecord {
   readonly byteLength?: number;
   readonly indexedAt?: number;
   readonly parseStatus?: 'ok' | 'skipped' | 'error' | 'unchanged';
+  /** Privacy classification applied at index time. */
+  readonly privacy?:
+    | 'normal'
+    | 'local_only'
+    | 'metadata_only'
+    | 'never_index'
+    | 'never_send_to_model';
 }
 
 export interface ExplanationCacheEntry {

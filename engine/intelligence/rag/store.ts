@@ -495,6 +495,7 @@ export class RagStore {
       readonly byteLength?: number;
       readonly indexedAt?: number;
       readonly parseStatus?: RagFileRecord['parseStatus'];
+      readonly privacy?: RagFileRecord['privacy'];
     }
   ): void {
     this.ensureOpen();
@@ -569,6 +570,7 @@ export class RagStore {
           byteLength: meta?.byteLength,
           indexedAt: meta?.indexedAt ?? Date.now(),
           parseStatus: meta?.parseStatus ?? 'ok',
+          privacy: meta?.privacy,
         },
       },
       symbols: nextSymbols,

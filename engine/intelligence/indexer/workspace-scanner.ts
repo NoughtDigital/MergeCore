@@ -1,7 +1,16 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import type { ExclusionRecord, ExclusionReason } from '../contracts/types';
+import type {
+  ExclusionRecord,
+  ExclusionReason,
+  PrivacyDecision,
+} from '../contracts/types';
 import { NestedIgnoreResolver, resolveInsideWorkspace } from '../ignore';
+import {
+  createPrivacyRuleEngine,
+  evaluatePathPrivacy,
+  type PrivacyRuleEngine,
+} from '../privacy/rule-engine';
 import { RAG_WALK_EXCLUDE, indexPriority } from '../rag/walk';
 
 const DEFAULT_MAX_FILE_BYTES = 400_000;
@@ -71,6 +80,8 @@ export interface ScanOptions {
   readonly debugExclusions?: boolean;
   readonly maxFiles?: number;
   readonly signal?: AbortSignal;
+  readonly vscodeExtraExclusions?: readonly string[];
+  readonly skipGlobalPrivacyFile?: boolean;
 }
 
 export interface ScanResult {
@@ -175,6 +186,12 @@ export async function scanWorkspace(options: ScanOptions): Promise<ScanResult> {
   const exclusions: ExclusionRecord[] = [];
   const out: string[] = [];
   const resolver = new NestedIgnoreResolver(workspaceRoot);
+  const privacyEngine = createPrivacyRuleEngine({
+    workspaceRoot,
+    ignoreResolver: resolver,
+    vscodeExtraExclusions: options.vscodeExtraExclusions,
+    skipGlobalFile: options.skipGlobalPrivacyFile,
+  });
 
   let rootReal = workspaceRoot;
   try {
@@ -295,6 +312,18 @@ export async function scanWorkspace(options: ScanOptions): Promise<ScanResult> {
         continue;
       }
 
+      const privacy = await privacyEngine.evaluate(normalised);
+      if (!privacy.included) {
+        recordExclusion(
+          exclusions,
+          debug,
+          normalised,
+          privacy.exclusionReason ?? 'privacy-rule',
+          privacy.detail ?? privacy.matchedPattern
+        );
+        continue;
+      }
+
       out.push(normalised);
     }
   }
@@ -310,10 +339,17 @@ export async function scanWorkspace(options: ScanOptions): Promise<ScanResult> {
 export async function evaluatePathForIndex(
   workspaceRoot: string,
   relPath: string,
-  options: { debugExclusions?: boolean; maxFileBytes?: number } = {}
+  options: {
+    debugExclusions?: boolean;
+    maxFileBytes?: number;
+    vscodeExtraExclusions?: readonly string[];
+    skipGlobalPrivacyFile?: boolean;
+    privacyEngine?: PrivacyRuleEngine;
+  } = {}
 ): Promise<{
   readonly include: boolean;
   readonly exclusion?: ExclusionRecord;
+  readonly privacy?: PrivacyDecision;
 }> {
   const normalised = relPath.replace(/\\/g, '/');
   const debug = options.debugExclusions === true;
@@ -379,15 +415,27 @@ export async function evaluatePathForIndex(
     return { include: false, exclusion: debug ? exclusion : undefined };
   }
 
-  const resolver = new NestedIgnoreResolver(workspaceRoot);
-  const decision = await resolver.decide(normalised, false);
-  if (decision.ignored) {
+  const privacy =
+    options.privacyEngine !== undefined
+      ? await options.privacyEngine.evaluate(normalised)
+      : await evaluatePathPrivacy({
+          workspaceRoot,
+          relPath: normalised,
+          vscodeExtraExclusions: options.vscodeExtraExclusions,
+          skipGlobalFile: options.skipGlobalPrivacyFile,
+        });
+
+  if (!privacy.included) {
     const exclusion: ExclusionRecord = {
       path: normalised,
-      reason: decision.reason ?? 'gitignore',
-      detail: decision.detail,
+      reason: privacy.exclusionReason ?? 'privacy-rule',
+      detail: privacy.detail ?? privacy.matchedPattern,
     };
-    return { include: false, exclusion: debug ? exclusion : undefined };
+    return {
+      include: false,
+      exclusion: debug ? exclusion : undefined,
+      privacy,
+    };
   }
 
   try {
@@ -398,13 +446,13 @@ export async function evaluatePathForIndex(
         reason: 'oversized',
         detail: `${st.size}>${maxBytes}`,
       };
-      return { include: false, exclusion: debug ? exclusion : undefined };
+      return { include: false, exclusion: debug ? exclusion : undefined, privacy };
     }
   } catch {
     // missing — caller handles delete
   }
 
-  return { include: true };
+  return { include: true, privacy };
 }
 
 export { DEFAULT_MAX_FILE_BYTES };

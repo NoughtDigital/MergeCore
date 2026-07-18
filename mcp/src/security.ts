@@ -1,7 +1,11 @@
 import { resolve } from 'node:path';
 import {
   NestedIgnoreResolver,
+  evaluatePathPrivacy,
+  redactChunkTextForPrivacy,
   resolveInsideWorkspace,
+  type PrivacyClassification,
+  type PrivacyDecision,
 } from '@mergecore/intelligence';
 import { resolveWorkspaceRoot } from './workspace.js';
 import { errorResult } from './errors.js';
@@ -85,6 +89,10 @@ export async function safeRelPath(
   return { ok: true, rel };
 }
 
+/**
+ * Drop gitignored / mergecoreignored paths from outbound MCP hit lists.
+ * Privacy classifications that block model evidence are redacted separately.
+ */
 export async function filterIgnoredPaths(
   workspaceRoot: string,
   paths: readonly string[]
@@ -92,10 +100,49 @@ export async function filterIgnoredPaths(
   const resolver = new NestedIgnoreResolver(workspaceRoot);
   const out: string[] = [];
   for (const p of paths) {
-    const decision = await resolver.decide(p.replace(/\\/g, '/'), false);
+    const normalised = p.replace(/\\/g, '/');
+    const decision = await resolver.decide(normalised, false);
     if (!decision.ignored) {
-      out.push(p.replace(/\\/g, '/'));
+      out.push(normalised);
     }
   }
   return out;
+}
+
+/**
+ * Paths allowed for model/MCP evidence text (never_send / local_only excluded).
+ */
+export async function filterPathsForModelEvidence(
+  workspaceRoot: string,
+  paths: readonly string[]
+): Promise<string[]> {
+  const out: string[] = [];
+  for (const p of paths) {
+    const normalised = p.replace(/\\/g, '/');
+    const privacy = await evaluatePathPrivacy({
+      workspaceRoot,
+      relPath: normalised,
+    });
+    if (privacy.allowsModelEvidence) {
+      out.push(normalised);
+    }
+  }
+  return out;
+}
+
+export async function privacyDecisionForPath(
+  workspaceRoot: string,
+  relPath: string
+): Promise<PrivacyDecision> {
+  return evaluatePathPrivacy({ workspaceRoot, relPath });
+}
+
+export function redactExcerptForPrivacy(
+  text: string | undefined,
+  classification: PrivacyClassification | undefined
+): string | undefined {
+  if (text === undefined) {
+    return undefined;
+  }
+  return redactChunkTextForPrivacy(text, classification);
 }

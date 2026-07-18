@@ -16,6 +16,7 @@ import {
   PrivacyGateError,
   recordModelTransmission,
 } from './privacy/privacy-gate';
+import { assertPathMaySendToModel } from './privacy/filter-model-evidence';
 
 const TOKEN_NOT_SET_KEY = 'apiTokenMissingNoticeSeen';
 const ORIGIN_APPROVED_PREFIX = 'mergecore.trustedOrigin:';
@@ -61,6 +62,13 @@ export class MergeCoreReviewAdapter implements ReviewEngine {
           purpose: 'hosted code review',
         }
       );
+      if (request.filePath && request.workspaceRoot) {
+        await assertPathMaySendToModel(
+          request.workspaceRoot,
+          request.filePath,
+          'hosted code review'
+        );
+      }
     } catch (err) {
       if (err instanceof PrivacyGateError) {
         throw new Error(err.message);

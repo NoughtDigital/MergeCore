@@ -21,7 +21,7 @@ import {
 } from '@mergecore/intelligence';
 import { errorResult, logMeta, textResult } from './errors.js';
 import { openSharedIndex, requireNonEmptyIndex, STORE_SCHEMA_VERSION } from './open-index.js';
-import { assertWorkspacePermitted, filterIgnoredPaths, safeRelPath } from './security.js';
+import { assertWorkspacePermitted, filterIgnoredPaths, privacyDecisionForPath, redactExcerptForPrivacy, safeRelPath } from './security.js';
 import {
   loadPackRegistry,
   locateRulesRegistry,
@@ -85,6 +85,7 @@ function serialiseHit(hit: {
     symbol?: string;
     excerpt?: string;
   };
+  privacy?: string;
 }) {
   return {
     path: hit.path,
@@ -94,6 +95,7 @@ function serialiseHit(hit: {
     score: hit.score,
     reason: hit.reason,
     confidence: hit.confidence,
+    privacy: hit.privacy,
     reference: {
       path: hit.reference.path,
       startLine: hit.reference.startLine,
@@ -210,7 +212,24 @@ export async function toolSearchRepositoryContext(args: {
       result.results.map((h) => h.path)
     );
     const allowed = new Set(paths);
-    const hits = result.results.filter((h) => allowed.has(h.path)).map(serialiseHit);
+    const hits = [];
+    for (const h of result.results) {
+      if (!allowed.has(h.path)) continue;
+      const privacy = await privacyDecisionForPath(opened.workspaceRoot, h.path);
+      const excerpt = privacy.allowsModelEvidence
+        ? h.reference.excerpt?.slice(0, 400)
+        : redactExcerptForPrivacy(h.reference.excerpt, privacy.classification);
+      hits.push(
+        serialiseHit({
+          ...h,
+          privacy: privacy.classification,
+          reference: {
+            ...h.reference,
+            excerpt,
+          },
+        })
+      );
+    }
     logMeta('search_repository_context', opened.workspaceRoot, { hits: hits.length });
     return textResult({
       workspaceRoot: result.workspaceRoot,
