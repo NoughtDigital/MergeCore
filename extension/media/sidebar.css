@@ -702,6 +702,11 @@
   padding-top: 4px;
 }
 
+.mc-footer[hidden],
+.mc-footer.mc-hidden {
+  display: none;
+}
+
 .mc-btn {
   appearance: none;
   border-radius: 8px;
@@ -796,6 +801,11 @@
 
 .mc-level-btn.is-dimmed {
   opacity: 0.45;
+}
+
+.mc-level-btn.is-pending {
+  border-color: color-mix(in srgb, var(--vscode-widget-border) 90%, transparent);
+  opacity: 0.85;
 }
 
 .mc-level-btn.is-loading {

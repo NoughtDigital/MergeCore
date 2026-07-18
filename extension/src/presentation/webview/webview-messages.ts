@@ -45,10 +45,13 @@ export function registerReviewWebviewMessages(
       case 'runReviewLevel': {
         const raw = (msg as { levelId?: unknown }).levelId;
         if (typeof raw !== 'string' || !isReviewLevelId(raw)) {
+          await webview.postMessage({ type: 'reviewState', payload: { running: false } });
           return;
         }
         try {
-          await webview.postMessage({ type: 'reviewState', payload: { running: true } });
+          // Do not post running:true here — the command runner signals that
+          // only after scope resolution succeeds. Empty staging/working diffs
+          // must unlock the sidebar without ever showing "Reviewing…".
           await vscode.commands.executeCommand(commandIdForReviewLevel(raw));
         } finally {
           await webview.postMessage({ type: 'reviewState', payload: { running: false } });

@@ -106,7 +106,7 @@ export function buildReviewPanelHtml(
       <p id="rewrite-apply-note" class="mc-apply-note mc-muted mc-hidden" hidden></p>
     </section>
 
-    <footer class="mc-footer">
+    <footer class="mc-footer mc-hidden" hidden>
       <button id="btn-apply-code" type="button" class="mc-btn mc-btn-primary" disabled>Apply improved code</button>
       <button id="btn-apply-patch" type="button" class="mc-btn mc-btn-secondary" disabled>Apply patch</button>
     </footer>

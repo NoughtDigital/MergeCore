@@ -24,12 +24,42 @@
   const rewriteApplyNoteEl = document.getElementById('rewrite-apply-note');
   const btnApplyCode = document.getElementById('btn-apply-code');
   const btnApplyPatch = document.getElementById('btn-apply-patch');
+  const applyFooterEl = document.querySelector('.mc-footer');
   const btnExport = document.getElementById('btn-export');
   const reviewLevelsEl = document.getElementById('review-levels');
 
-  // Tracks the in-flight review so we can disable all level buttons while
-  // one is running and give clear feedback on which one was clicked.
+  // pendingLevelId: click acknowledged, waiting for host to start or reject.
+  // inFlightLevelId: host confirmed the review is running (show "Reviewing…").
+  // Never treat click alone as in-flight — empty-scope exits never publish a
+  // review result, so a click-time lock would hang the buttons forever.
+  let pendingLevelId = null;
   let inFlightLevelId = null;
+  let levelWatchdogTimer = null;
+  const LEVEL_WATCHDOG_MS = 10_000;
+
+  function clearLevelWatchdog() {
+    if (levelWatchdogTimer !== null) {
+      clearTimeout(levelWatchdogTimer);
+      levelWatchdogTimer = null;
+    }
+  }
+
+  function clearLevelBusyState() {
+    clearLevelWatchdog();
+    pendingLevelId = null;
+    inFlightLevelId = null;
+    refreshLevelButtons();
+  }
+
+  function armLevelWatchdog() {
+    clearLevelWatchdog();
+    levelWatchdogTimer = setTimeout(function () {
+      levelWatchdogTimer = null;
+      pendingLevelId = null;
+      inFlightLevelId = null;
+      refreshLevelButtons();
+    }, LEVEL_WATCHDOG_MS);
+  }
 
   window.addEventListener('message', function (event) {
     const msg = event.data;
@@ -37,22 +67,25 @@
       return;
     }
     if (msg.type === 'review') {
-      inFlightLevelId = null;
-      refreshLevelButtons();
+      clearLevelBusyState();
       render(msg.payload);
       return;
     }
     if (msg.type === 'reviewLevels') {
       renderLevelButtons(Array.isArray(msg.payload) ? msg.payload : []);
+      refreshLevelButtons();
       return;
     }
     if (msg.type === 'reviewState' && msg.payload && typeof msg.payload === 'object') {
-      // Future hook: the host can force a state change (e.g. cancellation)
-      // without sending a new result. Keeping this here now means we don't
-      // need another message listener when additional levels are added.
-      if (msg.payload.running === false) {
-        inFlightLevelId = null;
+      if (msg.payload.running === true) {
+        // Host confirmed work started — promote pending to in-flight.
+        // Drop the short pending watchdog; the host clears idle when done.
+        clearLevelWatchdog();
+        inFlightLevelId = pendingLevelId || inFlightLevelId;
+        pendingLevelId = null;
         refreshLevelButtons();
+      } else {
+        clearLevelBusyState();
       }
       return;
     }
@@ -154,11 +187,23 @@
     }
 
     renderRewriteSection(payload);
+    updateApplyFooter(payload);
+  }
 
-    if (payload.patch) {
-      btnApplyPatch.disabled = false;
-    } else {
-      btnApplyPatch.disabled = true;
+  function updateApplyFooter(payload) {
+    const hasCode = payload.improvedCode && String(payload.improvedCode).trim();
+    const hasPatch = Boolean(payload.patch && String(payload.patch).trim());
+
+    if (btnApplyCode) {
+      btnApplyCode.disabled = !hasCode;
+    }
+    if (btnApplyPatch) {
+      btnApplyPatch.disabled = !hasPatch;
+    }
+    if (applyFooterEl) {
+      const show = Boolean(hasCode || hasPatch);
+      applyFooterEl.hidden = !show;
+      applyFooterEl.classList.toggle('mc-hidden', !show);
     }
   }
 
@@ -277,11 +322,9 @@
 
     if (code && String(code).trim()) {
       renderHighlightedLines(rewriteLinesEl, code, amends);
-      btnApplyCode.disabled = false;
     } else {
       rewriteLinesEl.textContent = '—';
       rewriteLinesEl.className = 'mc-rewrite-lines mc-code-block';
-      btnApplyCode.disabled = true;
     }
 
     if (cross.length > 0 && code && String(code).trim()) {
@@ -571,32 +614,35 @@
     btn.appendChild(tagline);
 
     btn.addEventListener('click', function () {
-      if (inFlightLevelId) {
+      if (pendingLevelId || inFlightLevelId) {
         return;
       }
-      inFlightLevelId = level.id;
+      pendingLevelId = level.id;
       refreshLevelButtons();
+      armLevelWatchdog();
       vscode.postMessage({ type: 'runReviewLevel', levelId: level.id });
     });
     return btn;
   }
 
   /**
-   * Applies the "inFlight" visual state to every level button. Centralised
-   * here so future hooks (queued, cooling-down, disabled-by-quota) can be
-   * added to this single function.
+   * Applies pending / in-flight visual state to every level button.
+   * "Reviewing…" (is-loading) only when the host has confirmed running.
    */
   function refreshLevelButtons() {
     if (!reviewLevelsEl) {
       return;
     }
+    const busyId = inFlightLevelId || pendingLevelId;
     const btns = reviewLevelsEl.querySelectorAll('.mc-level-btn');
     btns.forEach(function (b) {
       const isInFlight = inFlightLevelId && b.dataset.levelId === inFlightLevelId;
-      const isOtherInFlight = inFlightLevelId && b.dataset.levelId !== inFlightLevelId;
-      b.disabled = Boolean(inFlightLevelId);
+      const isPending = !inFlightLevelId && pendingLevelId && b.dataset.levelId === pendingLevelId;
+      const isOtherBusy = busyId && b.dataset.levelId !== busyId;
+      b.disabled = Boolean(busyId);
       b.classList.toggle('is-loading', Boolean(isInFlight));
-      b.classList.toggle('is-dimmed', Boolean(isOtherInFlight));
+      b.classList.toggle('is-pending', Boolean(isPending));
+      b.classList.toggle('is-dimmed', Boolean(isOtherBusy));
     });
   }
 

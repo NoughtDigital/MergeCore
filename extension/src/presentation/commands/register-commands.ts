@@ -62,11 +62,13 @@ export function registerMergeCoreCommands(context: vscode.ExtensionContext, deps
     try {
       const built = await factory();
       if (!built) {
+        void deps.sidebar.setReviewRunning(false);
         return;
       }
 
       const scrubbed = await preflightScrubAndGuard(built.request);
       if (!scrubbed.proceed) {
+        void deps.sidebar.setReviewRunning(false);
         return;
       }
       const safeRequest: ReviewRequest = scrubbed.request;
@@ -74,6 +76,7 @@ export function registerMergeCoreCommands(context: vscode.ExtensionContext, deps
       const rejection = throttle.check(key);
       if (rejection) {
         void vscode.window.showWarningMessage(`MergeCore: ${rejection}`);
+        void deps.sidebar.setReviewRunning(false);
         return;
       }
       const release = throttle.begin(key);
