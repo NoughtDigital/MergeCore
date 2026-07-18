@@ -125,6 +125,31 @@ export {
 } from './api/repository-index';
 
 export {
+  createRepositorySearchEngine,
+  searchRepositoryContext,
+  repositoryContextToClaims,
+  hybridSearchRepositoryContext,
+  hitsToClaims,
+  evaluateRetrievalTasks,
+  precisionAtK,
+  recallAtK,
+  meanReciprocalRank,
+  LexicalRepositoryRetriever,
+  DEFAULT_RETRIEVAL_BUDGETS,
+  type RepositorySearchEngine,
+  type CreateRepositorySearchEngineOptions,
+  type RepositoryContextResult,
+  type RetrievalHit,
+  type RetrievalBudgets,
+  type RetrievalDebugInfo,
+  type SearchRepositoryContextOptions,
+  type ScoreBreakdown,
+  type EvalTask,
+  type EvalTaskResult,
+  type EvalSummary,
+} from './retrieve';
+
+export {
   createRepositoryFileIndexer,
   type CreateRepositoryFileIndexerOptions,
   type RepositoryFileIndexer,
@@ -147,7 +172,6 @@ export {
 
 export { createIgnoreMatcher, resolveInsideWorkspace, NestedIgnoreResolver } from './ignore';
 export { SqlJsIndexStore } from './store/sqljs-index-store';
-export { LexicalRepositoryRetriever } from './retrieve/lexical-retriever';
 export { discoverInstructionDocuments } from './memory/discover-instructions';
 export { STORE_SCHEMA_VERSION } from './rag/store';
 

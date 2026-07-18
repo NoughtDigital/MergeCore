@@ -1,0 +1,23 @@
+// Repeated generated dump — must not dominate retrieval.
+export const GENERATED = [
+  'AAAA',
+  'AAAA',
+  'AAAA',
+  'AAAA',
+  'AAAA',
+  'AAAA',
+  'AAAA',
+  'AAAA',
+  'AAAA',
+  'AAAA',
+  'AAAA',
+  'AAAA',
+  'AAAA',
+  'AAAA',
+  'AAAA',
+  'AAAA',
+  'AAAA',
+  'AAAA',
+  'AAAA',
+  'AAAA',
+];

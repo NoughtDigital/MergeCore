@@ -9,8 +9,12 @@ const javascriptMiniRoot = path.join(__dirname, 'javascript-mini');
 /** Absolute path to the TypeScript code-graph fixture repository. */
 const typescriptGraphRoot = path.join(__dirname, 'typescript-graph');
 
+/** Absolute path to the billing/refund retrieval eval fixture. */
+const billingRefundEvalRoot = path.join(__dirname, 'billing-refund-eval');
+
 module.exports = {
   typescriptMiniRoot,
   javascriptMiniRoot,
   typescriptGraphRoot,
+  billingRefundEvalRoot,
 };

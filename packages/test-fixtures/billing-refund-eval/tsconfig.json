@@ -1,0 +1,18 @@
+{
+  "name": "billing-refund-eval",
+  "private": true,
+  "version": "0.0.0",
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "ESNext",
+    "moduleResolution": "node",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "baseUrl": ".",
+    "paths": {
+      "@billing/*": ["src/billing/*"]
+    }
+  },
+  "include": ["src/**/*", "tests/**/*"]
+}

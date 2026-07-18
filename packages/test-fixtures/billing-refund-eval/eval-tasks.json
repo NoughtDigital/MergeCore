@@ -1,0 +1,15 @@
+{
+  "tasks": [
+    {
+      "id": "partial-subscription-refunds",
+      "query": "add partial subscription refunds",
+      "relevantFiles": [
+        "src/billing/refunds.ts",
+        "src/billing/gateway.ts",
+        "src/billing/subscriptions.ts",
+        "src/billing/webhooks.ts",
+        "tests/refunds.spec.ts"
+      ]
+    }
+  ]
+}

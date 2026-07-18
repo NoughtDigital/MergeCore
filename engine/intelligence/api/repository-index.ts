@@ -19,6 +19,13 @@ import { discoverInstructionDocuments } from '../memory/discover-instructions';
 import type { EmbeddingPort, IndexProgressCallback } from '../rag/types';
 import { sha256 } from '../rag/hash';
 import { LexicalRepositoryRetriever } from '../retrieve/lexical-retriever';
+import {
+  createRepositorySearchEngine,
+  type RepositoryContextResult,
+  type RepositorySearchEngine,
+  type RetrievalHit,
+  type SearchRepositoryContextOptions,
+} from '../retrieve';
 import { SqlJsIndexStore } from '../store/sqljs-index-store';
 
 export interface CreateRepositoryIndexOptions {
@@ -52,12 +59,27 @@ export interface RepositoryIndex {
   getStatus(): Promise<IndexStatus>;
   index(options?: IndexOptions): Promise<IndexStatus>;
   retrieve(query: string, options?: RetrieveQueryOptions): Promise<ContextResult>;
+  searchRepositoryContext(
+    query: string,
+    options?: SearchRepositoryContextOptions
+  ): Promise<RepositoryContextResult>;
+  findRelevantFiles(
+    task: string,
+    options?: SearchRepositoryContextOptions
+  ): Promise<readonly RetrievalHit[]>;
+  findRelevantSymbols(
+    task: string,
+    options?: SearchRepositoryContextOptions
+  ): Promise<readonly RetrievalHit[]>;
+  getContextForFile(file: string): Promise<RepositoryContextResult>;
+  getContextForSymbol(symbolId: string): Promise<RepositoryContextResult>;
   buildContextPack(query: string, options?: ContextPackOptions): Promise<ContextPack>;
   close(): Promise<void>;
 }
 
 class RepositoryIndexImpl implements RepositoryIndex {
   private closed = false;
+  private searchEngine: RepositorySearchEngine | undefined;
 
   constructor(
     readonly workspaceRoot: string,
@@ -69,6 +91,15 @@ class RepositoryIndexImpl implements RepositoryIndex {
     if (this.closed) {
       throw new Error('RepositoryIndex is closed');
     }
+  }
+
+  private async getSearchEngine(): Promise<RepositorySearchEngine> {
+    if (!this.searchEngine) {
+      this.searchEngine = await createRepositorySearchEngine({
+        store: this.fileIndexer.getRagStore(),
+      });
+    }
+    return this.searchEngine;
   }
 
   async getDescriptor(): Promise<WorkspaceDescriptor> {
@@ -107,6 +138,7 @@ class RepositoryIndexImpl implements RepositoryIndex {
 
   async index(options: IndexOptions = {}): Promise<IndexStatus> {
     this.ensureOpen();
+    this.searchEngine = undefined;
     if (options.onlyPaths && options.onlyPaths.length > 0) {
       return this.fileIndexer.applyFileChanges(
         options.onlyPaths.map((p) => ({ type: 'update' as const, path: p })),
@@ -114,8 +146,6 @@ class RepositoryIndexImpl implements RepositoryIndex {
       );
     }
     const status = await this.fileIndexer.startInitialIndex(options.signal);
-    // Optional Laravel pack memory still handled by legacy indexWorkspace path when needed —
-    // file indexer covers discovery; markdown memory is best-effort via adapters on .md files.
     void this.options.isLaravel;
     void this.options.embedding;
     void options.onProgress;
@@ -137,13 +167,52 @@ class RepositoryIndexImpl implements RepositoryIndex {
     };
   }
 
+  async searchRepositoryContext(
+    query: string,
+    options: SearchRepositoryContextOptions = {}
+  ): Promise<RepositoryContextResult> {
+    this.ensureOpen();
+    const engine = await this.getSearchEngine();
+    return engine.searchRepositoryContext(query, options);
+  }
+
+  async findRelevantFiles(
+    task: string,
+    options?: SearchRepositoryContextOptions
+  ): Promise<readonly RetrievalHit[]> {
+    this.ensureOpen();
+    const engine = await this.getSearchEngine();
+    return engine.findRelevantFiles(task, options);
+  }
+
+  async findRelevantSymbols(
+    task: string,
+    options?: SearchRepositoryContextOptions
+  ): Promise<readonly RetrievalHit[]> {
+    this.ensureOpen();
+    const engine = await this.getSearchEngine();
+    return engine.findRelevantSymbols(task, options);
+  }
+
+  async getContextForFile(file: string): Promise<RepositoryContextResult> {
+    this.ensureOpen();
+    const engine = await this.getSearchEngine();
+    return engine.getContextForFile(file);
+  }
+
+  async getContextForSymbol(symbolId: string): Promise<RepositoryContextResult> {
+    this.ensureOpen();
+    const engine = await this.getSearchEngine();
+    return engine.getContextForSymbol(symbolId);
+  }
+
   async buildContextPack(
     query: string,
     options: ContextPackOptions = {}
   ): Promise<ContextPack> {
     this.ensureOpen();
     const result = await this.retrieve(query, options);
-    const includeInstructions = options.includeInstructions !== false;
+    const includeInstructions = includeInstructionsFlag(options);
     const instructions = includeInstructions
       ? await discoverInstructionDocuments(this.workspaceRoot)
       : [];
@@ -166,8 +235,13 @@ class RepositoryIndexImpl implements RepositoryIndex {
       return;
     }
     this.closed = true;
+    this.searchEngine = undefined;
     await this.fileIndexer.dispose();
   }
+}
+
+function includeInstructionsFlag(options: ContextPackOptions): boolean {
+  return options.includeInstructions !== false;
 }
 
 /**
