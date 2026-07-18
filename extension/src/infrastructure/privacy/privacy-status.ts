@@ -5,7 +5,8 @@ import { RAG_DIR, sha256 } from '@mergecore/intelligence';
 import type { IndexerService } from '../index/indexer.service';
 import type { MergeCoreSecretStore } from '../secret-store';
 import {
-  isLoopbackOllamaUrl,
+  isLoopbackUrl,
+  modelModeLabel,
   providerRequiresExternalRequests,
 } from './privacy-settings-core';
 import { readPrivacySettings } from './privacy-settings';
@@ -123,25 +124,17 @@ export async function collectPrivacyStatus(input: {
 
   const requiresExternal = providerRequiresExternalRequests(settings);
   void requiresExternal;
-  let modelMode = 'none (deterministic only)';
-  if (settings.modelProvider === 'ollama') {
-    modelMode = isLoopbackOllamaUrl(settings.ollamaBaseUrl)
-      ? `local Ollama (${settings.chatModel})`
-      : `remote Ollama (${settings.chatModel}) — external`;
-  } else if (settings.modelProvider === 'openai') {
-    modelMode = 'external OpenAI (BYOK)';
-  } else if (settings.modelProvider === 'anthropic') {
-    modelMode = 'external Anthropic (BYOK)';
-  }
+  const modelMode = modelModeLabel(settings);
 
   const providerKeyPresent =
-    settings.modelProvider === 'openai'
+    settings.modelMode === 'external' && settings.externalProvider === 'openai'
       ? keys.openai
-      : settings.modelProvider === 'anthropic'
+      : settings.modelMode === 'external' && settings.externalProvider === 'anthropic'
         ? keys.anthropic
-        : settings.modelProvider === 'ollama'
+        : settings.modelMode === 'local'
           ? true
           : false;
+  void isLoopbackUrl;
 
   const lastTx = lastTransmissionAt(input.globalState);
 
@@ -159,7 +152,12 @@ export async function collectPrivacyStatus(input: {
     modelMode,
     externalRequestsEnabled: settings.externalRequestsEnabled,
     usageAnalyticsEnabled: settings.usageAnalyticsEnabled,
-    providerConfigured: settings.modelProvider,
+    providerConfigured:
+      settings.modelMode === 'deterministic'
+        ? 'none'
+        : settings.modelMode === 'local'
+          ? 'local-http'
+          : settings.externalProvider,
     providerKeyPresent,
     transmittedRepositoryContent: Boolean(lastTx),
     lastTransmissionAt: lastTx ?? null,

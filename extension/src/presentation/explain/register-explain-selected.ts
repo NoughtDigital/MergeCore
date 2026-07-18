@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { createRepositoryIndex, recordUsageEvent } from '@mergecore/intelligence';
 import type { ExplainerPorts } from '../../infrastructure/explain/explainer';
+import type { ModelPorts } from '../../infrastructure/explain/model-ports';
 import type { IndexerService } from '../../infrastructure/index/indexer.service';
 import {
   assertMaySendRepositoryEvidence,
@@ -25,7 +26,7 @@ export const EXPLAIN_SELECTED_COMMAND = 'mergecore.explainSelectedCode';
 
 export interface RegisterExplainSelectedDeps {
   readonly indexer: IndexerService;
-  readonly modelPorts: ExplainerPorts;
+  readonly modelPorts: ExplainerPorts | ModelPorts;
   readonly ensureIndexed: (workspaceRoot: string) => Promise<void>;
   readonly isModelExplanationEnabled: () => boolean;
   readonly globalState: vscode.Memento;
@@ -120,6 +121,27 @@ export function registerExplainSelectedCode(
                 { purpose: 'Explain Selected Code', allowEmpty: true }
               );
               const allowedPaths = new Set(sourceFilter.allowed.map((s) => s.path));
+              const excluded = sourceFilter.blocked.map((e) => e.path);
+              const {
+                buildModelRequestPreview,
+                formatModelRequestPreviewMarkdown,
+              } = await import('../../infrastructure/explain/model-request-preview');
+              const preview = buildModelRequestPreview({
+                providerType: settings.modelMode,
+                model:
+                  settings.modelMode === 'local'
+                    ? settings.localModel
+                    : settings.externalProvider,
+                dataRemainsLocal: !requiresExternal,
+                purpose: 'Explain Selected Code',
+                evidenceFiles: [...allowedPaths],
+                excludedEvidence: excluded,
+                rawBodyChars: explanation.markdown.length,
+              });
+              await recordModelTransmission(
+                deps.globalState,
+                formatModelRequestPreviewMarkdown(preview)
+              );
               const explanationForModel = {
                 ...explanation,
                 attributedSources: explanation.attributedSources.filter((s) =>
@@ -140,6 +162,10 @@ export function registerExplainSelectedCode(
                     enhanced.markdown.slice(0, 8000)
                   );
                 }
+              } else if (deps.isModelExplanationEnabled()) {
+                void vscode.window.showInformationMessage(
+                  'Model enhancement unavailable — showing deterministic explanation.'
+                );
               }
             } catch (err) {
               if (err instanceof PrivacyGateError) {

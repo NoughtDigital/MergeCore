@@ -10,8 +10,8 @@ import {
   type TaskContextPack,
 } from '@mergecore/intelligence';
 import type { ExplainerPorts } from '../../infrastructure/explain/explainer';
+import type { ModelPorts } from '../../infrastructure/explain/model-ports';
 import type { IndexerService } from '../../infrastructure/index/indexer.service';
-import { readOllamaSettings } from '../commands/register-cognition-commands';
 import {
   assertMaySendRepositoryEvidence,
   PrivacyGateError,
@@ -29,7 +29,7 @@ export const GENERATE_TASK_CONTEXT_COMMAND = 'mergecore.generateTaskContext';
 
 export interface RegisterTaskContextDeps {
   readonly indexer: IndexerService;
-  readonly modelPorts: ExplainerPorts;
+  readonly modelPorts: ExplainerPorts | ModelPorts;
   readonly ensureIndexed: (workspaceRoot: string) => Promise<void>;
   readonly isModelExplanationEnabled: () => boolean;
   readonly globalState: vscode.Memento;
@@ -42,7 +42,7 @@ async function buildPack(input: {
   readonly depth: TaskContextDepth;
   readonly selectedFiles: readonly string[];
   readonly selectedSymbols?: readonly string[];
-  readonly modelPorts: ExplainerPorts;
+  readonly modelPorts: ExplainerPorts | ModelPorts;
   readonly modelEnabled: boolean;
   readonly globalState: vscode.Memento;
 }): Promise<TaskContextPack> {
@@ -93,17 +93,40 @@ async function buildPack(input: {
           'privacy_blocked'
         );
       }
-      const ollama = readOllamaSettings();
+      const {
+        buildModelRequestPreview,
+        formatModelRequestPreviewMarkdown,
+      } = await import('../../infrastructure/explain/model-request-preview');
+      const preview = buildModelRequestPreview({
+        providerType: settings.modelMode,
+        model:
+          settings.modelMode === 'local'
+            ? settings.localModel
+            : settings.externalProvider,
+        dataRemainsLocal: !requiresExternal,
+        purpose: 'Generate Task Context',
+        evidenceFiles: filteredSources.allowed.map((s) => s.path),
+        excludedEvidence: filteredSources.blocked.map((s) => s.path),
+        rawBodyChars: pack.markdown.length,
+      });
+      await recordModelTransmission(
+        input.globalState,
+        formatModelRequestPreviewMarkdown(preview)
+      );
       const enhanced = await enhanceTaskContextWithModel({
         pack: packForModel,
         ports: input.modelPorts,
-        modelId: ollama.chatModel,
+        modelId: settings.localModel,
       });
       if (enhanced) {
         pack = enhanced;
         if (enhanced.meta.modelProvider && enhanced.meta.modelProvider !== 'none') {
           await recordModelTransmission(input.globalState, pack.markdown.slice(0, 8000));
         }
+      } else if (input.modelEnabled) {
+        void vscode.window.showInformationMessage(
+          'Model enhancement unavailable — showing deterministic task context.'
+        );
       }
     } catch (err) {
       if (err instanceof PrivacyGateError) {

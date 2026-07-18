@@ -20,8 +20,9 @@ import {
 import {
   readPrivacySettings,
   setExternalRequestsEnabled,
-  setModelProvider,
-  type PrivacyModelProviderId,
+  setExternalProvider,
+  setModelMode,
+  providerRequiresExternalRequests,
 } from '../../infrastructure/privacy/privacy-settings';
 import {
   buildDiagnosticsPayload,
@@ -349,48 +350,88 @@ export function registerPrivacyCommands(deps: PrivacyCommandDeps): void {
   context.subscriptions.push(
     vscode.commands.registerCommand('mergecore.configureModelProvider', async () => {
       if (!requireTrusted()) return;
-      const picked = await vscode.window.showQuickPick(
+      const modePick = await vscode.window.showQuickPick(
         [
-          { label: 'none', description: 'Deterministic only', value: 'none' as const },
-          { label: 'ollama', description: 'Local Ollama (loopback)', value: 'ollama' as const },
-          { label: 'openai', description: 'OpenAI BYOK (SecretStorage)', value: 'openai' as const },
           {
-            label: 'anthropic',
-            description: 'Anthropic BYOK (SecretStorage)',
-            value: 'anthropic' as const,
+            label: 'Deterministic only',
+            description: 'Default — no model calls',
+            value: 'deterministic' as const,
+          },
+          {
+            label: 'Local model',
+            description: 'OpenAI-compatible HTTP (loopback by default)',
+            value: 'local' as const,
+          },
+          {
+            label: 'External BYOK',
+            description: 'OpenAI or Anthropic via SecretStorage',
+            value: 'external' as const,
           },
         ],
-        { placeHolder: 'Select MergeCore model provider' }
+        { placeHolder: 'Select MergeCore model mode' }
       );
-      if (!picked) return;
+      if (!modePick) return;
 
-      const provider = picked.value as PrivacyModelProviderId;
-      await setModelProvider(provider);
-
-      if (provider === 'openai' || provider === 'anthropic') {
-        const enableExt = await vscode.window.showWarningMessage(
-          'This provider sends repository evidence externally when used. Enable external requests now?',
-          { modal: true },
-          'Enable external requests',
-          'Keep disabled'
-        );
-        if (enableExt === 'Enable external requests') {
-          await setExternalRequestsEnabled(true);
-        }
-
-        const key = await vscode.window.showInputBox({
-          prompt: `Enter ${provider} API key (stored in OS keychain only)`,
-          password: true,
-          ignoreFocusOut: true,
-          placeHolder: 'sk-…',
-        });
-        if (key !== undefined) {
-          if (provider === 'openai') await secrets.setOpenAiApiKey(key);
-          else await secrets.setAnthropicApiKey(key);
-        }
+      if (modePick.value === 'deterministic') {
+        await setModelMode('deterministic');
+        void vscode.window.showInformationMessage('MergeCore model mode: deterministic only.');
+        return;
       }
 
-      void vscode.window.showInformationMessage(`MergeCore model provider set to ${provider}.`);
+      if (modePick.value === 'local') {
+        await setModelMode('local');
+        const settings = readPrivacySettings();
+        if (providerRequiresExternalRequests(settings)) {
+          const enableExt = await vscode.window.showWarningMessage(
+            'Local model base URL is not loopback. Enable external requests to use it?',
+            { modal: true },
+            'Enable external requests',
+            'Keep disabled'
+          );
+          if (enableExt === 'Enable external requests') {
+            await setExternalRequestsEnabled(true);
+          }
+        }
+        void vscode.window.showInformationMessage(
+          `MergeCore model mode: local (${settings.localModel} @ ${settings.localBaseUrl}).`
+        );
+        return;
+      }
+
+      const providerPick = await vscode.window.showQuickPick(
+        [
+          { label: 'openai', description: 'OpenAI BYOK', value: 'openai' as const },
+          { label: 'anthropic', description: 'Anthropic BYOK', value: 'anthropic' as const },
+        ],
+        { placeHolder: 'Select external BYOK provider' }
+      );
+      if (!providerPick) return;
+
+      await setExternalProvider(providerPick.value);
+      const enableExt = await vscode.window.showWarningMessage(
+        'This provider sends repository evidence externally when used. Enable external requests now?',
+        { modal: true },
+        'Enable external requests',
+        'Keep disabled'
+      );
+      if (enableExt === 'Enable external requests') {
+        await setExternalRequestsEnabled(true);
+      }
+
+      const key = await vscode.window.showInputBox({
+        prompt: `Enter ${providerPick.value} API key (stored in OS keychain only)`,
+        password: true,
+        ignoreFocusOut: true,
+        placeHolder: 'sk-…',
+      });
+      if (key !== undefined) {
+        if (providerPick.value === 'openai') await secrets.setOpenAiApiKey(key);
+        else await secrets.setAnthropicApiKey(key);
+      }
+
+      void vscode.window.showInformationMessage(
+        `MergeCore model mode: external (${providerPick.value}).`
+      );
     })
   );
 
@@ -417,6 +458,39 @@ export function registerPrivacyCommands(deps: PrivacyCommandDeps): void {
         language: 'markdown',
       });
       await vscode.window.showTextDocument(doc, { preview: true });
+    })
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand('mergecore.previewModelRequest', async () => {
+      if (!requireTrusted()) return;
+      const settings = readPrivacySettings();
+      const {
+        buildModelRequestPreview,
+        formatModelRequestPreviewMarkdown,
+      } = await import('../../infrastructure/explain/model-request-preview');
+      const preview = buildModelRequestPreview({
+        providerType: settings.modelMode,
+        model:
+          settings.modelMode === 'local'
+            ? settings.localModel
+            : settings.modelMode === 'external'
+              ? settings.externalProvider
+              : '',
+        dataRemainsLocal:
+          settings.modelMode === 'deterministic' ||
+          (settings.modelMode === 'local' &&
+            !providerRequiresExternalRequests(settings)),
+        purpose: 'Manual preview (no send)',
+        evidenceFiles: [],
+        excludedEvidence: [],
+        rawBodyChars: 0,
+      });
+      const doc = await vscode.workspace.openTextDocument({
+        content: formatModelRequestPreviewMarkdown(preview),
+        language: 'markdown',
+      });
+      await vscode.window.showTextDocument(doc, { preview: true, viewColumn: vscode.ViewColumn.Beside });
     })
   );
 

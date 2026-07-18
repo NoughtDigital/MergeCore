@@ -42,6 +42,8 @@ export interface SelectedCodeExplanation {
   readonly markdown: string;
   readonly usedModel: boolean;
   readonly modelTransmissionVisible: boolean;
+  /** When model used: local vs external for UI banners. */
+  readonly modelKind?: 'local' | 'external';
   readonly injectionFlagged: boolean;
   /** Whether language intelligence for this explanation is compiler-backed or heuristic. */
   readonly analysis: 'deterministic' | 'heuristic';

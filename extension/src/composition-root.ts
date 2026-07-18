@@ -34,6 +34,7 @@ import { registerDiagnosticsCommands } from './presentation/diagnostics/register
 import {
   modelEnhancementAllowed,
   resolveChatPorts,
+  resolveModelPorts,
 } from './infrastructure/explain/model-provider-factory';
 import { ReviewSessionState } from './presentation/state/review-session.state';
 import { registerMergeCoreStatusBar } from './presentation/status/mergecore-status-bar';
@@ -81,17 +82,43 @@ export function createMergeCoreApp(context: vscode.ExtensionContext): void {
         getOllama: () => ollamaRef.current,
       }).isAvailable(signal),
   });
+  const resolvePorts = () =>
+    resolveModelPorts({
+      secrets,
+      getOllama: () => ollamaRef.current,
+    });
   const modelPorts = {
-    chat: (messages: Parameters<typeof ollamaRef.current.chat>[0], signal?: AbortSignal) =>
-      resolveChatPorts({
-        secrets,
-        getOllama: () => ollamaRef.current,
-      }).chat(messages, signal),
-    isAvailable: (signal?: AbortSignal) =>
-      resolveChatPorts({
-        secrets,
-        getOllama: () => ollamaRef.current,
-      }).isAvailable(signal),
+    chat: (
+      messages: Parameters<typeof ollamaRef.current.chat>[0],
+      signal?: AbortSignal
+    ) => resolvePorts().chat(messages, signal),
+    isAvailable: (signal?: AbortSignal) => resolvePorts().isAvailable(signal),
+    complete: (
+      req: Parameters<ReturnType<typeof resolveModelPorts>['complete']>[0],
+      signal?: AbortSignal
+    ) => resolvePorts().complete(req, signal),
+    health: (signal?: AbortSignal) => resolvePorts().health(signal),
+    get mode() {
+      return resolvePorts().mode;
+    },
+    get providerId() {
+      return resolvePorts().providerId;
+    },
+    get model() {
+      return resolvePorts().model;
+    },
+    get dataRemainsLocal() {
+      return resolvePorts().dataRemainsLocal;
+    },
+    get supportsStructuredOutput() {
+      return resolvePorts().supportsStructuredOutput;
+    },
+    get supportsStreaming() {
+      return resolvePorts().supportsStreaming;
+    },
+    get maxContextTokens() {
+      return resolvePorts().maxContextTokens;
+    },
   };
   const isModelExplanationEnabled = () => modelEnhancementAllowed();
   const indexer = new IndexerService(logger, context.extensionPath);
@@ -161,6 +188,7 @@ export function createMergeCoreApp(context: vscode.ExtensionContext): void {
   registerHoverCommands(context, {
     indexer,
     explainer,
+    modelPorts,
     getMode: () => readExplanationMode(),
     isModelExplanationEnabled,
     globalState: context.globalState,

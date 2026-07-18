@@ -88,6 +88,7 @@
     "onCommand:mergecore.configureModelProvider",
     "onCommand:mergecore.disableExternalModels",
     "onCommand:mergecore.previewDataSentToModel",
+    "onCommand:mergecore.previewModelRequest",
     "onCommand:mergecore.exportDiagnostics",
     "onCommand:mergecore.markMissingContext",
     "onCommand:mergecore.exportUsageAnalytics",
@@ -290,6 +291,10 @@
       {
         "command": "mergecore.previewDataSentToModel",
         "title": "MergeCore: Preview Data Sent to Model"
+      },
+      {
+        "command": "mergecore.previewModelRequest",
+        "title": "MergeCore: Preview Model Request"
       },
       {
         "command": "mergecore.exportDiagnostics",
@@ -512,6 +517,9 @@
           "command": "mergecore.previewDataSentToModel"
         },
         {
+          "command": "mergecore.previewModelRequest"
+        },
+        {
           "command": "mergecore.exportDiagnostics"
         },
         {
@@ -570,6 +578,30 @@
           "default": false,
           "markdownDescription": "Allow repository evidence to leave this machine (non-loopback Ollama, OpenAI, Anthropic, or MergeCore review API). **Off by default.** Local loopback Ollama does not require this."
         },
+        "mergecore.privacy.modelMode": {
+          "type": "string",
+          "default": "deterministic",
+          "enum": [
+            "deterministic",
+            "local",
+            "external"
+          ],
+          "enumDescriptions": [
+            "Deterministic only \u2014 no model calls (default)",
+            "Local OpenAI-compatible HTTP model (loopback by default)",
+            "External BYOK provider (OpenAI or Anthropic)"
+          ],
+          "markdownDescription": "Model mode. **Deterministic** is the default. Local uses `mergecore.local.*`. External requires **mergecore.privacy.externalRequestsEnabled** and a SecretStorage API key."
+        },
+        "mergecore.privacy.externalProvider": {
+          "type": "string",
+          "default": "openai",
+          "enum": [
+            "openai",
+            "anthropic"
+          ],
+          "markdownDescription": "BYOK provider when **mergecore.privacy.modelMode** is `external`. API keys are never written to settings.json."
+        },
         "mergecore.privacy.modelProvider": {
           "type": "string",
           "default": "none",
@@ -581,11 +613,11 @@
           ],
           "enumDescriptions": [
             "Deterministic only \u2014 no model calls",
-            "Local Ollama (loopback by default)",
-            "OpenAI \u2014 bring-your-own-key via SecretStorage",
-            "Anthropic \u2014 bring-your-own-key via SecretStorage"
+            "Legacy alias for local mode",
+            "Legacy alias for external OpenAI",
+            "Legacy alias for external Anthropic"
           ],
-          "markdownDescription": "Active model provider. External providers require **mergecore.privacy.externalRequestsEnabled** and a first-time confirmation. API keys are never written to settings.json."
+          "markdownDescription": "Deprecated \u2014 prefer **mergecore.privacy.modelMode**. Still read for migration."
         },
         "mergecore.privacy.anonymiseDiagnostics": {
           "type": "boolean",
@@ -670,12 +702,12 @@
         "mergecore.local.ollamaBaseUrl": {
           "type": "string",
           "default": "http://127.0.0.1:11434",
-          "description": "Base URL for a local Ollama instance used for embeddings and explanations. Source code stays on this machine."
+          "markdownDescription": "Deprecated \u2014 prefer **mergecore.local.baseUrl**. Still used for embeddings and as a migration fallback."
         },
         "mergecore.local.chatModel": {
           "type": "string",
           "default": "llama3.2",
-          "description": "Ollama chat model for on-demand symbol explanations (when mergecore.hover.enableModelExplanation is on). Mere hover never calls the model."
+          "markdownDescription": "Deprecated \u2014 prefer **mergecore.local.model**."
         },
         "mergecore.local.embedModel": {
           "type": "string",
@@ -734,6 +766,41 @@
             "Teaches juniors. Explains the why, not just the what."
           ],
           "markdownDescription": "Secondary review persona (optional). Primary cognition depth is controlled by **mergecore.explanationMode**."
+        },
+        "mergecore.local.baseUrl": {
+          "type": "string",
+          "default": "http://127.0.0.1:11434/v1",
+          "markdownDescription": "OpenAI-compatible local model base URL (must include `/v1`). Works with Ollama `/v1`, LM Studio, llama.cpp server, etc."
+        },
+        "mergecore.local.model": {
+          "type": "string",
+          "default": "llama3.2",
+          "markdownDescription": "Local chat model name when **mergecore.privacy.modelMode** is `local`."
+        },
+        "mergecore.local.timeoutMs": {
+          "type": "number",
+          "default": 45000,
+          "markdownDescription": "Local model request timeout in milliseconds."
+        },
+        "mergecore.local.maxContextTokens": {
+          "type": "number",
+          "default": 8192,
+          "markdownDescription": "Hard estimated input token budget for local model requests (chars \u2248 tokens \u00d7 4)."
+        },
+        "mergecore.local.supportsStructuredOutput": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "When true, request JSON object responses from the local server when available."
+        },
+        "mergecore.local.supportsStreaming": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "When true, streaming completions may be used where supported."
+        },
+        "mergecore.local.apiKey": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Optional bearer token for local servers that require auth. Leave empty when the server needs no key."
         }
       }
     }

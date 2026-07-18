@@ -33,9 +33,12 @@ function buildHtml(webview: vscode.Webview, state: TaskContextPanelState): strin
     `style-src ${webview.cspSource} 'unsafe-inline'`,
     `script-src ${webview.cspSource} 'unsafe-inline'`,
   ].join('; ');
-  const banner = state.pack.meta.dataLeftMachine
-    ? `<div class="banner model">External/local model used — only retrieved evidence was sent.</div>`
-    : `<div class="banner local">Deterministic task context — no model was used.</div>`;
+  const usedModel = state.pack.meta.modelProvider && state.pack.meta.modelProvider !== 'none';
+  const banner = !usedModel
+    ? `<div class="banner local">Deterministic task context — no model was used.</div>`
+    : state.pack.meta.dataLeftMachine
+      ? `<div class="banner model">External model — repository evidence left this machine. Structure remains deterministic.</div>`
+      : `<div class="banner model">Local model wording — only retrieved evidence was sent. Structure remains deterministic.</div>`;
   const meta = `Depth: <code>${state.pack.meta.depth}</code> · confidence ${state.pack.meta.confidence.toFixed(2)} · files pinned: ${state.pack.meta.selectedFiles.length}${state.savedPath ? ` · saved <code>${state.savedPath}</code>` : ''}`;
 
   return `<!DOCTYPE html>

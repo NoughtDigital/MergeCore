@@ -23,16 +23,45 @@ import { modelEnhancementAllowed, resolveChatPorts } from '../explain/model-prov
 import type { MergeCoreSecretStore } from '../secret-store';
 
 function settings(partial: Partial<PrivacySettings>): PrivacySettings {
+  const modelMode =
+    partial.modelMode ??
+    (partial.modelProvider === 'openai' || partial.modelProvider === 'anthropic'
+      ? 'external'
+      : partial.modelProvider === 'ollama'
+        ? 'local'
+        : 'deterministic');
+  const externalProvider =
+    partial.externalProvider ??
+    (partial.modelProvider === 'anthropic' ? 'anthropic' : 'openai');
+  const localBaseUrl =
+    partial.localBaseUrl ??
+    (partial.ollamaBaseUrl
+      ? partial.ollamaBaseUrl.includes('/v1')
+        ? partial.ollamaBaseUrl
+        : `${partial.ollamaBaseUrl.replace(/\/+$/, '')}/v1`
+      : 'http://127.0.0.1:11434/v1');
   return {
+    modelMode,
+    externalProvider,
+    modelProvider: partial.modelProvider ?? (modelMode === 'deterministic' ? 'none' : modelMode === 'local' ? 'ollama' : externalProvider),
     externalRequestsEnabled: false,
-    modelProvider: 'none',
     anonymiseDiagnostics: false,
     usageAnalyticsEnabled: false,
     enableModelExplanation: false,
-    ollamaBaseUrl: 'http://127.0.0.1:11434',
-    chatModel: 'llama3.2',
+    localBaseUrl,
+    localModel: partial.localModel ?? partial.chatModel ?? 'llama3.2',
+    localTimeoutMs: 45_000,
+    localMaxContextTokens: 8192,
+    localSupportsStructuredOutput: true,
+    localSupportsStreaming: true,
+    localApiKey: '',
+    ollamaBaseUrl: partial.ollamaBaseUrl ?? 'http://127.0.0.1:11434',
+    chatModel: partial.chatModel ?? 'llama3.2',
     embedModel: 'nomic-embed-text',
     ...partial,
+    modelMode: partial.modelMode ?? modelMode,
+    externalProvider: partial.externalProvider ?? externalProvider,
+    localBaseUrl: partial.localBaseUrl ?? localBaseUrl,
   };
 }
 
@@ -140,7 +169,7 @@ describe('privacy settings and gate', () => {
 });
 
 describe('model provider factory — no silent external fallback', () => {
-  it('does not call openai when ollama is selected even if openai key exists', async () => {
+  it('does not call openai when local mode is selected even if openai key exists', async () => {
     let openAiCalled = false;
     const secrets = {
       async hasOpenAiKey() {
@@ -169,12 +198,14 @@ describe('model provider factory — no silent external fallback', () => {
         }) as never,
       getSettings: () =>
         settings({
+          modelMode: 'local',
           modelProvider: 'ollama',
+          localBaseUrl: 'http://127.0.0.1:1/v1',
           enableModelExplanation: true,
         }),
     });
 
-    assert.equal(ports.providerId, 'ollama');
+    assert.equal(ports.providerId, 'local-http');
     assert.equal(await ports.isAvailable(), false);
     assert.equal(openAiCalled, false);
   });

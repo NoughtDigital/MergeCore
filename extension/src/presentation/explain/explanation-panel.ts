@@ -29,7 +29,9 @@ function buildPanelHtml(
   ].join('; ');
 
   const banner = state.explanation.modelTransmissionVisible
-    ? `<div class="banner model">External/local model used — only retrieved evidence was sent.</div>`
+    ? state.explanation.modelKind === 'external'
+      ? `<div class="banner model">External model — repository evidence left this machine. Structure remains deterministic.</div>`
+      : `<div class="banner model">Local model wording — only retrieved evidence was sent. Structure remains deterministic.</div>`
     : `<div class="banner local">Deterministic explanation — no model was used.</div>`;
 
   const body = markdownToSafeHtml(state.explanation.markdown);

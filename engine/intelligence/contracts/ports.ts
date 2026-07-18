@@ -157,16 +157,27 @@ export interface RepositoryRetriever {
 }
 
 /**
- * Optional model provider. V0.1 does not require embeddings or LLM calls;
- * hosts may supply a local provider (e.g. Ollama) later.
+ * Optional model provider. Hosts may supply a local or external provider.
+ * Default is deterministic (noop) — MergeCore works fully without a model.
  */
+export type ModelProviderMode = 'deterministic' | 'local' | 'external';
+
 export interface ModelProvider {
   readonly id: string;
+  readonly mode?: ModelProviderMode;
   embed?(texts: readonly string[]): Promise<readonly (readonly number[])[] | undefined>;
-  complete?(prompt: string): Promise<string | undefined>;
+  complete?(
+    input: string | { readonly prompt: string; readonly signal?: AbortSignal }
+  ): Promise<string | undefined>;
+  health?(): Promise<{ readonly ok: boolean; readonly detail?: string }>;
 }
 
 /** No-op model provider used when no local model is configured. */
 export const noopModelProvider: ModelProvider = {
   id: 'noop',
+  mode: 'deterministic',
+  async health() {
+    return { ok: false, detail: 'deterministic' };
+  },
 };
+

@@ -1,11 +1,19 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
 import {
+  assignEvidenceIds,
   createCodeGraphQuery,
   createInstructionResolver,
+  createSourceReference,
   recordUsageEvent,
 } from '@mergecore/intelligence';
 import type { Explainer } from '../../infrastructure/explain/explainer';
+import type { ModelPorts } from '../../infrastructure/explain/model-ports';
+import { enhanceWithValidatedClaims } from '../../infrastructure/explain/enhance-with-validated-claims';
+import {
+  buildModelRequestPreview,
+  formatModelRequestPreviewMarkdown,
+} from '../../infrastructure/explain/model-request-preview';
 import type { IndexerService } from '../../infrastructure/index/indexer.service';
 import { getExplanationMode, type ExplanationMode } from '../../domain/explanation-modes';
 import {
@@ -24,6 +32,7 @@ import { openAttributedSource } from '../sources/open-attributed-source';
 export interface HoverCommandDeps {
   readonly indexer: IndexerService;
   readonly explainer: Explainer;
+  readonly modelPorts: ModelPorts;
   readonly getMode: () => ExplanationMode;
   readonly isModelExplanationEnabled: () => boolean;
   readonly globalState?: vscode.Memento;
@@ -252,22 +261,88 @@ export function registerHoverCommands(
           args.path,
           'Hover open explanation'
         );
-        const explanation = await deps.explainer.explain({
-          symbol: args.name,
-          filePath: args.path,
-          code,
-          mode,
-          relatedSummary,
-          ragContext: relatedSummary,
-          architecturalHints: '',
+
+        const evidence = assignEvidenceIds([
+          createSourceReference({
+            workspaceId: 'workspace',
+            path: args.path,
+            startLine: args.startLine,
+            endLine: args.endLine,
+            sourceType: 'symbol',
+            symbol: args.name,
+            symbolId: args.symbolId,
+          }),
+        ]);
+
+        const preview = buildModelRequestPreview({
+          providerType: settings.modelMode,
+          model:
+            settings.modelMode === 'local'
+              ? settings.localModel
+              : settings.externalProvider,
+          dataRemainsLocal: !requiresExternal,
+          purpose: 'Hover open explanation',
+          evidenceFiles: [args.path],
+          rawBodyChars: code.length + relatedSummary.length,
         });
-        markdown = explanation.markdown;
-        source = explanation.source === 'ollama' ? 'local model' : 'offline template';
-        if (deps.globalState && explanation.source === 'ollama') {
+        if (deps.globalState) {
           await recordModelTransmission(
             deps.globalState,
-            markdown.slice(0, 8000)
+            formatModelRequestPreviewMarkdown(preview)
           );
+        }
+
+        const enhanced = await enhanceWithValidatedClaims({
+          ports: deps.modelPorts,
+          evidence,
+          purpose: 'Hover open explanation',
+          userPrompt: [
+            `Summarise and improve wording for symbol ${args.name} in ${args.path}.`,
+            'Return JSON claims with evidenceIds only.',
+            '',
+            'Code:',
+            '```',
+            code.slice(0, 3000),
+            '```',
+            '',
+            'Related:',
+            relatedSummary || '(none)',
+          ].join('\n'),
+        });
+
+        if (enhanced.ok) {
+          markdown = [
+            `## Function Summary`,
+            ...enhanced.acceptedClaimTexts.map((t) => `- ${t}`),
+            '',
+            `## Related Systems`,
+            relatedSummary || '_None indexed._',
+            '',
+            settings.modelMode === 'local'
+              ? '_Local model wording — claims validated against evidence IDs._'
+              : '_External model wording — claims validated against evidence IDs._',
+          ].join('\n');
+          source =
+            settings.modelMode === 'local' ? 'local model' : 'external model';
+          if (deps.globalState) {
+            await recordModelTransmission(deps.globalState, markdown.slice(0, 8000));
+          }
+        } else {
+          const explanation = await deps.explainer.explain({
+            symbol: args.name,
+            filePath: args.path,
+            code,
+            mode,
+            relatedSummary,
+            ragContext: relatedSummary,
+            architecturalHints: '',
+          });
+          markdown = [
+            explanation.markdown,
+            '',
+            `_${enhanced.fallbackMessage ?? 'Model enhancement failed — using deterministic output.'}_`,
+          ].join('\n');
+          source = 'deterministic (model fallback)';
         }
       } catch (err) {
         if (err instanceof PrivacyGateError) {
