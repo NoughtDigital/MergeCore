@@ -43,13 +43,44 @@ export interface ExplanationCacheEntry {
   readonly createdAt: number;
 }
 
+/** Stored symbol row (mirrors contracts.SymbolRecord for persistence). */
+export interface RagSymbolRecord {
+  readonly id: string;
+  readonly name: string;
+  readonly kind: string;
+  readonly path: string;
+  readonly startLine: number;
+  readonly endLine: number;
+  readonly language: string;
+  readonly exported?: boolean;
+  readonly containerName?: string;
+}
+
+/** Stored dependency edge (mirrors contracts.DependencyEdge). */
+export interface RagDependencyEdge {
+  readonly id: string;
+  readonly fromPath: string;
+  readonly toPath: string;
+  readonly kind: 'import' | 'require' | 'export' | 'reference';
+  readonly specifier: string;
+  readonly fromSymbol?: string;
+  readonly toSymbol?: string;
+  readonly startLine?: number;
+}
+
+/**
+ * On-disk snapshot version. v1 indexes are readable; missing graph fields
+ * default to empty. New writes use version 2.
+ */
 export interface RagStoreSnapshot {
-  readonly version: 1;
+  readonly version: 1 | 2;
   readonly workspaceRoot: string;
   readonly updatedAt: number;
   readonly files: Record<string, RagFileRecord>;
   readonly chunks: Record<string, RagChunk>;
   readonly explanations: Record<string, ExplanationCacheEntry>;
+  readonly symbols?: Record<string, RagSymbolRecord>;
+  readonly edges?: readonly RagDependencyEdge[];
 }
 
 export interface RagHit {

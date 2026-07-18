@@ -53,3 +53,80 @@ export {
   type RagHit,
   type RetrieveOptions,
 } from './rag';
+
+export type {
+  SourceType,
+  WorkspaceDescriptor,
+  FileFingerprint,
+  FileRecord,
+  SymbolLocation,
+  SymbolRecord,
+  DependencyEdge,
+  DocumentChunk,
+  InstructionDocument,
+  InstructionRule,
+  SourceReference,
+  ContextClaim,
+  ContextResult,
+  ContextPack,
+  IndexStatus,
+  IndexPhase,
+  LanguageAdapter,
+  IndexStore,
+  RetrieveQueryOptions,
+  RepositoryRetriever,
+  ModelProvider,
+} from './contracts';
+export {
+  noopModelProvider,
+  serializeWorkspaceDescriptor,
+  parseWorkspaceDescriptor,
+  serializeFileFingerprint,
+  parseFileFingerprint,
+  serializeFileRecord,
+  parseFileRecord,
+  serializeSymbolLocation,
+  parseSymbolLocation,
+  serializeSymbolRecord,
+  parseSymbolRecord,
+  serializeDependencyEdge,
+  parseDependencyEdge,
+  serializeDocumentChunk,
+  parseDocumentChunk,
+  serializeSourceReference,
+  parseSourceReference,
+  serializeContextClaim,
+  parseContextClaim,
+  serializeContextResult,
+  parseContextResult,
+  serializeInstructionRule,
+  parseInstructionRule,
+  serializeInstructionDocument,
+  parseInstructionDocument,
+  serializeContextPack,
+  parseContextPack,
+  serializeIndexStatus,
+  parseIndexStatus,
+} from './contracts';
+
+export {
+  createRepositoryIndex,
+  type CreateRepositoryIndexOptions,
+  type RepositoryIndex,
+  type IndexOptions,
+  type ContextPackOptions,
+} from './api/repository-index';
+
+export {
+  defaultLanguageAdapters,
+  resolveLanguageAdapter,
+  TypeScriptLanguageAdapter,
+  JavaScriptLanguageAdapter,
+  MarkdownLanguageAdapter,
+  PhpLanguageAdapter,
+} from './adapters';
+
+export { createIgnoreMatcher, resolveInsideWorkspace } from './ignore';
+export { SqlJsIndexStore } from './store/sqljs-index-store';
+export { LexicalRepositoryRetriever } from './retrieve/lexical-retriever';
+export { discoverInstructionDocuments } from './memory/discover-instructions';

@@ -19,9 +19,17 @@
   },
   "include": [
     "*.ts",
+    "api/**/*.ts",
+    "adapters/**/*.ts",
+    "contracts/**/*.ts",
     "detectors/**/*.ts",
     "conventions/**/*.ts",
     "prod-risks/**/*.ts",
-    "rag/**/*.ts"
-  ]
+    "rag/**/*.ts",
+    "ignore/**/*.ts",
+    "store/**/*.ts",
+    "retrieve/**/*.ts",
+    "memory/**/*.ts"
+  ],
+  "exclude": ["dist", "node_modules", "__tests__"]
 }

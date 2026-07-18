@@ -7,8 +7,10 @@ export type {
   IndexProgressCallback,
   RagChunk,
   RagChunkKind,
+  RagDependencyEdge,
   RagHit,
   RagStoreSnapshot,
+  RagSymbolRecord,
   RetrieveOptions,
 } from './types';
 export { chunkFile, chunkPhp, chunkMarkdown, isPriorityMemoryPath } from './chunker';

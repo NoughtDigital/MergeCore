@@ -42,6 +42,10 @@ jobs:
         working-directory: engine/intelligence
         run: npm run build
 
+      - name: Unit tests (engine / core)
+        working-directory: engine/intelligence
+        run: npm test
+
       - name: Typecheck extension
         working-directory: extension
         run: npm run lint

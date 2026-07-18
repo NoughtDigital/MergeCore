@@ -1,0 +1,187 @@
+import type {
+  DependencyEdge,
+  DocumentChunk,
+  FileRecord,
+  IndexStatus,
+  IndexStore,
+  SymbolRecord,
+} from '../contracts';
+import { ragStoreDir, RagStore } from '../rag/store';
+import type { RagChunk, RagDependencyEdge, RagSymbolRecord } from '../rag/types';
+
+function toDocumentChunk(chunk: RagChunk): DocumentChunk {
+  return {
+    id: chunk.id,
+    path: chunk.path,
+    text: chunk.text,
+    startLine: chunk.startLine,
+    endLine: chunk.endLine,
+    kind: chunk.kind,
+    symbol: chunk.symbol,
+    weight: chunk.weight,
+    fileHash: chunk.fileHash,
+  };
+}
+
+function toSymbolRecord(sym: RagSymbolRecord): SymbolRecord {
+  return {
+    id: sym.id,
+    name: sym.name,
+    kind: sym.kind,
+    location: {
+      path: sym.path,
+      startLine: sym.startLine,
+      endLine: sym.endLine,
+    },
+    exported: sym.exported,
+    containerName: sym.containerName,
+    language: sym.language,
+  };
+}
+
+function toEdge(edge: RagDependencyEdge): DependencyEdge {
+  return { ...edge };
+}
+
+function fromDocumentChunk(chunk: DocumentChunk): RagChunk {
+  return {
+    id: chunk.id,
+    path: chunk.path,
+    symbol: chunk.symbol,
+    kind: chunk.kind,
+    text: chunk.text,
+    startLine: chunk.startLine,
+    endLine: chunk.endLine,
+    weight: chunk.weight,
+    fileHash: chunk.fileHash,
+  };
+}
+
+function fromSymbol(sym: SymbolRecord): RagSymbolRecord {
+  return {
+    id: sym.id,
+    name: sym.name,
+    kind: sym.kind,
+    path: sym.location.path,
+    startLine: sym.location.startLine,
+    endLine: sym.location.endLine,
+    language: sym.language,
+    exported: sym.exported,
+    containerName: sym.containerName,
+  };
+}
+
+/**
+ * IndexStore backed by the existing sql.js RagStore.
+ */
+export class SqlJsIndexStore implements IndexStore {
+  constructor(private readonly store: RagStore) {}
+
+  static async open(workspaceRoot: string): Promise<SqlJsIndexStore> {
+    const store = await RagStore.open(workspaceRoot);
+    return new SqlJsIndexStore(store);
+  }
+
+  get ragStore(): RagStore {
+    return this.store;
+  }
+
+  get workspaceRoot(): string {
+    return this.store.root;
+  }
+
+  get fileCount(): number {
+    return this.store.fileCount;
+  }
+
+  get chunkCount(): number {
+    return this.store.chunkCount;
+  }
+
+  get symbolCount(): number {
+    return this.store.symbolCount;
+  }
+
+  get edgeCount(): number {
+    return this.store.edgeCount;
+  }
+
+  get hasSqlite(): boolean {
+    return this.store.hasSqlite;
+  }
+
+  get updatedAt(): number {
+    return this.store.updatedAt;
+  }
+
+  getFile(filePath: string): FileRecord | undefined {
+    const f = this.store.getFile(filePath);
+    if (!f) {
+      return undefined;
+    }
+    const symbols = this.store.allSymbols().filter((s) => s.path === f.path);
+    return {
+      path: f.path,
+      fingerprint: {
+        path: f.path,
+        contentHash: f.hash,
+        mtimeMs: f.mtimeMs,
+      },
+      chunkIds: f.chunkIds,
+      symbolIds: symbols.map((s) => s.id),
+    };
+  }
+
+  allChunks(): readonly DocumentChunk[] {
+    return this.store.allChunks().map(toDocumentChunk);
+  }
+
+  allSymbols(): readonly SymbolRecord[] {
+    return this.store.allSymbols().map(toSymbolRecord);
+  }
+
+  allEdges(): readonly DependencyEdge[] {
+    return this.store.allEdges().map(toEdge);
+  }
+
+  replaceFile(input: {
+    readonly path: string;
+    readonly contentHash: string;
+    readonly mtimeMs: number;
+    readonly language?: string;
+    readonly chunks: readonly DocumentChunk[];
+    readonly symbols: readonly SymbolRecord[];
+    readonly edges: readonly DependencyEdge[];
+  }): void {
+    this.store.replaceFileGraph(
+      input.path,
+      input.contentHash,
+      input.mtimeMs,
+      input.chunks.map(fromDocumentChunk),
+      input.symbols.map(fromSymbol),
+      input.edges
+    );
+  }
+
+  removeFile(filePath: string): void {
+    this.store.removeFile(filePath);
+  }
+
+  async persist(): Promise<void> {
+    await this.store.persist();
+  }
+
+  getStatus(): IndexStatus {
+    return {
+      workspaceRoot: this.store.root,
+      ready: this.store.chunkCount > 0 || this.store.fileCount > 0,
+      fileCount: this.store.fileCount,
+      chunkCount: this.store.chunkCount,
+      symbolCount: this.store.symbolCount,
+      edgeCount: this.store.edgeCount,
+      storeDir: ragStoreDir(this.store.root),
+      hasSqlite: this.store.hasSqlite,
+      updatedAt: this.store.updatedAt,
+    };
+  }
+}

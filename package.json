@@ -4,7 +4,8 @@
   "version": "0.0.0",
   "description": "Root aggregator for MergeCore workspace tasks (lint, test, pack validator, security scans).",
   "scripts": {
-    "typecheck:engine": "npm run build --prefix engine/intelligence",
+    "typecheck:engine": "npm run lint --prefix engine/intelligence",
+    "test:engine": "npm test --prefix engine/intelligence",
     "typecheck:extension": "npm run lint --prefix extension",
     "typecheck:mcp": "npm run lint --prefix mcp",
     "typecheck:website": "npm run build --prefix website -- --no-lint",
@@ -12,7 +13,7 @@
     "package:extension": "npm run package --prefix extension",
     "validate:packs": "node scripts/validate-rule-packs.mjs",
     "audit:npm": "npm audit --omit=dev --audit-level=high",
-    "ci": "npm run typecheck:engine && npm run typecheck:extension && npm run typecheck:mcp && npm run test:extension && npm run validate:packs"
+    "ci": "npm run typecheck:engine && npm run test:engine && npm run typecheck:extension && npm run typecheck:mcp && npm run test:extension && npm run validate:packs"
   },
   "devDependencies": {
     "ajv": "^8.17.0",

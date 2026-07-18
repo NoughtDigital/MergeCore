@@ -1,8 +1,6 @@
 import {
-  RagStore,
   collectProjectProfile,
-  indexWorkspace,
-  retrieveFromWorkspace,
+  createRepositoryIndex,
   scanProdRisks,
   type ExplanationMode,
   type IntelligenceProfile,
@@ -36,14 +34,24 @@ function errorResult(message: string) {
 export async function toolIndexStatus() {
   const workspaceRoot = resolveWorkspaceRoot();
   try {
-    const store = await RagStore.open(workspaceRoot);
-    return textResult({
-      workspaceRoot,
-      chunkCount: store.chunkCount,
-      fileCount: store.fileCount,
-      hasSqlite: store.hasSqlite,
-      storeDir: `${workspaceRoot}/.mergecore/rag`,
-    });
+    const repo = await createRepositoryIndex(workspaceRoot);
+    try {
+      const status = await repo.getStatus();
+      return textResult({
+        workspaceRoot: status.workspaceRoot,
+        chunkCount: status.chunkCount,
+        fileCount: status.fileCount,
+        symbolCount: status.symbolCount,
+        edgeCount: status.edgeCount,
+        hasSqlite: status.hasSqlite,
+        storeDir: status.storeDir,
+        ready: status.ready,
+        updatedAt: status.updatedAt,
+        fingerprint: status.fingerprint,
+      });
+    } finally {
+      await repo.close();
+    }
   } catch (err) {
     return errorResult(
       `Failed to open RAG store for ${workspaceRoot}: ${err instanceof Error ? err.message : String(err)}`
@@ -57,21 +65,26 @@ export async function toolIndexRepository() {
     const profile = await collectProjectProfile(workspaceRoot);
     const isLaravel =
       profile.signals.includes('laravel') || profile.signals.includes('path:artisan');
-    const result = await indexWorkspace({
-      workspaceRoot,
-      isLaravel,
-      onProgress: (p) => {
-        console.error(`[mergecore-mcp] ${p.phase}: ${p.message}`);
-      },
-    });
-    return textResult({
-      workspaceRoot,
-      filesIndexed: result.filesIndexed,
-      chunks: result.chunks,
-      fingerprint: profile.fingerprint,
-      signals: profile.signals,
-      stacks: profile.stacks,
-    });
+    const repo = await createRepositoryIndex(workspaceRoot, { isLaravel });
+    try {
+      const status = await repo.index({
+        onProgress: (p) => {
+          console.error(`[mergecore-mcp] ${p.phase}: ${p.message}`);
+        },
+      });
+      return textResult({
+        workspaceRoot: status.workspaceRoot,
+        filesIndexed: status.fileCount,
+        chunks: status.chunkCount,
+        symbols: status.symbolCount,
+        edges: status.edgeCount,
+        fingerprint: profile.fingerprint,
+        signals: profile.signals,
+        stacks: profile.stacks,
+      });
+    } finally {
+      await repo.close();
+    }
   } catch (err) {
     return errorResult(
       `Index failed for ${workspaceRoot}: ${err instanceof Error ? err.message : String(err)}`
@@ -89,24 +102,36 @@ export async function toolRetrieve(args: {
 }) {
   const workspaceRoot = resolveWorkspaceRoot();
   try {
-    const hits = await retrieveFromWorkspace(workspaceRoot, args.query, {
-      k: args.k ?? 8,
-      pathHint: args.pathHint,
-      mode: args.mode,
-      profile: args.profile,
-      preferMemory: args.preferMemory ?? true,
-    });
-    return textResult({
-      workspaceRoot,
-      query: args.query,
-      hits: hits.map((h) => ({
-        path: h.chunk.path,
-        symbol: h.chunk.symbol,
-        kind: h.chunk.kind,
-        score: h.score,
-        excerpt: h.chunk.text.slice(0, 500),
-      })),
-    });
+    const repo = await createRepositoryIndex(workspaceRoot);
+    try {
+      const result = await repo.retrieve(args.query, {
+        k: args.k ?? 8,
+        pathHint: args.pathHint,
+        mode: args.mode,
+        profile: args.profile,
+        preferMemory: args.preferMemory ?? true,
+      });
+      return textResult({
+        workspaceRoot: result.workspaceRoot,
+        query: result.query,
+        incomplete: result.incomplete,
+        notes: result.notes,
+        hits: result.claims.map((c) => ({
+          path: c.references[0]?.path,
+          symbol: c.references[0]?.symbol,
+          kind: c.references[0]?.sourceType,
+          score: c.score,
+          excerpt: c.references[0]?.excerpt ?? c.text.slice(0, 500),
+          startLine: c.references[0]?.startLine,
+          endLine: c.references[0]?.endLine,
+          confidence: c.confidence,
+        })),
+        claims: result.claims,
+        references: result.references,
+      });
+    } finally {
+      await repo.close();
+    }
   } catch (err) {
     return errorResult(
       `Retrieve failed for ${workspaceRoot}: ${err instanceof Error ? err.message : String(err)}`

@@ -1,0 +1,8 @@
+{
+  "name": "@mergecore/test-fixtures",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Checked-in miniature repositories for MergeCore core tests.",
+  "main": "./index.js",
+  "types": "./index.d.ts"
+}
