@@ -17,7 +17,6 @@ import { RequestThrottle } from './infrastructure/request-throttle';
 import { MergeCoreSecretStore, migrateTokenFromSettingsIfAny } from './infrastructure/secret-store';
 import {
   readExplanationMode,
-  readIntelligenceProfile,
   readOllamaSettings,
   registerCognitionCommands,
 } from './presentation/commands/register-cognition-commands';
@@ -25,6 +24,7 @@ import { registerMergeCoreCommands } from './presentation/commands/register-comm
 import { registerProdRiskScanCommand } from './presentation/commands/register-prod-risk-scan';
 import { FindingDiagnostics } from './presentation/diagnostics/finding-diagnostics';
 import { registerMergeCoreHoverProvider } from './presentation/hover/mergecore-hover.provider';
+import { registerHoverCommands } from './presentation/hover/register-hover-commands';
 import { ReviewSessionState } from './presentation/state/review-session.state';
 import { registerMergeCoreStatusBar } from './presentation/status/mergecore-status-bar';
 import { MergeCoreSidebarProvider } from './presentation/webview/mergecore-sidebar.provider';
@@ -121,18 +121,33 @@ export function createMergeCoreApp(context: vscode.ExtensionContext): void {
   );
 
   registerCognitionCommands(context, { indexer, logger });
-  registerMergeCoreHoverProvider(context, {
+  const hoverProvider = registerMergeCoreHoverProvider(context, {
     indexer,
     explainer,
-    embedQuery: async (text, signal) => {
-      const vectors = await ollamaRef.current.embed([text], signal);
-      return vectors?.[0];
-    },
-    getMode: () => readExplanationMode(),
-    getProfile: () => readIntelligenceProfile(),
     ensureIndexed,
+    isModelExplanationEnabled: () =>
+      vscode.workspace.getConfiguration('mergecore').get<boolean>('hover.enableModelExplanation') ===
+      true,
   });
-
+  registerHoverCommands(context, {
+    indexer,
+    explainer,
+    getMode: () => readExplanationMode(),
+    isModelExplanationEnabled: () =>
+      vscode.workspace.getConfiguration('mergecore').get<boolean>('hover.enableModelExplanation') ===
+      true,
+  });
+  context.subscriptions.push({
+    dispose: () => hoverProvider.clearCache(),
+  });
+  // Invalidate hover cache when watched files change through the indexer
+  context.subscriptions.push(
+    indexer.onStatusDetail((status) => {
+      if (status.phase === 'done') {
+        hoverProvider.clearCache();
+      }
+    })
+  );
   registerMergeCoreCommands(context, {
     review,
     gitDiff,

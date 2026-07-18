@@ -1,37 +1,62 @@
-import { sha256, type RagHit } from '@mergecore/intelligence';
-import * as path from 'path';
 import * as vscode from 'vscode';
-import {
-  getExplanationMode,
-  type ExplanationMode,
-  type IntelligenceProfile,
-} from '../../domain/explanation-modes';
-import { ExplanationCache } from '../../infrastructure/explain/explanation-cache';
-import type { Explainer } from '../../infrastructure/explain/explainer';
 import type { IndexerService } from '../../infrastructure/index/indexer.service';
 import { workspaceRootForDocument } from '../../infrastructure/index/indexer.service';
+import type { Explainer } from '../../infrastructure/explain/explainer';
+import {
+  buildDeterministicHoverSummary,
+  isTsJsLanguage,
+  relativeWorkspacePath,
+} from './hover-assemble';
+import { HoverSummaryCache } from './hover-cache';
+import {
+  formatHoverMarkdown,
+  HOVER_ENABLED_COMMANDS,
+} from './hover-markdown';
+import type { HoverSummary } from './hover-summary';
 import { resolvePhpSymbolAt } from './php-symbol';
 
 export interface HoverProviderDeps {
   readonly indexer: IndexerService;
   readonly explainer: Explainer;
-  readonly embedQuery: (
-    text: string,
-    signal?: AbortSignal
-  ) => Promise<readonly number[] | undefined>;
-  readonly getMode: () => ExplanationMode;
-  readonly getProfile: () => IntelligenceProfile;
-  /** Lazily ensure the workspace has been indexed at least once. */
   readonly ensureIndexed?: (workspaceRoot: string) => Promise<void>;
+  /** When true, richer model explanation may be offered via command only. */
+  readonly isModelExplanationEnabled?: () => boolean;
 }
 
+const HOVER_LANGUAGES: vscode.DocumentSelector = [
+  { language: 'typescript' },
+  { language: 'typescriptreact' },
+  { language: 'javascript' },
+  { language: 'javascriptreact' },
+  { language: 'php' },
+  { language: 'blade' },
+];
+
 /**
- * PHP / Blade hover provider — six-section engineering explanations.
+ * Progressive repository-aware hover: deterministic first, model never on mere hover.
  */
 export class MergeCoreHoverProvider implements vscode.HoverProvider {
   private readonly inFlight = new Map<string, Promise<vscode.Hover | null>>();
+  private readonly cache = new HoverSummaryCache<HoverSummary>();
 
-  constructor(private readonly deps: HoverProviderDeps) {}
+  constructor(private readonly deps: HoverProviderDeps) {
+    // Invalidate when index status updates after file changes
+    this.deps.indexer.onStatusDetail((status) => {
+      if (status.phase === 'done' || status.phase === 'persisting') {
+        this.cache.invalidateWorkspace(status.workspaceRoot);
+      }
+    });
+  }
+
+  /** Test / command access to clear cache. */
+  invalidatePaths(workspaceRoot: string, paths: readonly string[]): void {
+    void workspaceRoot;
+    this.cache.invalidatePaths(paths);
+  }
+
+  clearCache(): void {
+    this.cache.clear();
+  }
 
   async provideHover(
     document: vscode.TextDocument,
@@ -41,7 +66,16 @@ export class MergeCoreHoverProvider implements vscode.HoverProvider {
     if (document.uri.scheme !== 'file') {
       return null;
     }
-    if (document.languageId !== 'php' && document.languageId !== 'blade') {
+
+    // Workspace trust: package disables Restricted Mode; also gate at runtime.
+    if (!vscode.workspace.isTrusted) {
+      return null;
+    }
+
+    const lang = document.languageId;
+    const isPhp = lang === 'php' || lang === 'blade';
+    const isTsJs = isTsJsLanguage(lang);
+    if (!isPhp && !isTsJs) {
       return null;
     }
 
@@ -50,23 +84,13 @@ export class MergeCoreHoverProvider implements vscode.HoverProvider {
       return null;
     }
 
-    const symbol = resolvePhpSymbolAt(document.getText(), position.line);
-    if (!symbol) {
-      return null;
-    }
-
-    const mode = this.deps.getMode();
-    // Prefer VS Code's document version over hashing the full buffer on every miss.
-    const fileHash = `${document.version}:${sha256(symbol.code)}`;
-    const cacheKey = `${fileHash}|${symbol.symbol}|${mode}`;
-    const flightKey = `${document.uri.fsPath}|${cacheKey}`;
-
+    const flightKey = `${document.uri.fsPath}|${document.version}|${position.line}|${position.character}`;
     const existing = this.inFlight.get(flightKey);
     if (existing) {
       return existing;
     }
 
-    const work = this.buildHover(document, workspaceRoot, symbol, mode, fileHash, token);
+    const work = this.buildHover(document, position, workspaceRoot, isPhp, token);
     this.inFlight.set(flightKey, work);
     try {
       return await work;
@@ -77,148 +101,159 @@ export class MergeCoreHoverProvider implements vscode.HoverProvider {
 
   private async buildHover(
     document: vscode.TextDocument,
+    position: vscode.Position,
     workspaceRoot: string,
-    symbol: NonNullable<ReturnType<typeof resolvePhpSymbolAt>>,
-    mode: ExplanationMode,
-    fileHash: string,
+    isPhp: boolean,
     token: vscode.CancellationToken
   ): Promise<vscode.Hover | null> {
     const abort = new AbortController();
     const cancelSub = token.onCancellationRequested(() => abort.abort());
 
     try {
-      const store = await this.deps.indexer.getStore(workspaceRoot);
-      const cache = new ExplanationCache(store);
-      const cached = cache.get(fileHash, symbol.symbol, mode);
-      if (cached) {
-        const md = new vscode.MarkdownString(cached.markdown, true);
-        md.isTrusted = false;
-        return new vscode.Hover(md);
-      }
-
-      if (token.isCancellationRequested) {
-        return null;
-      }
-
       if (this.deps.ensureIndexed) {
+        // Never await a full index on the hover hot path
         void this.deps.ensureIndexed(workspaceRoot);
       }
 
-      const relPath = path.relative(workspaceRoot, document.uri.fsPath).replace(/\\/g, '/');
-      const profile = this.deps.getProfile();
-
-      // Hover relies on RAG retrieve rather than a full related-context pack,
-      // which keeps the hot path off dozens of findFiles + disk reads.
-      const queryEmbedding = await this.deps.embedQuery(
-        `${symbol.symbol}\n${symbol.code.slice(0, 1500)}`,
-        abort.signal
-      );
-
       if (token.isCancellationRequested) {
         return null;
       }
 
-      const hits = await this.deps.indexer.retrieve(
-        workspaceRoot,
-        `${symbol.symbol} ${relPath} ${symbol.code.slice(0, 400)}`,
-        { k: 6, mode, profile, pathHint: relPath, preferMemory: true },
-        queryEmbedding
-      );
-
+      const store = await this.deps.indexer.getStore(workspaceRoot);
       if (token.isCancellationRequested) {
         return null;
       }
 
-      const ragContext = formatHits(hits);
-      const architecturalHints = buildArchitecturalHints(relPath, hits);
-      const relatedSummary = hits
-        .slice(0, 8)
-        .map((h) => `- \`${h.chunk.path}\`${h.chunk.symbol ? ` · ${h.chunk.symbol}` : ''}`)
-        .join('\n');
+      const relPath = relativeWorkspacePath(workspaceRoot, document.uri.fsPath);
+      const graphService = this.deps.indexer.getCodeGraphService(workspaceRoot);
 
-      const explanation = await this.deps.explainer.explain({
-        symbol: symbol.symbol,
-        filePath: relPath,
-        code: symbol.code,
-        mode,
-        profile,
-        relatedSummary,
-        ragContext,
-        architecturalHints,
-        signal: abort.signal,
-      });
+      // Warm graph buffer for current file so position resolve works
+      if (graphService && !isPhp) {
+        try {
+          graphService.updateFile(relPath, document.getText());
+        } catch {
+          // ignore
+        }
+      }
 
-      if (token.isCancellationRequested) {
+      let summary: HoverSummary | undefined;
+
+      if (!isPhp) {
+        const cacheKey = HoverSummaryCache.key({
+          workspaceRoot,
+          symbolId: `${relPath}:${position.line}:${position.character}`,
+          fileVersion: document.version,
+        });
+        // Position-based provisional key; refine after resolve
+        const line = document.lineAt(position.line).text;
+        const codeSample = extractNearbyCode(document, position);
+
+        summary = await buildDeterministicHoverSummary({
+          workspaceRoot,
+          store,
+          graphService,
+          relPath,
+          position: { line: position.line + 1, column: position.character + 1 },
+          codeSample,
+          signal: abort.signal,
+        });
+
+        if (token.isCancellationRequested) {
+          return null;
+        }
+
+        if (summary) {
+          const stableKey = HoverSummaryCache.key({
+            workspaceRoot,
+            symbolId: summary.symbolId,
+            fileVersion: document.version,
+          });
+          const cached = this.cache.get(stableKey);
+          if (cached) {
+            summary = cached;
+          } else {
+            this.cache.set(stableKey, summary, [
+              summary.path,
+              ...summary.callers.map((c) => c.path),
+              ...summary.relatedTests.map((t) => t.path),
+            ]);
+          }
+          void cacheKey;
+          void line;
+        }
+      } else {
+        // PHP: keep lightweight symbol resolve; still no model on hover
+        const phpSym = resolvePhpSymbolAt(document.getText(), position.line);
+        if (!phpSym) {
+          return null;
+        }
+        summary = {
+          symbolId: `php:${relPath}:${phpSym.symbol}`,
+          name: phpSym.symbol,
+          kind: phpSym.kind,
+          language: 'php',
+          path: relPath,
+          startLine: position.line + 1,
+          endLine: position.line + 1,
+          purpose: {
+            text: phpSym.kind === 'method' ? `PHP method \`${phpSym.symbol}\`` : `PHP ${phpSym.kind}`,
+            kind: 'inference',
+          },
+          role: { text: `Defined in \`${relPath}\``, kind: 'evidence' },
+          inputs: { text: 'see signature', kind: 'inference' },
+          output: { text: 'unknown', kind: 'inference' },
+          dependencies: [],
+          callers: [],
+          relatedTests: [],
+          instructions: [],
+          risks: [],
+          confidence: 'medium',
+          analysis: 'heuristic',
+          callerCount: 0,
+          dependencyCount: 0,
+          relatedTestCount: 0,
+        };
+      }
+
+      if (!summary) {
         return null;
       }
 
-      const modeInfo = getExplanationMode(mode);
-      const footer = `\n\n---\n_MergeCore · ${modeInfo.badge} mode · ${explanation.source === 'ollama' ? 'local model' : 'offline template'}_`;
-      const markdown = `${explanation.markdown}${footer}`;
-
-      cache.set({
-        key: cache.key(fileHash, symbol.symbol, mode),
-        markdown,
-        mode,
-        createdAt: Date.now(),
-      });
-      void cache.persist();
-
+      const markdown = formatHoverMarkdown(summary, workspaceRoot);
       const md = new vscode.MarkdownString(markdown, true);
-      md.isTrusted = false;
-      return new vscode.Hover(md);
+      md.isTrusted = { enabledCommands: [...HOVER_ENABLED_COMMANDS] };
+      md.supportHtml = false;
+
+      const range = new vscode.Range(
+        Math.max(0, summary.startLine - 1),
+        0,
+        Math.max(0, summary.endLine - 1),
+        999
+      );
+      return new vscode.Hover(md, range);
     } finally {
       cancelSub.dispose();
     }
   }
 }
 
-function formatHits(hits: readonly RagHit[]): string {
-  if (hits.length === 0) {
-    return '';
+function extractNearbyCode(document: vscode.TextDocument, position: vscode.Position): string {
+  const start = Math.max(0, position.line - 2);
+  const end = Math.min(document.lineCount - 1, position.line + 12);
+  const lines: string[] = [];
+  for (let i = start; i <= end; i++) {
+    lines.push(document.lineAt(i).text);
   }
-  return hits
-    .map((h) => {
-      const label = h.chunk.symbol ? `${h.chunk.path} · ${h.chunk.symbol}` : h.chunk.path;
-      const excerpt = h.chunk.text.replace(/\s+/g, ' ').trim().slice(0, 280);
-      return `[${h.chunk.kind}] ${label}: ${excerpt}`;
-    })
-    .join('\n');
-}
-
-function buildArchitecturalHints(relPath: string, hits: readonly RagHit[]): string {
-  const parts: string[] = [];
-  const lower = relPath.toLowerCase();
-  if (lower.includes('/http/controllers/') || /controller\.php$/i.test(relPath)) {
-    parts.push(
-      'This looks like an HTTP controller. Prefer thin actions that delegate to services/actions and validate via FormRequests.'
-    );
-  } else if (lower.includes('/jobs/') || /job\.php$/i.test(relPath)) {
-    parts.push(
-      'This looks like a queued job. Consider idempotency, retries, and failure visibility.'
-    );
-  } else if (lower.includes('/models/') || lower.startsWith('app/models/')) {
-    parts.push(
-      'Eloquent models concentrate persistence. Watch for fat models and hidden query side effects.'
-    );
-  }
-
-  const memory = hits.filter((h) => h.chunk.kind === 'memory').slice(0, 2);
-  for (const m of memory) {
-    const bit = m.chunk.text.replace(/\s+/g, ' ').trim().slice(0, 180);
-    if (bit) {
-      parts.push(`From project memory (${m.chunk.path}): ${bit}`);
-    }
-  }
-  return parts.join(' ');
+  return lines.join('\n').slice(0, 2000);
 }
 
 export function registerMergeCoreHoverProvider(
   context: vscode.ExtensionContext,
   deps: HoverProviderDeps
-): void {
+): MergeCoreHoverProvider {
   const provider = new MergeCoreHoverProvider(deps);
   context.subscriptions.push(
-    vscode.languages.registerHoverProvider([{ language: 'php' }, { language: 'blade' }], provider)
+    vscode.languages.registerHoverProvider(HOVER_LANGUAGES, provider)
   );
+  return provider;
 }

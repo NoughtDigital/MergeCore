@@ -9,6 +9,7 @@ import {
   type RagStore,
   type RetrieveOptions,
   type RepositoryFileIndexer,
+  type TsJsCodeGraphService,
 } from '@mergecore/intelligence';
 import * as vscode from 'vscode';
 import { MergeCoreLogger } from '../logger';
@@ -107,6 +108,11 @@ export class IndexerService {
   async getStore(workspaceRoot: string): Promise<RagStore> {
     const indexer = await this.getIndexer(workspaceRoot);
     return indexer.getRagStore();
+  }
+
+  /** Live TS/JS code-graph service when the compiler host is enabled. */
+  getCodeGraphService(workspaceRoot: string): TsJsCodeGraphService | undefined {
+    return this.indexers.get(workspaceRoot)?.getCodeGraphService();
   }
 
   async getIndexStatus(workspaceRoot: string): Promise<IndexStatus> {

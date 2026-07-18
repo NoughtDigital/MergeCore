@@ -62,6 +62,13 @@
     "onCommand:mergecore.showLogs",
     "onCommand:mergecore.chooseReviewerPersona",
     "onCommand:mergecore.scanProdRisks",
+    "onCommand:mergecore.hover.openSource",
+    "onCommand:mergecore.hover.openExplanation",
+    "onCommand:mergecore.hover.viewCallers",
+    "onCommand:mergecore.hover.viewDependencies",
+    "onCommand:mergecore.hover.viewRelatedTests",
+    "onCommand:mergecore.hover.viewApplicableInstructions",
+    "onCommand:mergecore.hover.generateTaskContext",
     "onView:mergecore.sidebar"
   ],
   "main": "./out/extension.js",
@@ -152,6 +159,34 @@
       {
         "command": "mergecore.scanProdRisks",
         "title": "MergeCore: What Breaks In Prod? (local scan)"
+      },
+      {
+        "command": "mergecore.hover.openSource",
+        "title": "MergeCore: Open Hover Symbol Source"
+      },
+      {
+        "command": "mergecore.hover.openExplanation",
+        "title": "MergeCore: Open Full Symbol Explanation"
+      },
+      {
+        "command": "mergecore.hover.viewCallers",
+        "title": "MergeCore: View Symbol Callers"
+      },
+      {
+        "command": "mergecore.hover.viewDependencies",
+        "title": "MergeCore: View Symbol Dependencies"
+      },
+      {
+        "command": "mergecore.hover.viewRelatedTests",
+        "title": "MergeCore: View Related Tests"
+      },
+      {
+        "command": "mergecore.hover.viewApplicableInstructions",
+        "title": "MergeCore: View Applicable Instructions"
+      },
+      {
+        "command": "mergecore.hover.generateTaskContext",
+        "title": "MergeCore: Generate Task Context from Symbol"
       }
     ],
     "menus": {
@@ -233,7 +268,9 @@
         { "command": "mergecore.clearApiToken" },
         { "command": "mergecore.showLogs" },
         { "command": "mergecore.chooseReviewerPersona" },
-        { "command": "mergecore.scanProdRisks" }
+        { "command": "mergecore.scanProdRisks" },
+        { "command": "mergecore.hover.openExplanation" },
+        { "command": "mergecore.hover.generateTaskContext" }
       ]
     },
     "viewsContainers": {
@@ -259,6 +296,11 @@
     "configuration": {
       "title": "MergeCore",
       "properties": {
+        "mergecore.hover.enableModelExplanation": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "When **enabled**, **Open full explanation** from hover may call a configured local/provider model using retrieved evidence only. Mere hover never sends repository contents to a model."
+        },
         "mergecore.explanationMode": {
           "type": "string",
           "default": "junior",
@@ -304,7 +346,7 @@
         "mergecore.local.chatModel": {
           "type": "string",
           "default": "llama3.2",
-          "description": "Ollama chat model for hover explanations. Falls back to offline templates when Ollama is unavailable."
+          "description": "Ollama chat model for on-demand symbol explanations (when mergecore.hover.enableModelExplanation is on). Mere hover never calls the model."
         },
         "mergecore.local.embedModel": {
           "type": "string",
