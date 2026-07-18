@@ -1,9 +1,14 @@
 import {
+  assembleTaskContextPack,
   collectProjectProfile,
+  createRepositoryFileIndexer,
   createRepositoryIndex,
+  parseTaskContextDepth,
   scanProdRisks,
+  writeTaskContextPack,
   type ExplanationMode,
   type IntelligenceProfile,
+  type TaskContextDepth,
 } from '@mergecore/intelligence';
 import {
   loadPackRegistry,
@@ -270,6 +275,58 @@ export async function toolWorkspaceProfile() {
   } catch (err) {
     return errorResult(
       `Profile failed for ${workspaceRoot}: ${err instanceof Error ? err.message : String(err)}`
+    );
+  }
+}
+
+export async function toolGenerateTaskContext(args: {
+  task: string;
+  selectedFiles?: string[];
+  depth?: TaskContextDepth | string;
+  persist?: boolean;
+}) {
+  const workspaceRoot = resolveWorkspaceRoot();
+  try {
+    const indexer = await createRepositoryFileIndexer({
+      workspaceRoot,
+    });
+    try {
+      const store = indexer.getRagStore();
+      if (store.chunkCount === 0) {
+        await indexer.startInitialIndex();
+      }
+      const depth = parseTaskContextDepth(
+        typeof args.depth === 'string' ? args.depth : undefined
+      );
+      const pack = await assembleTaskContextPack({
+        workspaceRoot,
+        store,
+        task: args.task,
+        depth,
+        selectedFiles: args.selectedFiles,
+        graphService: indexer.getCodeGraphService(),
+      });
+      let savedPath: string | undefined;
+      if (args.persist !== false) {
+        const written = await writeTaskContextPack(workspaceRoot, pack);
+        savedPath = written.relativePath;
+      }
+      return textResult({
+        workspaceRoot,
+        savedPath,
+        meta: {
+          ...pack.meta,
+          modelProvider: 'none',
+          dataLeftMachine: false,
+        },
+        markdown: pack.markdown,
+      });
+    } finally {
+      await indexer.dispose();
+    }
+  } catch (err) {
+    return errorResult(
+      `Generate task context failed for ${workspaceRoot}: ${err instanceof Error ? err.message : String(err)}`
     );
   }
 }

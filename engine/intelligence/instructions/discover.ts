@@ -55,6 +55,26 @@ export async function discoverContextDocuments(
     }
     const classification = classifyContextPath(normalised, flags);
     const { frontmatter, bodyStartLine } = parseFrontmatter(content);
+    // Frontmatter can mark a shareable-path file as MergeCore-generated
+    let documentType = classification.documentType;
+    let authored = classification.authored;
+    let binding = classification.binding;
+    const genBy = frontmatter?.fields?.generated_by ?? frontmatter?.fields?.generatedBy;
+    const statusField = frontmatter?.fields?.status;
+    if (
+      (genBy === 'mergecore' || typeof statusField === 'string') &&
+      (flags.underGeneratedMemory ||
+        normalised.includes('.mergecore/generated/') ||
+        (typeof statusField === 'string' &&
+          ['generated', 'reviewed', 'approved', 'rejected', 'stale'].includes(
+            String(statusField)
+          ) &&
+          genBy === 'mergecore'))
+    ) {
+      documentType = 'generated_memory';
+      authored = 'generated';
+      binding = 'generated';
+    }
     const lines = content.split(/\r?\n/);
     const title =
       (frontmatter?.description as string | undefined) ||
@@ -64,11 +84,11 @@ export async function discoverContextDocuments(
       id: `ctx:${normalised}`,
       path: normalised,
       title,
-      documentType: classification.documentType,
+      documentType,
       scope: classification.scope,
-      authored: classification.authored,
+      authored,
       classificationConfidence: classification.classificationConfidence,
-      binding: classification.binding,
+      binding,
       userConfigured: flags.userConfigured === true,
       frontmatter,
       contentHash: contentHash(content),
@@ -123,7 +143,7 @@ export async function discoverContextDocuments(
     }
   }, options.signal);
 
-  // MergeCore context directory (human) + generated memory under .mergecore
+  // MergeCore context directory (human) + shareable memory + generated memory
   await walkDir(path.join(root, contextDir), contextDir, async (rel) => {
     if (rel.toLowerCase().endsWith('.md')) {
       await add(rel);
@@ -132,9 +152,20 @@ export async function discoverContextDocuments(
 
   await walkDir(path.join(root, '.mergecore', 'memory'), '.mergecore/memory', async (rel) => {
     if (rel.toLowerCase().endsWith('.md')) {
-      await add(rel, { underGeneratedMemory: true });
+      await add(rel);
     }
   }, options.signal);
+
+  await walkDir(
+    path.join(root, '.mergecore', 'generated'),
+    '.mergecore/generated',
+    async (rel) => {
+      if (rel.toLowerCase().endsWith('.md')) {
+        await add(rel, { underGeneratedMemory: true });
+      }
+    },
+    options.signal
+  );
 
   // User-configured paths
   for (const configured of options.configuredPaths ?? []) {

@@ -176,6 +176,48 @@ export { discoverInstructionDocuments } from './memory/discover-instructions';
 export { STORE_SCHEMA_VERSION } from './rag/store';
 
 export {
+  // Engineering memory (persistent local structure)
+  initialiseMergeCoreMemory,
+  loadMergeCoreConfig,
+  parseMemoryDocument,
+  serialiseMemoryDocument,
+  loadProvenanceGraph,
+  saveProvenanceGraph,
+  validateProvenanceDocument,
+  validateProvenanceGraph,
+  isSelfReinforcingClaim,
+  writeGeneratedMemoryDocument,
+  mergePreservingHumanSections,
+  updateMemoryStatusOnDisk,
+  deleteMemoryDocument,
+  refreshStaleMemory,
+  listGeneratedMemoryFiles,
+  detectStaleDocument,
+  scanGeneratedMemoryForStale,
+  filterDocumentsForRetrieval,
+  memoryStatusInfluencesAnswers,
+  precedenceForMemoryStatus,
+  fingerprintFile,
+  MEMORY_AUTHORITY,
+  MEMORY_STATUSES,
+  MEMORY_SCHEMA_VERSION,
+  DEFAULT_MERGECORE_CONFIG,
+  MEMORY_DIR,
+  GENERATED_DIR,
+  GENERATED_MEMORY_DIR,
+  RAG_DIR,
+  CONFIG_PATH,
+  PROVENANCE_PATH,
+  SHAREABLE_MEMORY_FILES,
+  type MemoryStatus,
+  type MemoryFrontmatter,
+  type ProvenanceGraph,
+  type MergeCoreConfig,
+  type StaleCheckResult,
+  type InitMemoryResult,
+} from './memory';
+
+export {
   createInstructionResolver,
   discoverContextDocuments,
   classifyContextPath,
@@ -193,6 +235,22 @@ export {
   type MarkdownSection,
   type InstructionResolverOptions,
 } from './instructions';
+
+export {
+  // Task context packs
+  assembleTaskContextPack,
+  writeTaskContextPack,
+  budgetsForDepth,
+  parseTaskContextDepth,
+  packHasRequiredSections,
+  parseTaskContextFrontmatter,
+  REQUIRED_TASK_CONTEXT_SECTIONS,
+  TASK_CONTEXT_SCHEMA_VERSION,
+  type TaskContextPack,
+  type TaskContextInput,
+  type TaskContextDepth,
+  type TaskContextMeta,
+} from './context/index';
 
 export {
   createCodeGraphQuery,

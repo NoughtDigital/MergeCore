@@ -70,6 +70,13 @@
     "onCommand:mergecore.hover.viewApplicableInstructions",
     "onCommand:mergecore.hover.generateTaskContext",
     "onCommand:mergecore.explainSelectedCode",
+    "onCommand:mergecore.memory.initialise",
+    "onCommand:mergecore.memory.review",
+    "onCommand:mergecore.memory.approve",
+    "onCommand:mergecore.memory.reject",
+    "onCommand:mergecore.memory.refreshStale",
+    "onCommand:mergecore.memory.openFolder",
+    "onCommand:mergecore.generateTaskContext",
     "onView:mergecore.sidebar"
   ],
   "main": "./out/extension.js",
@@ -192,6 +199,34 @@
       {
         "command": "mergecore.explainSelectedCode",
         "title": "MergeCore: Explain Selected Code"
+      },
+      {
+        "command": "mergecore.memory.initialise",
+        "title": "MergeCore: Initialise Memory"
+      },
+      {
+        "command": "mergecore.memory.review",
+        "title": "MergeCore: Review Generated Memory"
+      },
+      {
+        "command": "mergecore.memory.approve",
+        "title": "MergeCore: Approve Memory"
+      },
+      {
+        "command": "mergecore.memory.reject",
+        "title": "MergeCore: Mark Memory Rejected"
+      },
+      {
+        "command": "mergecore.memory.refreshStale",
+        "title": "MergeCore: Refresh Stale Memory"
+      },
+      {
+        "command": "mergecore.memory.openFolder",
+        "title": "MergeCore: Open Memory Folder"
+      },
+      {
+        "command": "mergecore.generateTaskContext",
+        "title": "MergeCore: Generate Task Context"
       }
     ],
     "menus": {
@@ -284,7 +319,14 @@
         {
           "command": "mergecore.explainSelectedCode",
           "when": "resourceLangId =~ /^(typescript|typescriptreact|javascript|javascriptreact)$/"
-        }
+        },
+        { "command": "mergecore.memory.initialise" },
+        { "command": "mergecore.memory.review" },
+        { "command": "mergecore.memory.approve" },
+        { "command": "mergecore.memory.reject" },
+        { "command": "mergecore.memory.refreshStale" },
+        { "command": "mergecore.memory.openFolder" },
+        { "command": "mergecore.generateTaskContext" }
       ]
     },
     "viewsContainers": {
@@ -313,7 +355,18 @@
         "mergecore.hover.enableModelExplanation": {
           "type": "boolean",
           "default": false,
-          "markdownDescription": "When **enabled**, **Open full explanation** from hover may call a configured local/provider model using retrieved evidence only. Mere hover never sends repository contents to a model."
+          "markdownDescription": "When enabled, on-demand full explanations and task-context packs may call the configured local/provider model with retrieved evidence only. Mere hover never calls the model."
+        },
+        "mergecore.taskContext.defaultDepth": {
+          "type": "string",
+          "default": "standard",
+          "enum": ["shallow", "standard", "deep"],
+          "enumDescriptions": [
+            "Fewer files/symbols — faster, tighter packs",
+            "Balanced retrieval budgets (recommended)",
+            "Larger neighbourhood and character budget"
+          ],
+          "markdownDescription": "Default retrieval depth for **MergeCore: Generate Task Context**."
         },
         "mergecore.explanationMode": {
           "type": "string",

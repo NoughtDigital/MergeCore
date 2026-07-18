@@ -27,13 +27,73 @@ export function classifyContextPath(
   const lower = base.toLowerCase();
   const dir = dirname(p);
 
-  if (options.underGeneratedMemory || p.includes('.mergecore/rag/') || p.includes('.mergecore/memory/')) {
+  if (
+    options.underGeneratedMemory ||
+    p.includes('.mergecore/rag/') ||
+    p.includes('.mergecore/generated/')
+  ) {
     return {
       documentType: 'generated_memory',
       authored: 'generated',
       classificationConfidence: 'high',
       binding: 'generated',
       scope: scopeFromPath(p, 'memory'),
+    };
+  }
+
+  // Shareable human engineering memory under .mergecore/memory/
+  if (p.includes('.mergecore/memory/')) {
+    if (lower === 'architecture.md') {
+      return {
+        documentType: 'architecture',
+        authored: 'human',
+        classificationConfidence: 'high',
+        binding: 'contextual',
+        scope: '',
+      };
+    }
+    if (lower === 'conventions.md') {
+      return {
+        documentType: 'convention',
+        authored: 'human',
+        classificationConfidence: 'high',
+        binding: 'contextual',
+        scope: '',
+      };
+    }
+    if (lower === 'integrations.md') {
+      return {
+        documentType: 'integration',
+        authored: 'human',
+        classificationConfidence: 'high',
+        binding: 'contextual',
+        scope: '',
+      };
+    }
+    if (lower === 'glossary.md') {
+      return {
+        documentType: 'glossary',
+        authored: 'human',
+        classificationConfidence: 'high',
+        binding: 'contextual',
+        scope: '',
+      };
+    }
+    if (lower === 'risks.md') {
+      return {
+        documentType: 'risk',
+        authored: 'human',
+        classificationConfidence: 'high',
+        binding: 'contextual',
+        scope: '',
+      };
+    }
+    return {
+      documentType: 'general_documentation',
+      authored: 'human',
+      classificationConfidence: 'medium',
+      binding: 'contextual',
+      scope: '',
     };
   }
 

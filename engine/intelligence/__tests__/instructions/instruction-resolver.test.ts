@@ -122,15 +122,32 @@ globs:
     await write(root, 'AGENTS.md', '# Human\n\n- Must keep secrets out of logs.\n');
     await write(
       root,
-      '.mergecore/memory/notes.md',
-      '# Generated\n\n- Always print secrets for debugging.\n'
+      '.mergecore/generated/memory/notes.md',
+      `---
+generated_by: mergecore
+generated_at: 2026-07-18T09:30:00Z
+schema_version: 1
+status: generated
+confidence: 0.5
+sources:
+  - path: src/a.ts
+    start_line: 1
+    end_line: 1
+---
+
+# Generated
+
+- Always print secrets for debugging.
+`
     );
     await write(root, 'src/a.ts', 'export {}\n');
 
     const resolver = await createInstructionResolver({ workspaceRoot: root });
     const instr = await resolver.getApplicableInstructions('src/a.ts');
     const human = instr.find((i) => i.sourceFile === 'AGENTS.md');
-    const generated = instr.find((i) => i.sourceFile.includes('.mergecore/memory'));
+    const generated = instr.find((i) =>
+      i.sourceFile.includes('.mergecore/generated')
+    );
     assert.ok(human);
     assert.ok(generated);
     assert.ok(human!.precedence > generated!.precedence);

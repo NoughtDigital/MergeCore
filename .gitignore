@@ -37,3 +37,8 @@ coverage/
 
 # Playwright CLI local artifacts (snapshots, console logs, traces)
 .playwright-cli/
+
+# MergeCore machine-local index and generated artefacts (shareable memory under
+# .mergecore/memory/ and .mergecore/config.json may be committed)
+.mergecore/rag/
+.mergecore/generated/

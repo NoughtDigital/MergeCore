@@ -8,6 +8,7 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { z } from 'zod';
 import {
   toolExplainContext,
+  toolGenerateTaskContext,
   toolIndexRepository,
   toolIndexStatus,
   toolListPacks,
@@ -101,6 +102,27 @@ function createServer(): McpServer {
       packId: z.string().describe('Pack id from mergecore_list_packs'),
     },
     async (args) => toolReadPackGuidance(args)
+  );
+
+  server.tool(
+    'mergecore_generate_task_context',
+    'Generate a focused Markdown task context pack (instructions, components, deps, tests, risks, sources). Deterministic; local only.',
+    {
+      task: z.string().describe('Software task description, e.g. Add partial refunds to subscriptions'),
+      selectedFiles: z
+        .array(z.string())
+        .optional()
+        .describe('Optional relative file paths to pin'),
+      depth: z
+        .enum(['shallow', 'standard', 'deep'])
+        .optional()
+        .describe('Retrieval depth (default standard)'),
+      persist: z
+        .boolean()
+        .optional()
+        .describe('Write under .mergecore/generated/context-packs/ (default true)'),
+    },
+    async (args) => toolGenerateTaskContext(args)
   );
 
   server.tool(

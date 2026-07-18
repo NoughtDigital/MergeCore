@@ -3,7 +3,6 @@ import * as vscode from 'vscode';
 import {
   createCodeGraphQuery,
   createInstructionResolver,
-  createRepositorySearchEngine,
 } from '@mergecore/intelligence';
 import type { Explainer } from '../../infrastructure/explain/explainer';
 import type { IndexerService } from '../../infrastructure/index/indexer.service';
@@ -180,22 +179,11 @@ export function registerHoverCommands(
   });
 
   register(HOVER_COMMANDS.generateTaskContext, async (args) => {
-    const store = await deps.indexer.getStore(args.workspaceRoot);
-    const engine = await createRepositorySearchEngine({ store });
-    const ctx = await engine.getContextForSymbol(args.symbolId);
-    const lines = [
-      `# Task context · ${args.name}`,
-      '',
-      ...ctx.results.slice(0, 20).map(
-        (r) =>
-          `- **${r.path}** (${r.resultType}, score ${r.score.toFixed(1)}, ${r.analysis}): ${r.reason}`
-      ),
-    ];
-    const doc = await vscode.workspace.openTextDocument({
-      content: lines.join('\n'),
-      language: 'markdown',
+    await vscode.commands.executeCommand('mergecore.generateTaskContext', {
+      task: `Change impact for \`${args.name}\` in \`${args.path}\``,
+      selectedFiles: [args.path],
+      selectedSymbols: [args.symbolId],
     });
-    await vscode.window.showTextDocument(doc, { preview: true });
   });
 
   register(HOVER_COMMANDS.openExplanation, async (args) => {

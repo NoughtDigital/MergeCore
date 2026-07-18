@@ -23,6 +23,9 @@ export const PRECEDENCE = {
   ROOT_SCOPED_INSTRUCTION: 700,
   CURSOR_GLOB_RULE: 600,
   CONTEXTUAL_DOC: 400,
+  /** Approved generated memory — below human contextual docs. */
+  APPROVED_MEMORY: 250,
+  REVIEWED_MEMORY: 150,
   GENERATED_MEMORY: 100,
 } as const;
 
@@ -255,6 +258,11 @@ class InstructionResolverImpl implements InstructionResolver {
 
 function documentApplies(doc: ContextDocument, target: string): boolean {
   if (doc.authored === 'generated' || doc.documentType === 'generated_memory') {
+    const status = String(doc.frontmatter?.fields?.status ?? 'generated');
+    // Rejected and stale generated memory must not influence answers
+    if (status === 'rejected' || status === 'stale') {
+      return false;
+    }
     return true; // included but low precedence / non-overriding
   }
 
@@ -297,6 +305,9 @@ function isUnderScope(target: string, scope: string): boolean {
 
 function precedenceFor(doc: ContextDocument, target: string): number {
   if (doc.authored === 'generated' || doc.documentType === 'generated_memory') {
+    const status = String(doc.frontmatter?.fields?.status ?? 'generated');
+    if (status === 'approved') return PRECEDENCE.APPROVED_MEMORY;
+    if (status === 'reviewed') return PRECEDENCE.REVIEWED_MEMORY;
     return PRECEDENCE.GENERATED_MEMORY;
   }
   if (doc.userConfigured) {

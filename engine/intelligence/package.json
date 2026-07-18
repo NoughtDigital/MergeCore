@@ -8,7 +8,7 @@
     "build": "tsc -p ./tsconfig.json",
     "prepare": "npm run build",
     "lint": "tsc --noEmit -p ./tsconfig.json",
-    "test": "npm run build && tsx --test __tests__/*.test.ts __tests__/indexer/*.test.ts __tests__/instructions/*.test.ts __tests__/graph/*.test.ts __tests__/retrieve/*.test.ts"
+    "test": "npm run build && tsx --test __tests__/*.test.ts __tests__/indexer/*.test.ts __tests__/instructions/*.test.ts __tests__/graph/*.test.ts __tests__/retrieve/*.test.ts __tests__/memory/*.test.ts __tests__/context/*.test.ts"
   },
   "devDependencies": {
     "@types/node": "^20.19.43",
