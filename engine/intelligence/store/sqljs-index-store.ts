@@ -6,8 +6,9 @@ import type {
   IndexStore,
   SymbolRecord,
 } from '../contracts';
-import { ragStoreDir, RagStore } from '../rag/store';
+import { STORE_SCHEMA_VERSION, RagStore } from '../rag/store';
 import type { RagChunk, RagDependencyEdge, RagSymbolRecord } from '../rag/types';
+import { sha256 } from '../rag/hash';
 
 function toDocumentChunk(chunk: RagChunk): DocumentChunk {
   return {
@@ -82,6 +83,10 @@ export class SqlJsIndexStore implements IndexStore {
     return new SqlJsIndexStore(store);
   }
 
+  static fromRagStore(store: RagStore): SqlJsIndexStore {
+    return new SqlJsIndexStore(store);
+  }
+
   get ragStore(): RagStore {
     return this.store;
   }
@@ -120,13 +125,22 @@ export class SqlJsIndexStore implements IndexStore {
       return undefined;
     }
     const symbols = this.store.allSymbols().filter((s) => s.path === f.path);
+    const workspaceId = f.workspaceId ?? this.store.workspaceId ?? sha256(this.store.root).slice(0, 16);
     return {
+      workspaceId,
       path: f.path,
       fingerprint: {
         path: f.path,
         contentHash: f.hash,
         mtimeMs: f.mtimeMs,
+        byteLength: f.byteLength,
       },
+      language: f.language ?? 'generic',
+      byteLength: f.byteLength ?? 0,
+      mtimeMs: f.mtimeMs,
+      contentHash: f.hash,
+      indexedAt: f.indexedAt ?? this.store.updatedAt,
+      parseStatus: f.parseStatus ?? 'ok',
       chunkIds: f.chunkIds,
       symbolIds: symbols.map((s) => s.id),
     };
@@ -159,7 +173,12 @@ export class SqlJsIndexStore implements IndexStore {
       input.mtimeMs,
       input.chunks.map(fromDocumentChunk),
       input.symbols.map(fromSymbol),
-      input.edges
+      input.edges,
+      {
+        language: input.language,
+        parseStatus: 'ok',
+        indexedAt: Date.now(),
+      }
     );
   }
 
@@ -172,15 +191,25 @@ export class SqlJsIndexStore implements IndexStore {
   }
 
   getStatus(): IndexStatus {
+    const workspaceId =
+      this.store.workspaceId ?? sha256(this.store.root).slice(0, 16);
     return {
       workspaceRoot: this.store.root,
+      workspaceId,
       ready: this.store.chunkCount > 0 || this.store.fileCount > 0,
+      busy: false,
+      phase: 'idle',
       fileCount: this.store.fileCount,
       chunkCount: this.store.chunkCount,
       symbolCount: this.store.symbolCount,
       edgeCount: this.store.edgeCount,
-      storeDir: ragStoreDir(this.store.root),
+      filesIndexed: 0,
+      filesSkipped: 0,
+      filesPending: 0,
+      storeDir: this.store.storeDirectory,
       hasSqlite: this.store.hasSqlite,
+      schemaVersion: STORE_SCHEMA_VERSION,
+      cancellable: true,
       updatedAt: this.store.updatedAt,
     };
   }

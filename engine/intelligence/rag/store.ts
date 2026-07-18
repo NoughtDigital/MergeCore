@@ -15,24 +15,40 @@ import type {
 const STORE_DIR = '.mergecore/rag';
 const SQLITE_FILE = 'index.sqlite';
 const JSON_MIRROR = 'index.json';
-const STORE_VERSION = 2 as const;
+export const STORE_SCHEMA_VERSION = 3 as const;
+const STORE_VERSION = STORE_SCHEMA_VERSION;
 
-export function ragStoreDir(workspaceRoot: string): string {
+export function defaultRagStoreDir(workspaceRoot: string): string {
   return path.join(workspaceRoot, STORE_DIR);
 }
 
-export function ragStorePath(workspaceRoot: string): string {
-  return path.join(ragStoreDir(workspaceRoot), SQLITE_FILE);
+export function ragStoreDir(workspaceRoot: string, storageDir?: string): string {
+  if (storageDir) {
+    return path.resolve(storageDir);
+  }
+  const env = process.env.MERGECORE_STORAGE_DIR;
+  if (env && env.trim()) {
+    return path.resolve(env.trim());
+  }
+  return defaultRagStoreDir(workspaceRoot);
 }
 
-export function ragJsonMirrorPath(workspaceRoot: string): string {
-  return path.join(ragStoreDir(workspaceRoot), JSON_MIRROR);
+export function ragStorePath(workspaceRoot: string, storageDir?: string): string {
+  return path.join(ragStoreDir(workspaceRoot, storageDir), SQLITE_FILE);
 }
 
-export function emptySnapshot(workspaceRoot: string): RagStoreSnapshot {
+export function ragJsonMirrorPath(workspaceRoot: string, storageDir?: string): string {
+  return path.join(ragStoreDir(workspaceRoot, storageDir), JSON_MIRROR);
+}
+
+export function emptySnapshot(
+  workspaceRoot: string,
+  workspaceId?: string
+): RagStoreSnapshot {
   return {
     version: STORE_VERSION,
     workspaceRoot,
+    workspaceId,
     updatedAt: Date.now(),
     files: {},
     chunks: {},
@@ -40,6 +56,11 @@ export function emptySnapshot(workspaceRoot: string): RagStoreSnapshot {
     symbols: {},
     edges: [],
   };
+}
+
+export interface RagStoreOpenOptions {
+  readonly storageDir?: string;
+  readonly workspaceId?: string;
 }
 
 async function loadSql(): Promise<{
@@ -115,7 +136,12 @@ function schema(db: Database): void {
     CREATE TABLE IF NOT EXISTS files (
       path TEXT PRIMARY KEY,
       hash TEXT NOT NULL,
-      mtime_ms REAL NOT NULL
+      mtime_ms REAL NOT NULL,
+      workspace_id TEXT,
+      language TEXT,
+      byte_length INTEGER,
+      indexed_at REAL,
+      parse_status TEXT
     );
     CREATE TABLE IF NOT EXISTS chunks (
       id TEXT PRIMARY KEY,
@@ -164,7 +190,7 @@ function schema(db: Database): void {
       text
     );
   `);
-  db.run(`INSERT OR REPLACE INTO meta(key, value) VALUES ('version', '2')`);
+  db.run(`INSERT OR REPLACE INTO meta(key, value) VALUES ('version', '3')`);
 }
 
 /**
@@ -176,16 +202,28 @@ export class RagStore {
   private snapshot: RagStoreSnapshot;
   private dirty = false;
   private db: Database | undefined;
+  private readonly storageDirResolved: string;
+  private closed = false;
 
-  private constructor(snapshot: RagStoreSnapshot, db?: Database) {
+  private constructor(
+    snapshot: RagStoreSnapshot,
+    storageDirResolved: string,
+    db?: Database
+  ) {
     this.snapshot = snapshot;
+    this.storageDirResolved = storageDirResolved;
     this.db = db;
   }
 
-  static async open(workspaceRoot: string): Promise<RagStore> {
-    const dir = ragStoreDir(workspaceRoot);
+  static async open(
+    workspaceRoot: string,
+    options: RagStoreOpenOptions = {}
+  ): Promise<RagStore> {
+    const root = path.resolve(workspaceRoot);
+    const dir = ragStoreDir(root, options.storageDir);
     await fs.mkdir(dir, { recursive: true });
-    const sqlitePath = ragStorePath(workspaceRoot);
+    const sqlitePath = path.join(dir, SQLITE_FILE);
+    const jsonPath = path.join(dir, JSON_MIRROR);
 
     try {
       const SQL = await loadSql();
@@ -194,30 +232,72 @@ export class RagStore {
         const buf = await fs.readFile(sqlitePath);
         db = new SQL.Database(buf);
       } catch {
-        db = new SQL.Database();
+        // Prefer recovering from a leftover tmp if primary missing
+        try {
+          const tmpBuf = await fs.readFile(sqlitePath + '.tmp');
+          db = new SQL.Database(tmpBuf);
+        } catch {
+          db = new SQL.Database();
+        }
       }
       schema(db);
+      migrateFilesTable(db);
 
-      // Migrate from legacy JSON mirror if sqlite empty
       const countRow = db.exec('SELECT COUNT(*) AS c FROM chunks');
       const count = Number(countRow[0]?.values[0]?.[0] ?? 0);
       if (count === 0) {
-        const migrated = await tryLoadJsonMirror(workspaceRoot);
+        const migrated = await tryLoadJsonMirror(root, jsonPath);
         if (migrated && Object.keys(migrated.chunks).length > 0) {
-          const store = new RagStore(migrated, db);
+          const store = new RagStore(
+            { ...migrated, workspaceRoot: root, workspaceId: options.workspaceId ?? migrated.workspaceId },
+            dir,
+            db
+          );
           store.dirty = true;
           await store.persist();
           return store;
         }
       }
 
-      const snapshot = hydrateFromDb(workspaceRoot, db);
-      return new RagStore(snapshot, db);
+      const snapshot = hydrateFromDb(root, db);
+      return new RagStore(
+        {
+          ...snapshot,
+          workspaceId: options.workspaceId ?? snapshot.workspaceId,
+        },
+        dir,
+        db
+      );
     } catch {
-      // Fallback: JSON-only if sql.js fails to load
-      const migrated = await tryLoadJsonMirror(workspaceRoot);
-      return new RagStore(migrated ?? emptySnapshot(workspaceRoot));
+      const migrated = await tryLoadJsonMirror(root, jsonPath);
+      return new RagStore(
+        migrated
+          ? {
+              ...migrated,
+              workspaceRoot: root,
+              workspaceId: options.workspaceId ?? migrated.workspaceId,
+            }
+          : emptySnapshot(root, options.workspaceId),
+        dir
+      );
     }
+  }
+
+  get storeDirectory(): string {
+    return this.storageDirResolved;
+  }
+
+  get schemaVersion(): number {
+    return STORE_VERSION;
+  }
+
+  get workspaceId(): string | undefined {
+    return this.snapshot.workspaceId;
+  }
+
+  setWorkspaceId(id: string): void {
+    this.snapshot = { ...this.snapshot, workspaceId: id, version: STORE_VERSION };
+    this.dirty = true;
   }
 
   get root(): string {
@@ -332,8 +412,16 @@ export class RagStore {
     mtimeMs: number,
     chunks: readonly RagChunk[],
     symbols: readonly RagSymbolRecord[],
-    edges: readonly RagDependencyEdge[]
+    edges: readonly RagDependencyEdge[],
+    meta?: {
+      readonly workspaceId?: string;
+      readonly language?: string;
+      readonly byteLength?: number;
+      readonly indexedAt?: number;
+      readonly parseStatus?: RagFileRecord['parseStatus'];
+    }
   ): void {
+    this.ensureOpen();
     const key = normalise(relPath);
     const existing = this.snapshot.files[key];
     if (existing) {
@@ -374,7 +462,17 @@ export class RagStore {
       chunks: nextChunks,
       files: {
         ...this.snapshot.files,
-        [key]: { path: key, hash, mtimeMs, chunkIds: ids },
+        [key]: {
+          path: key,
+          hash,
+          mtimeMs,
+          chunkIds: ids,
+          workspaceId: meta?.workspaceId ?? this.snapshot.workspaceId,
+          language: meta?.language,
+          byteLength: meta?.byteLength,
+          indexedAt: meta?.indexedAt ?? Date.now(),
+          parseStatus: meta?.parseStatus ?? 'ok',
+        },
       },
       symbols: nextSymbols,
       edges: nextEdges,
@@ -384,6 +482,7 @@ export class RagStore {
   }
 
   removeFile(relPath: string): void {
+    this.ensureOpen();
     const key = normalise(relPath);
     const existing = this.snapshot.files[key];
     if (!existing) {
@@ -414,7 +513,52 @@ export class RagStore {
     this.dirty = true;
   }
 
+  /** Remove indexed files whose paths are not in `keepPaths`. */
+  pruneMissing(keepPaths: ReadonlySet<string>): number {
+    this.ensureOpen();
+    let removed = 0;
+    for (const p of Object.keys(this.snapshot.files)) {
+      if (!keepPaths.has(p)) {
+        this.removeFile(p);
+        removed++;
+      }
+    }
+    return removed;
+  }
+
+  /** Clear all indexed content (for rebuild). */
+  wipe(): void {
+    this.ensureOpen();
+    this.snapshot = emptySnapshot(this.snapshot.workspaceRoot, this.snapshot.workspaceId);
+    this.dirty = true;
+  }
+
+  allFilePaths(): readonly string[] {
+    return Object.keys(this.snapshot.files);
+  }
+
+  private ensureOpen(): void {
+    if (this.closed) {
+      throw new Error('RagStore is closed');
+    }
+  }
+
+  async close(): Promise<void> {
+    if (this.closed) {
+      return;
+    }
+    if (this.dirty) {
+      await this.persist();
+    }
+    if (this.db) {
+      this.db.close();
+      this.db = undefined;
+    }
+    this.closed = true;
+  }
+
   setChunkEmbedding(chunkId: string, embedding: readonly number[]): void {
+    this.ensureOpen();
     const chunk = this.snapshot.chunks[chunkId];
     if (!chunk) {
       return;
@@ -435,6 +579,7 @@ export class RagStore {
   }
 
   setExplanation(entry: ExplanationCacheEntry): void {
+    this.ensureOpen();
     this.snapshot = {
       ...this.snapshot,
       explanations: {
@@ -451,10 +596,13 @@ export class RagStore {
   }
 
   async persist(): Promise<void> {
+    if (this.closed) {
+      return;
+    }
     if (!this.dirty) {
       return;
     }
-    const dir = ragStoreDir(this.snapshot.workspaceRoot);
+    const dir = this.storageDirResolved;
     await fs.mkdir(dir, { recursive: true });
     const gitignore = path.join(dir, '.gitignore');
     try {
@@ -465,30 +613,34 @@ export class RagStore {
 
     const payload: RagStoreSnapshot = {
       ...this.snapshot,
+      version: STORE_VERSION,
       updatedAt: Date.now(),
     };
 
-    // Always write JSON mirror for debugging / migration
-    const jsonTmp = ragJsonMirrorPath(this.snapshot.workspaceRoot) + '.tmp';
+    const jsonPath = path.join(dir, JSON_MIRROR);
+    const jsonTmp = jsonPath + '.tmp';
     await fs.writeFile(jsonTmp, JSON.stringify(payload), 'utf8');
-    await fs.rename(jsonTmp, ragJsonMirrorPath(this.snapshot.workspaceRoot));
+    await fs.rename(jsonTmp, jsonPath);
 
+    const sqlitePath = path.join(dir, SQLITE_FILE);
     if (this.db) {
       syncDbFromSnapshot(this.db, payload);
       const data = this.db.export();
-      const sqliteTmp = ragStorePath(this.snapshot.workspaceRoot) + '.tmp';
+      const sqliteTmp = sqlitePath + '.tmp';
       await fs.writeFile(sqliteTmp, Buffer.from(data));
-      await fs.rename(sqliteTmp, ragStorePath(this.snapshot.workspaceRoot));
+      await fs.rename(sqliteTmp, sqlitePath);
     } else {
-      // Attempt to create sqlite on first successful sql.js load
       try {
         const SQL = await loadSql();
         const db = new SQL.Database();
         schema(db);
+        migrateFilesTable(db);
         syncDbFromSnapshot(db, payload);
         this.db = db;
         const data = db.export();
-        await fs.writeFile(ragStorePath(this.snapshot.workspaceRoot), Buffer.from(data));
+        const sqliteTmp = sqlitePath + '.tmp';
+        await fs.writeFile(sqliteTmp, Buffer.from(data));
+        await fs.rename(sqliteTmp, sqlitePath);
       } catch {
         // JSON mirror is enough
       }
@@ -503,12 +655,15 @@ function normalise(relPath: string): string {
   return relPath.replace(/\\/g, '/').replace(/^\.\//, '');
 }
 
-async function tryLoadJsonMirror(workspaceRoot: string): Promise<RagStoreSnapshot | undefined> {
+async function tryLoadJsonMirror(
+  workspaceRoot: string,
+  jsonPath?: string
+): Promise<RagStoreSnapshot | undefined> {
   try {
-    const raw = await fs.readFile(ragJsonMirrorPath(workspaceRoot), 'utf8');
+    const raw = await fs.readFile(jsonPath ?? ragJsonMirrorPath(workspaceRoot), 'utf8');
     const parsed = JSON.parse(raw) as RagStoreSnapshot;
     if (
-      (parsed.version !== 1 && parsed.version !== 2) ||
+      (parsed.version !== 1 && parsed.version !== 2 && parsed.version !== 3) ||
       typeof parsed.chunks !== 'object'
     ) {
       return undefined;
@@ -517,6 +672,7 @@ async function tryLoadJsonMirror(workspaceRoot: string): Promise<RagStoreSnapsho
       ...parsed,
       version: STORE_VERSION,
       workspaceRoot,
+      workspaceId: parsed.workspaceId,
       files: parsed.files ?? {},
       chunks: parsed.chunks ?? {},
       explanations: parsed.explanations ?? {},
@@ -528,6 +684,32 @@ async function tryLoadJsonMirror(workspaceRoot: string): Promise<RagStoreSnapsho
   }
 }
 
+function migrateFilesTable(db: Database): void {
+  const cols = new Set<string>();
+  try {
+    const info = db.exec('PRAGMA table_info(files)');
+    for (const row of info[0]?.values ?? []) {
+      cols.add(String(row[1]));
+    }
+  } catch {
+    return;
+  }
+  const add = (name: string, ddl: string): void => {
+    if (!cols.has(name)) {
+      try {
+        db.run(`ALTER TABLE files ADD COLUMN ${ddl}`);
+      } catch {
+        // ignore
+      }
+    }
+  };
+  add('workspace_id', 'workspace_id TEXT');
+  add('language', 'language TEXT');
+  add('byte_length', 'byte_length INTEGER');
+  add('indexed_at', 'indexed_at REAL');
+  add('parse_status', 'parse_status TEXT');
+}
+
 function hydrateFromDb(workspaceRoot: string, db: Database): RagStoreSnapshot {
   const files: Record<string, RagFileRecord> = {};
   const chunks: Record<string, RagChunk> = {};
@@ -535,10 +717,23 @@ function hydrateFromDb(workspaceRoot: string, db: Database): RagStoreSnapshot {
   const symbols: Record<string, RagSymbolRecord> = {};
   const edges: RagDependencyEdge[] = [];
 
-  const fileRows = db.exec('SELECT path, hash, mtime_ms FROM files');
+  const fileRows = db.exec(
+    'SELECT path, hash, mtime_ms, workspace_id, language, byte_length, indexed_at, parse_status FROM files'
+  );
   for (const row of fileRows[0]?.values ?? []) {
     const p = String(row[0]);
-    files[p] = { path: p, hash: String(row[1]), mtimeMs: Number(row[2]), chunkIds: [] };
+    files[p] = {
+      path: p,
+      hash: String(row[1]),
+      mtimeMs: Number(row[2]),
+      chunkIds: [],
+      workspaceId: row[3] != null ? String(row[3]) : undefined,
+      language: row[4] != null ? String(row[4]) : undefined,
+      byteLength: row[5] != null ? Number(row[5]) : undefined,
+      indexedAt: row[6] != null ? Number(row[6]) : undefined,
+      parseStatus:
+        row[7] != null ? (String(row[7]) as RagFileRecord['parseStatus']) : undefined,
+    };
   }
 
   const chunkRows = db.exec(
@@ -697,11 +892,20 @@ function syncDbFromSnapshot(db: Database, snapshot: RagStoreSnapshot): void {
   `);
 
   for (const file of Object.values(snapshot.files)) {
-    db.run('INSERT INTO files(path, hash, mtime_ms) VALUES (?, ?, ?)', [
-      file.path,
-      file.hash,
-      file.mtimeMs,
-    ]);
+    db.run(
+      `INSERT INTO files(path, hash, mtime_ms, workspace_id, language, byte_length, indexed_at, parse_status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        file.path,
+        file.hash,
+        file.mtimeMs,
+        file.workspaceId ?? snapshot.workspaceId ?? null,
+        file.language ?? null,
+        file.byteLength ?? null,
+        file.indexedAt ?? null,
+        file.parseStatus ?? null,
+      ]
+    );
   }
 
   for (const chunk of Object.values(snapshot.chunks)) {
@@ -773,5 +977,5 @@ function syncDbFromSnapshot(db: Database, snapshot: RagStoreSnapshot): void {
     );
   }
 
-  db.run(`INSERT OR REPLACE INTO meta(key, value) VALUES ('version', '2')`);
+  db.run(`INSERT OR REPLACE INTO meta(key, value) VALUES ('version', '3')`);
 }

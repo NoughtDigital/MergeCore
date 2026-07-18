@@ -34,6 +34,11 @@ export interface RagFileRecord {
   readonly hash: string;
   readonly mtimeMs: number;
   readonly chunkIds: readonly string[];
+  readonly workspaceId?: string;
+  readonly language?: string;
+  readonly byteLength?: number;
+  readonly indexedAt?: number;
+  readonly parseStatus?: 'ok' | 'skipped' | 'error' | 'unchanged';
 }
 
 export interface ExplanationCacheEntry {
@@ -69,12 +74,12 @@ export interface RagDependencyEdge {
 }
 
 /**
- * On-disk snapshot version. v1 indexes are readable; missing graph fields
- * default to empty. New writes use version 2.
+ * On-disk snapshot version. v1/v2 readable; new writes use version 3.
  */
 export interface RagStoreSnapshot {
-  readonly version: 1 | 2;
+  readonly version: 1 | 2 | 3;
   readonly workspaceRoot: string;
+  readonly workspaceId?: string;
   readonly updatedAt: number;
   readonly files: Record<string, RagFileRecord>;
   readonly chunks: Record<string, RagChunk>;

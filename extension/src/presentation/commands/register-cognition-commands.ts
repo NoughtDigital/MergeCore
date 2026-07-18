@@ -25,8 +25,8 @@ export function registerCognitionCommands(
 ): void {
   context.subscriptions.push(
     vscode.commands.registerCommand('mergecore.indexRepository', async () => {
-      const folder = vscode.workspace.workspaceFolders?.[0];
-      if (!folder) {
+      const folders = vscode.workspace.workspaceFolders ?? [];
+      if (folders.length === 0) {
         void vscode.window.showWarningMessage('Open a folder to index with MergeCore.');
         return;
       }
@@ -34,16 +34,26 @@ export function registerCognitionCommands(
         {
           location: vscode.ProgressLocation.Notification,
           title: 'MergeCore: indexing repository',
-          cancellable: false,
+          cancellable: true,
         },
-        async (progress) => {
+        async (progress, token) => {
           const sub = deps.indexer.onStatus((message) => {
             progress.report({ message });
           });
           try {
-            const result = await deps.indexer.indexRepository(folder.uri.fsPath);
+            let totalChunks = 0;
+            let totalFiles = 0;
+            for (const folder of folders) {
+              if (token.isCancellationRequested) {
+                break;
+              }
+              progress.report({ message: folder.name });
+              const result = await deps.indexer.indexRepository(folder.uri.fsPath, token);
+              totalChunks += result.chunks;
+              totalFiles += result.filesIndexed;
+            }
             void vscode.window.showInformationMessage(
-              `MergeCore indexed ${result.chunks} chunks (${result.filesIndexed} files updated).`
+              `MergeCore indexed ${totalChunks} chunks (${totalFiles} files updated).`
             );
           } catch (err) {
             const msg = err instanceof Error ? err.message : String(err);

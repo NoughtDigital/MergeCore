@@ -56,8 +56,11 @@ export {
 
 export type {
   SourceType,
+  ExclusionReason,
+  ExclusionRecord,
   WorkspaceDescriptor,
   FileFingerprint,
+  ParseStatus,
   FileRecord,
   SymbolLocation,
   SymbolRecord,
@@ -118,6 +121,18 @@ export {
 } from './api/repository-index';
 
 export {
+  createRepositoryFileIndexer,
+  type CreateRepositoryFileIndexerOptions,
+  type RepositoryFileIndexer,
+  type FileChange,
+  scanWorkspace,
+  evaluatePathForIndex,
+  isTempPath,
+  isSupportedIndexPath,
+  languageForPath,
+} from './indexer';
+
+export {
   defaultLanguageAdapters,
   resolveLanguageAdapter,
   TypeScriptLanguageAdapter,
@@ -126,7 +141,27 @@ export {
   PhpLanguageAdapter,
 } from './adapters';
 
-export { createIgnoreMatcher, resolveInsideWorkspace } from './ignore';
+export { createIgnoreMatcher, resolveInsideWorkspace, NestedIgnoreResolver } from './ignore';
 export { SqlJsIndexStore } from './store/sqljs-index-store';
 export { LexicalRepositoryRetriever } from './retrieve/lexical-retriever';
 export { discoverInstructionDocuments } from './memory/discover-instructions';
+export { STORE_SCHEMA_VERSION } from './rag/store';
+
+export {
+  createInstructionResolver,
+  discoverContextDocuments,
+  classifyContextPath,
+  chunkMarkdownByHeadings,
+  extractInstructionTexts,
+  parseFrontmatter,
+  pathMatchesGlob,
+  PRECEDENCE,
+  type InstructionResolver,
+  type ContextDocument,
+  type ContextDocumentType,
+  type ApplicableInstruction,
+  type InstructionConflict,
+  type InstructionPrecedenceExplanation,
+  type MarkdownSection,
+  type InstructionResolverOptions,
+} from './instructions';

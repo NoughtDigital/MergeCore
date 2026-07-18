@@ -1,5 +1,5 @@
 /**
- * Shared data contracts for MergeCore V0.1.
+ * Shared data contracts for MergeCore V0.1+.
  * Pure TypeScript types — no runtime dependencies.
  */
 
@@ -12,6 +12,24 @@ export type SourceType =
   | 'config'
   | 'instruction'
   | 'lexical';
+
+/** Why a path was excluded from indexing. */
+export type ExclusionReason =
+  | 'gitignore'
+  | 'mergecoreignore'
+  | 'default-exclude'
+  | 'binary'
+  | 'oversized'
+  | 'symlink-escape'
+  | 'unsupported'
+  | 'temp-file'
+  | 'cancelled';
+
+export interface ExclusionRecord {
+  readonly path: string;
+  readonly reason: ExclusionReason;
+  readonly detail?: string;
+}
 
 /** High-level workspace identity used by hosts and the public API. */
 export interface WorkspaceDescriptor {
@@ -30,11 +48,19 @@ export interface FileFingerprint {
   readonly byteLength?: number;
 }
 
+export type ParseStatus = 'ok' | 'skipped' | 'error' | 'unchanged';
+
 /** Indexed file metadata. */
 export interface FileRecord {
+  readonly workspaceId: string;
   readonly path: string;
   readonly fingerprint: FileFingerprint;
-  readonly language?: string;
+  readonly language: string;
+  readonly byteLength: number;
+  readonly mtimeMs: number;
+  readonly contentHash: string;
+  readonly indexedAt: number;
+  readonly parseStatus: ParseStatus;
   readonly chunkIds: readonly string[];
   readonly symbolIds?: readonly string[];
 }
@@ -142,24 +168,37 @@ export interface ContextPack {
   readonly incomplete: boolean;
 }
 
-/** Status of the local repository index. */
-export interface IndexStatus {
-  readonly workspaceRoot: string;
-  readonly ready: boolean;
-  readonly fileCount: number;
-  readonly chunkCount: number;
-  readonly symbolCount: number;
-  readonly edgeCount: number;
-  readonly storeDir: string;
-  readonly hasSqlite: boolean;
-  readonly updatedAt?: number;
-  readonly fingerprint?: string;
-}
-
 /** Progress phases emitted during indexing. */
 export type IndexPhase =
+  | 'idle'
   | 'scanning'
   | 'chunking'
   | 'embedding'
   | 'persisting'
-  | 'done';
+  | 'done'
+  | 'cancelled'
+  | 'error';
+
+/** Status of the local repository index. */
+export interface IndexStatus {
+  readonly workspaceRoot: string;
+  readonly workspaceId: string;
+  readonly ready: boolean;
+  readonly busy: boolean;
+  readonly phase: IndexPhase;
+  readonly fileCount: number;
+  readonly chunkCount: number;
+  readonly symbolCount: number;
+  readonly edgeCount: number;
+  readonly filesIndexed: number;
+  readonly filesSkipped: number;
+  readonly filesPending: number;
+  readonly storeDir: string;
+  readonly hasSqlite: boolean;
+  readonly schemaVersion: number;
+  readonly cancellable: boolean;
+  readonly updatedAt?: number;
+  readonly fingerprint?: string;
+  readonly lastError?: string;
+  readonly exclusions?: readonly ExclusionRecord[];
+}

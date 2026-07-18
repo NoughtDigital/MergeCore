@@ -29,7 +29,9 @@
     "ignore/**/*.ts",
     "store/**/*.ts",
     "retrieve/**/*.ts",
-    "memory/**/*.ts"
+    "memory/**/*.ts",
+    "indexer/**/*.ts",
+    "instructions/**/*.ts"
   ],
   "exclude": ["dist", "node_modules", "__tests__"]
 }

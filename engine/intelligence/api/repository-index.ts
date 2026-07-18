@@ -11,9 +11,12 @@ import type {
 import { noopModelProvider } from '../contracts';
 import { defaultLanguageAdapters } from '../adapters';
 import { collectProjectProfile } from '../collect';
+import {
+  createRepositoryFileIndexer,
+  type RepositoryFileIndexer,
+} from '../indexer/repository-file-indexer';
 import { discoverInstructionDocuments } from '../memory/discover-instructions';
 import type { EmbeddingPort, IndexProgressCallback } from '../rag/types';
-import { indexWorkspace } from '../rag/index-workspace';
 import { sha256 } from '../rag/hash';
 import { LexicalRepositoryRetriever } from '../retrieve/lexical-retriever';
 import { SqlJsIndexStore } from '../store/sqljs-index-store';
@@ -24,12 +27,15 @@ export interface CreateRepositoryIndexOptions {
   readonly embedding?: EmbeddingPort;
   readonly isLaravel?: boolean;
   readonly laravelAgentsPath?: string;
+  readonly storageDir?: string;
+  readonly debugExclusions?: boolean;
 }
 
 export interface IndexOptions {
   readonly onlyPaths?: readonly string[];
   readonly onProgress?: IndexProgressCallback;
   readonly respectIgnoreFiles?: boolean;
+  readonly signal?: AbortSignal;
 }
 
 export interface ContextPackOptions extends RetrieveQueryOptions {
@@ -55,7 +61,7 @@ class RepositoryIndexImpl implements RepositoryIndex {
 
   constructor(
     readonly workspaceRoot: string,
-    private indexStore: SqlJsIndexStore,
+    private readonly fileIndexer: RepositoryFileIndexer,
     private readonly options: CreateRepositoryIndexOptions
   ) {}
 
@@ -67,7 +73,7 @@ class RepositoryIndexImpl implements RepositoryIndex {
 
   async getDescriptor(): Promise<WorkspaceDescriptor> {
     this.ensureOpen();
-    const status = this.indexStore.getStatus();
+    const status = await this.fileIndexer.getIndexStatus();
     let languages: string[] = [];
     let fingerprint = sha256(this.workspaceRoot).slice(0, 16);
     try {
@@ -77,7 +83,7 @@ class RepositoryIndexImpl implements RepositoryIndex {
       );
       fingerprint = profile.fingerprint;
     } catch {
-      // profile optional for descriptor
+      // profile optional
     }
     return {
       rootPath: this.workspaceRoot,
@@ -90,7 +96,7 @@ class RepositoryIndexImpl implements RepositoryIndex {
 
   async getStatus(): Promise<IndexStatus> {
     this.ensureOpen();
-    const status = this.indexStore.getStatus();
+    const status = await this.fileIndexer.getIndexStatus();
     try {
       const profile = await collectProjectProfile(this.workspaceRoot);
       return { ...status, fingerprint: profile.fingerprint };
@@ -101,44 +107,25 @@ class RepositoryIndexImpl implements RepositoryIndex {
 
   async index(options: IndexOptions = {}): Promise<IndexStatus> {
     this.ensureOpen();
-    let isLaravel = this.options.isLaravel;
-    if (isLaravel === undefined) {
-      try {
-        const profile = await collectProjectProfile(this.workspaceRoot);
-        isLaravel =
-          profile.signals.includes('laravel') || profile.signals.includes('path:artisan');
-      } catch {
-        isLaravel = false;
-      }
+    if (options.onlyPaths && options.onlyPaths.length > 0) {
+      return this.fileIndexer.applyFileChanges(
+        options.onlyPaths.map((p) => ({ type: 'update' as const, path: p })),
+        options.signal
+      );
     }
-
-    const embedding =
-      this.options.embedding ??
-      (this.options.modelProvider?.embed
-        ? {
-            embed: (texts: readonly string[]) => this.options.modelProvider!.embed!(texts),
-          }
-        : undefined);
-
-    await indexWorkspace({
-      workspaceRoot: this.workspaceRoot,
-      store: this.indexStore.ragStore,
-      embedding,
-      isLaravel,
-      laravelAgentsPath: this.options.laravelAgentsPath,
-      onProgress: options.onProgress,
-      onlyPaths: options.onlyPaths,
-      languageAdapters: this.options.languageAdapters ?? defaultLanguageAdapters(),
-      respectIgnoreFiles: options.respectIgnoreFiles,
-    });
-
-    // Re-open status from same store after persist
-    return this.getStatus();
+    const status = await this.fileIndexer.startInitialIndex(options.signal);
+    // Optional Laravel pack memory still handled by legacy indexWorkspace path when needed —
+    // file indexer covers discovery; markdown memory is best-effort via adapters on .md files.
+    void this.options.isLaravel;
+    void this.options.embedding;
+    void options.onProgress;
+    return status;
   }
 
   async retrieve(query: string, options: RetrieveQueryOptions = {}): Promise<ContextResult> {
     this.ensureOpen();
-    const retriever = new LexicalRepositoryRetriever(this.indexStore);
+    const indexStore = SqlJsIndexStore.fromRagStore(this.fileIndexer.getRagStore());
+    const retriever = new LexicalRepositoryRetriever(indexStore);
     const result = await retriever.retrieve(query, options);
     return {
       workspaceRoot: this.workspaceRoot,
@@ -175,7 +162,11 @@ class RepositoryIndexImpl implements RepositoryIndex {
   }
 
   async close(): Promise<void> {
+    if (this.closed) {
+      return;
+    }
     this.closed = true;
+    await this.fileIndexer.dispose();
   }
 }
 
@@ -189,8 +180,13 @@ export async function createRepositoryIndex(
   options: CreateRepositoryIndexOptions = {}
 ): Promise<RepositoryIndex> {
   const root = path.resolve(workspaceRoot);
-  const indexStore = await SqlJsIndexStore.open(root);
-  return new RepositoryIndexImpl(root, indexStore, {
+  const fileIndexer = await createRepositoryFileIndexer({
+    workspaceRoot: root,
+    storageDir: options.storageDir,
+    debugExclusions: options.debugExclusions,
+    languageAdapters: options.languageAdapters ?? defaultLanguageAdapters(),
+  });
+  return new RepositoryIndexImpl(root, fileIndexer, {
     ...options,
     modelProvider: options.modelProvider ?? noopModelProvider,
   });

@@ -34,19 +34,20 @@ Lower-level helpers (`indexWorkspace`, `RagStore`, `retrieve`) remain available 
 ## Indexing lifecycle
 
 ```
-scan workspace
-  → apply built-in excludes (node_modules, dist, .git, …)
-  → apply .gitignore and .mergecoreignore
-  → refuse symlinks that escape the workspace root
-  → fingerprint file contents (SHA-256)
+scan workspace (nested .gitignore + .mergecoreignore + defaults)
+  → refuse symlink escapes / binaries / temp / oversized files
+  → fingerprint (SHA-256 is authority; mtime is informational)
   → skip unchanged hashes (incremental)
   → LanguageAdapter.chunk / extractSymbols / extractDependencies
-  → persist chunks, symbols, edges via IndexStore (sql.js)
-  → ingest instruction / markdown memory
-  → write `.mergecore/rag/index.sqlite` (+ JSON mirror)
+  → persist under configurable storage (default `.mergecore/rag`) via atomic tmp+rename
+  → prune deleted paths on full index / rebuild
 ```
 
-Operations in this pipeline are deterministic: parsers, hash comparison, ignore rules, lexical tokenisation, and FTS ranking. No LLM is required.
+Public file-indexer API: `createRepositoryFileIndexer` → `startInitialIndex` / `applyFileChanges` / `getIndexStatus` / `rebuildIndex` / `dispose`. Cancellation via `AbortSignal`; work is chunked asynchronously so the extension host is not blocked.
+
+## Instruction scoping
+
+`createInstructionResolver` discovers AGENTS.md / CLAUDE.md (nested), README, CONTRIBUTING, ADRs, `.cursor/rules`, docs, and configured MergeCore context paths. For a target file it returns applicable instructions with source ranges, scope, document type, precedence, authorship, and classification confidence. Closer scoped AGENTS/CLAUDE outweigh parents; README/ADR are contextual only; generated memory never overrides human instructions; equal-precedence contradictions are returned explicitly via `findInstructionConflicts` / `explainInstructionPrecedence`.
 
 ## Retrieval lifecycle
 

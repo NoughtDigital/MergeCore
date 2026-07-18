@@ -113,18 +113,39 @@ export function parseFileRecord(json: string): FileRecord {
   ) {
     throw new Error('FileRecord.symbolIds must be string[] when present');
   }
-  return {
+  const parseStatus = requireString(raw, 'parseStatus');
+  if (
+    parseStatus !== 'ok' &&
+    parseStatus !== 'skipped' &&
+    parseStatus !== 'error' &&
+    parseStatus !== 'unchanged'
+  ) {
+    throw new Error(`Invalid FileRecord.parseStatus: ${parseStatus}`);
+  }
+  const result: FileRecord = {
+    workspaceId: requireString(raw, 'workspaceId'),
     path: requireString(raw, 'path'),
     fingerprint: {
       path: requireString(fingerprint, 'path'),
       contentHash: requireString(fingerprint, 'contentHash'),
       mtimeMs: requireNumber(fingerprint, 'mtimeMs'),
-      byteLength: optionalNumber(fingerprint, 'byteLength'),
     },
-    language: optionalString(raw, 'language'),
+    language: requireString(raw, 'language'),
+    byteLength: requireNumber(raw, 'byteLength'),
+    mtimeMs: requireNumber(raw, 'mtimeMs'),
+    contentHash: requireString(raw, 'contentHash'),
+    indexedAt: requireNumber(raw, 'indexedAt'),
+    parseStatus,
     chunkIds,
-    symbolIds: symbolIds as string[] | undefined,
   };
+  const fpByte = optionalNumber(fingerprint, 'byteLength');
+  if (fpByte !== undefined) {
+    (result.fingerprint as { byteLength?: number }).byteLength = fpByte;
+  }
+  if (symbolIds !== undefined) {
+    (result as { symbolIds?: string[] }).symbolIds = symbolIds as string[];
+  }
+  return result;
 }
 
 export function serializeSymbolLocation(value: SymbolLocation): string {
@@ -414,19 +435,45 @@ export function parseIndexStatus(json: string): IndexStatus {
   }
   const ready = raw.ready;
   const hasSqlite = raw.hasSqlite;
-  if (typeof ready !== 'boolean' || typeof hasSqlite !== 'boolean') {
-    throw new Error('IndexStatus.ready and hasSqlite must be boolean');
+  const busy = raw.busy;
+  const cancellable = raw.cancellable;
+  if (
+    typeof ready !== 'boolean' ||
+    typeof hasSqlite !== 'boolean' ||
+    typeof busy !== 'boolean' ||
+    typeof cancellable !== 'boolean'
+  ) {
+    throw new Error('IndexStatus boolean fields invalid');
   }
-  return {
+  const result: IndexStatus = {
     workspaceRoot: requireString(raw, 'workspaceRoot'),
+    workspaceId: requireString(raw, 'workspaceId'),
     ready,
+    busy,
+    phase: requireString(raw, 'phase') as IndexStatus['phase'],
     fileCount: requireNumber(raw, 'fileCount'),
     chunkCount: requireNumber(raw, 'chunkCount'),
     symbolCount: requireNumber(raw, 'symbolCount'),
     edgeCount: requireNumber(raw, 'edgeCount'),
+    filesIndexed: requireNumber(raw, 'filesIndexed'),
+    filesSkipped: requireNumber(raw, 'filesSkipped'),
+    filesPending: requireNumber(raw, 'filesPending'),
     storeDir: requireString(raw, 'storeDir'),
     hasSqlite,
-    updatedAt: optionalNumber(raw, 'updatedAt'),
-    fingerprint: optionalString(raw, 'fingerprint'),
+    schemaVersion: requireNumber(raw, 'schemaVersion'),
+    cancellable,
   };
+  const updatedAt = optionalNumber(raw, 'updatedAt');
+  const fingerprint = optionalString(raw, 'fingerprint');
+  const lastError = optionalString(raw, 'lastError');
+  if (updatedAt !== undefined) {
+    (result as { updatedAt?: number }).updatedAt = updatedAt;
+  }
+  if (fingerprint !== undefined) {
+    (result as { fingerprint?: string }).fingerprint = fingerprint;
+  }
+  if (lastError !== undefined) {
+    (result as { lastError?: string }).lastError = lastError;
+  }
+  return result;
 }

@@ -1,7 +1,10 @@
 export type {
   SourceType,
+  ExclusionReason,
+  ExclusionRecord,
   WorkspaceDescriptor,
   FileFingerprint,
+  ParseStatus,
   FileRecord,
   SymbolLocation,
   SymbolRecord,

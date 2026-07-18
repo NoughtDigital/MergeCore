@@ -45,13 +45,21 @@ describe('shared contract codec', () => {
   it('round-trips IndexStatus', () => {
     const value: IndexStatus = {
       workspaceRoot: '/tmp/repo',
+      workspaceId: 'abc123',
       ready: true,
+      busy: false,
+      phase: 'done',
       fileCount: 3,
       chunkCount: 10,
       symbolCount: 5,
       edgeCount: 2,
+      filesIndexed: 3,
+      filesSkipped: 1,
+      filesPending: 0,
       storeDir: '/tmp/repo/.mergecore/rag',
       hasSqlite: true,
+      schemaVersion: 3,
+      cancellable: true,
       updatedAt: 1,
       fingerprint: 'abc',
     };

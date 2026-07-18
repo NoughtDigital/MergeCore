@@ -1,46 +1,56 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import {
-  indexWorkspace,
-  RagStore,
+  createRepositoryFileIndexer,
   retrieve,
-  type EmbeddingPort,
-  type IndexProgress,
+  type FileChange,
+  type IndexStatus,
   type RagHit,
+  type RagStore,
   type RetrieveOptions,
+  type RepositoryFileIndexer,
 } from '@mergecore/intelligence';
 import * as vscode from 'vscode';
 import { MergeCoreLogger } from '../logger';
-import { getProjectProfileCached } from '../project-profile-cache';
 
 export type IndexStatusListener = (message: string, busy: boolean) => void;
+export type IndexStatusDetailListener = (status: IndexStatus) => void;
 
 /**
- * Owns per-workspace RagStore instances, full/incremental indexing, and retrieve.
+ * Owns per-workspace file indexers, full/incremental indexing, and retrieve.
  *
  * Incremental path updates that arrive while a root is already indexing are
  * queued and drained after the active run finishes, so watcher batches are
  * never silently dropped during a full repository index.
  */
 export class IndexerService {
-  private readonly stores = new Map<string, RagStore>();
+  private readonly indexers = new Map<string, RepositoryFileIndexer>();
   private readonly indexing = new Set<string>();
-  private readonly pendingPaths = new Map<string, Set<string>>();
+  private readonly pendingChanges = new Map<string, FileChange[]>();
   private listeners = new Set<IndexStatusListener>();
-  private embedding: EmbeddingPort | undefined;
+  private detailListeners = new Set<IndexStatusDetailListener>();
+  private readonly abortByRoot = new Map<string, AbortController>();
 
   constructor(
     private readonly logger: MergeCoreLogger,
-    private readonly extensionPath: string
-  ) {}
+    extensionPath: string
+  ) {
+    void extensionPath;
+  }
 
-  setEmbeddingPort(port: EmbeddingPort | undefined): void {
-    this.embedding = port;
+  /** Embeddings remain optional; file indexing does not require them. */
+  setEmbeddingPort(_port: { embed: (texts: readonly string[]) => Promise<unknown> }): void {
+    void _port;
   }
 
   onStatus(listener: IndexStatusListener): vscode.Disposable {
     this.listeners.add(listener);
     return { dispose: () => this.listeners.delete(listener) };
+  }
+
+  onStatusDetail(listener: IndexStatusDetailListener): vscode.Disposable {
+    this.detailListeners.add(listener);
+    return { dispose: () => this.detailListeners.delete(listener) };
   }
 
   private emit(message: string, busy: boolean): void {
@@ -49,115 +59,138 @@ export class IndexerService {
     }
   }
 
-  private enqueuePending(workspaceRoot: string, relPaths: readonly string[]): void {
-    let set = this.pendingPaths.get(workspaceRoot);
-    if (!set) {
-      set = new Set();
-      this.pendingPaths.set(workspaceRoot, set);
-    }
-    for (const rel of relPaths) {
-      if (rel) {
-        set.add(rel);
-      }
+  private emitDetail(status: IndexStatus): void {
+    for (const l of this.detailListeners) {
+      l(status);
     }
   }
 
-  /** Take queued paths and schedule an incremental run once the lock is free. */
+  private enqueuePending(workspaceRoot: string, changes: readonly FileChange[]): void {
+    let list = this.pendingChanges.get(workspaceRoot);
+    if (!list) {
+      list = [];
+      this.pendingChanges.set(workspaceRoot, list);
+    }
+    list.push(...changes);
+  }
+
   private schedulePendingDrain(workspaceRoot: string): void {
-    const queued = this.pendingPaths.get(workspaceRoot);
-    if (!queued || queued.size === 0) {
-      this.pendingPaths.delete(workspaceRoot);
+    const queued = this.pendingChanges.get(workspaceRoot);
+    if (!queued || queued.length === 0) {
+      this.pendingChanges.delete(workspaceRoot);
       return;
     }
-    this.pendingPaths.delete(workspaceRoot);
-    void this.indexPaths(workspaceRoot, [...queued]).catch((err) => {
+    this.pendingChanges.delete(workspaceRoot);
+    void this.applyChanges(workspaceRoot, queued).catch((err) => {
       this.logger.warn(
         `Pending incremental index failed: ${err instanceof Error ? err.message : String(err)}`
       );
     });
   }
 
-  async getStore(workspaceRoot: string): Promise<RagStore> {
-    const existing = this.stores.get(workspaceRoot);
+  async getIndexer(workspaceRoot: string): Promise<RepositoryFileIndexer> {
+    const existing = this.indexers.get(workspaceRoot);
     if (existing) {
       return existing;
     }
-    const store = await RagStore.open(workspaceRoot);
-    this.stores.set(workspaceRoot, store);
-    return store;
+    const indexer = await createRepositoryFileIndexer({
+      workspaceRoot,
+      onStatus: (s) => {
+        this.emit(s.phase === 'done' ? `Indexed ${s.chunkCount} chunks` : s.phase, s.busy);
+        this.emitDetail(s);
+      },
+    });
+    this.indexers.set(workspaceRoot, indexer);
+    return indexer;
   }
 
-  async indexRepository(workspaceRoot: string): Promise<{ chunks: number; filesIndexed: number }> {
+  async getStore(workspaceRoot: string): Promise<RagStore> {
+    const indexer = await this.getIndexer(workspaceRoot);
+    return indexer.getRagStore();
+  }
+
+  async getIndexStatus(workspaceRoot: string): Promise<IndexStatus> {
+    const indexer = await this.getIndexer(workspaceRoot);
+    return indexer.getIndexStatus();
+  }
+
+  cancel(workspaceRoot: string): void {
+    this.abortByRoot.get(workspaceRoot)?.abort();
+  }
+
+  async indexRepository(
+    workspaceRoot: string,
+    token?: vscode.CancellationToken
+  ): Promise<{ chunks: number; filesIndexed: number }> {
     if (this.indexing.has(workspaceRoot)) {
       this.logger.info(`Index already running for ${workspaceRoot}`);
-      const store = await this.getStore(workspaceRoot);
-      return { chunks: store.chunkCount, filesIndexed: 0 };
+      const status = await this.getIndexStatus(workspaceRoot);
+      return { chunks: status.chunkCount, filesIndexed: 0 };
     }
 
     this.indexing.add(workspaceRoot);
     this.emit('Indexing…', true);
+    const ac = new AbortController();
+    this.abortByRoot.set(workspaceRoot, ac);
+    const sub = token?.onCancellationRequested(() => ac.abort());
+
     try {
-      const profile = await getProjectProfileCached(workspaceRoot);
-      const isLaravel =
-        profile.signals.includes('laravel') || profile.signals.includes('path:artisan');
-      const laravelAgentsPath = isLaravel
-        ? resolveLaravelAgentsPath(this.extensionPath, workspaceRoot)
-        : undefined;
-
-      const onProgress = (p: IndexProgress): void => {
-        this.emit(p.message, p.phase !== 'done');
-      };
-
-      const result = await indexWorkspace({
-        workspaceRoot,
-        store: await this.getStore(workspaceRoot),
-        embedding: this.embedding,
-        isLaravel,
-        laravelAgentsPath,
-        onProgress,
-      });
-      this.stores.set(workspaceRoot, result.store);
+      const indexer = await this.getIndexer(workspaceRoot);
+      const status = await indexer.startInitialIndex(ac.signal);
+      this.emitDetail(status);
       this.logger.info(
-        `Indexed ${result.chunks} chunks (${result.filesIndexed} files updated) in ${workspaceRoot}`
+        `Indexed ${status.chunkCount} chunks (${status.filesIndexed} files updated) in ${workspaceRoot}`
       );
-      this.emit(`Indexed ${result.chunks} chunks`, false);
-      return { chunks: result.chunks, filesIndexed: result.filesIndexed };
+      this.emit(`Indexed ${status.chunkCount} chunks`, false);
+      return { chunks: status.chunkCount, filesIndexed: status.filesIndexed };
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       this.logger.error(`Index failed: ${msg}`);
       this.emit('Index failed', false);
       throw err;
     } finally {
+      sub?.dispose();
+      this.abortByRoot.delete(workspaceRoot);
       this.indexing.delete(workspaceRoot);
       this.schedulePendingDrain(workspaceRoot);
     }
   }
 
+  async rebuildRepository(
+    workspaceRoot: string,
+    token?: vscode.CancellationToken
+  ): Promise<IndexStatus> {
+    const ac = new AbortController();
+    const sub = token?.onCancellationRequested(() => ac.abort());
+    try {
+      const indexer = await this.getIndexer(workspaceRoot);
+      const status = await indexer.rebuildIndex(ac.signal);
+      this.emitDetail(status);
+      return status;
+    } finally {
+      sub?.dispose();
+    }
+  }
+
   async indexPaths(workspaceRoot: string, relPaths: readonly string[]): Promise<void> {
-    if (relPaths.length === 0) {
+    const changes: FileChange[] = relPaths.map((p) => ({ type: 'update', path: p }));
+    await this.applyChanges(workspaceRoot, changes);
+  }
+
+  async applyChanges(workspaceRoot: string, changes: readonly FileChange[]): Promise<void> {
+    if (changes.length === 0) {
       return;
     }
     if (this.indexing.has(workspaceRoot)) {
-      this.enqueuePending(workspaceRoot, relPaths);
+      this.enqueuePending(workspaceRoot, changes);
       return;
     }
     this.indexing.add(workspaceRoot);
     try {
-      const profile = await getProjectProfileCached(workspaceRoot);
-      const isLaravel =
-        profile.signals.includes('laravel') || profile.signals.includes('path:artisan');
-      const result = await indexWorkspace({
-        workspaceRoot,
-        store: await this.getStore(workspaceRoot),
-        embedding: this.embedding,
-        isLaravel,
-        laravelAgentsPath: isLaravel
-          ? resolveLaravelAgentsPath(this.extensionPath, workspaceRoot)
-          : undefined,
-        onlyPaths: relPaths,
-      });
-      this.stores.set(workspaceRoot, result.store);
-      this.emit(`Indexed ${result.chunks} chunks`, false);
+      const indexer = await this.getIndexer(workspaceRoot);
+      const status = await indexer.applyFileChanges(changes);
+      this.emitDetail(status);
+      this.emit(`Indexed ${status.chunkCount} chunks`, false);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       this.logger.warn(`Incremental index failed: ${msg}`);
@@ -177,23 +210,47 @@ export class IndexerService {
     return retrieve(store, query, opts, queryEmbedding);
   }
 
+  async dispose(): Promise<void> {
+    for (const indexer of this.indexers.values()) {
+      await indexer.dispose();
+    }
+    this.indexers.clear();
+    this.pendingChanges.clear();
+    this.abortByRoot.clear();
+  }
+
   clear(workspaceRoot?: string): void {
     if (workspaceRoot) {
-      this.stores.delete(workspaceRoot);
-      this.pendingPaths.delete(workspaceRoot);
+      const indexer = this.indexers.get(workspaceRoot);
+      if (indexer) {
+        void indexer.dispose();
+        this.indexers.delete(workspaceRoot);
+      }
+      this.pendingChanges.delete(workspaceRoot);
     } else {
-      this.stores.clear();
-      this.pendingPaths.clear();
+      void this.dispose();
     }
   }
 }
 
-function resolveLaravelAgentsPath(extensionPath: string, workspaceRoot: string): string | undefined {
+export function workspaceRootForDocument(doc: vscode.TextDocument): string | undefined {
+  const folder = vscode.workspace.getWorkspaceFolder(doc.uri);
+  if (folder) {
+    return folder.uri.fsPath;
+  }
+  const roots = vscode.workspace.workspaceFolders;
+  return roots?.[0]?.uri.fsPath;
+}
+
+/** @deprecated kept for tests that referenced Laravel agents path helper */
+export function resolveLaravelAgentsPath(
+  extensionPath: string,
+  workspaceRoot: string
+): string | undefined {
   const candidates = [
     path.join(extensionPath, '..', 'rules', 'packs', 'laravel-core', 'agents.md'),
     path.join(extensionPath, 'rules', 'packs', 'laravel-core', 'agents.md'),
     path.join(workspaceRoot, 'rules', 'packs', 'laravel-core', 'agents.md'),
-    path.resolve(workspaceRoot, '..', 'rules', 'packs', 'laravel-core', 'agents.md'),
   ];
   for (const candidate of candidates) {
     try {
@@ -204,14 +261,5 @@ function resolveLaravelAgentsPath(extensionPath: string, workspaceRoot: string):
       // continue
     }
   }
-  return candidates[0];
-}
-
-export function workspaceRootForDocument(doc: vscode.TextDocument): string | undefined {
-  const folder = vscode.workspace.getWorkspaceFolder(doc.uri);
-  if (folder) {
-    return folder.uri.fsPath;
-  }
-  const roots = vscode.workspace.workspaceFolders;
-  return roots?.[0]?.uri.fsPath;
+  return undefined;
 }
