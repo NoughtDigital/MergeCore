@@ -112,6 +112,28 @@ describe('repository-aware hover', () => {
     assert.ok(md.split('\n').length < 40, 'hover must stay compact');
   });
 
+  it('labels PHP hover as heuristic language intelligence', () => {
+    const summary = assembleHoverSummary({
+      workspaceId: 'ws-test',
+      symbol: {
+        id: 'php:app/Models/Order.php:Order:1',
+        name: 'Order',
+        kind: 'class',
+        location: { path: 'app/Models/Order.php', startLine: 1, endLine: 20 },
+        language: 'php',
+        adapterId: 'php',
+      },
+      callers: [],
+      callees: [],
+      dependencies: [],
+      relatedTests: [],
+      instructions: [],
+    });
+    assert.equal(summary.analysis, 'heuristic');
+    const md = formatHoverMarkdown(summary, '/tmp/ws');
+    assert.ok(md.includes('heuristic language intelligence'));
+  });
+
   it('resolves symbols and builds deterministic hover from indexed fixture', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'mergecore-hover-'));
     try {

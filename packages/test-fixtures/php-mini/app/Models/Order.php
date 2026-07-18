@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Concerns\LogsActivity;
+use App\Enums\OrderStatus;
 use Illuminate\Database\Eloquent\Model;
 
 /**
@@ -9,11 +11,14 @@ use Illuminate\Database\Eloquent\Model;
  */
 class Order extends Model
 {
+    use LogsActivity;
+
     protected $fillable = ['total', 'status'];
 
     public function markRefunded(): void
     {
-        $this->status = 'refunded';
+        $this->status = OrderStatus::Refunded->value;
+        $this->logActivity('order refunded');
         $this->save();
     }
 }

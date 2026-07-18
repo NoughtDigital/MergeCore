@@ -658,5 +658,35 @@ export function parseIndexStatus(json: string): IndexStatus {
   if (lastError !== undefined) {
     (result as { lastError?: string }).lastError = lastError;
   }
+  const diagnostics = raw.diagnostics;
+  if (diagnostics !== undefined) {
+    if (!Array.isArray(diagnostics)) {
+      throw new Error('IndexStatus.diagnostics must be an array when present');
+    }
+    (result as { diagnostics?: IndexStatus['diagnostics'] }).diagnostics = diagnostics.map((d) => {
+      if (!isObject(d)) {
+        throw new Error('AdapterDiagnostic must be an object');
+      }
+      const item: {
+        path: string;
+        startLine: number;
+        endLine: number;
+        severity: 'error' | 'warning' | 'info';
+        message: string;
+        code?: string;
+      } = {
+        path: requireString(d, 'path'),
+        startLine: requireNumber(d, 'startLine'),
+        endLine: requireNumber(d, 'endLine'),
+        severity: requireString(d, 'severity') as 'error' | 'warning' | 'info',
+        message: requireString(d, 'message'),
+      };
+      const code = optionalString(d, 'code');
+      if (code !== undefined) {
+        item.code = code;
+      }
+      return item;
+    });
+  }
   return result;
 }

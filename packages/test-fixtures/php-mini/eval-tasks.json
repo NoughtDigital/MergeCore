@@ -8,6 +8,7 @@
         "app/Models/Order.php",
         "app/Jobs/ProcessRefund.php",
         "app/Policies/OrderPolicy.php",
+        "app/Services/RefundGateway.php",
         "routes/api.php",
         "tests/Feature/OrderRefundTest.php"
       ]
@@ -26,7 +27,18 @@
       "query": "OrderPolicy refund authorisation",
       "relevantFiles": [
         "app/Policies/OrderPolicy.php",
-        "app/Http/Controllers/OrderController.php"
+        "app/Http/Controllers/OrderController.php",
+        "tests/Unit/OrderPolicyTest.php"
+      ]
+    },
+    {
+      "id": "php-constructs-trait-enum-interface",
+      "query": "OrderStatus enum LogsActivity trait Refundable interface",
+      "relevantFiles": [
+        "app/Enums/OrderStatus.php",
+        "app/Concerns/LogsActivity.php",
+        "app/Contracts/Refundable.php",
+        "app/Models/Order.php"
       ]
     }
   ]

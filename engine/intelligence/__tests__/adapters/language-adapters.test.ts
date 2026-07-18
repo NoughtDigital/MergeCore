@@ -121,6 +121,13 @@ describe('language adapter system', () => {
     const jobEdges = collectAdapterEdges(adapter, 'app/Jobs/ProcessRefund.php', job);
     assert.ok(jobEdges.some((e) => e.kind === 'implements'));
 
+    const model = fs.readFileSync(path.join(phpMiniRoot, 'app/Models/Order.php'), 'utf8');
+    const modelEdges = collectAdapterEdges(adapter, 'app/Models/Order.php', model);
+    assert.ok(
+      modelEdges.some((e) => e.evidence?.includes('php-trait-use')),
+      'expected trait usage edge'
+    );
+
     const test = fs.readFileSync(
       path.join(phpMiniRoot, 'tests/Feature/OrderRefundTest.php'),
       'utf8'
@@ -131,6 +138,89 @@ describe('language adapter system', () => {
       test
     );
     assert.ok(testEdges.some((e) => e.kind === 'likelyTestCoverage'));
+
+    const phpunit = fs.readFileSync(
+      path.join(phpMiniRoot, 'tests/Unit/OrderPolicyTest.php'),
+      'utf8'
+    );
+    const phpunitEdges = collectAdapterEdges(
+      adapter,
+      'tests/Unit/OrderPolicyTest.php',
+      phpunit
+    );
+    assert.ok(phpunitEdges.some((e) => e.kind === 'likelyTestCoverage'));
+    assert.ok(
+      phpunitEdges.some((e) => e.evidence?.includes('phpunit-test')),
+      'expected phpunit evidence'
+    );
+  });
+
+  it('covers required PHP/Laravel constructs in php-mini', () => {
+    const adapter = new PhpLanguageAdapter(phpMiniRoot);
+    const kinds = new Set<string>();
+    const names = new Set<string>();
+    const walk = (dir: string): void => {
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        const abs = path.join(dir, entry.name);
+        if (entry.isDirectory()) {
+          walk(abs);
+          continue;
+        }
+        if (!entry.name.endsWith('.php')) continue;
+        const rel = path.relative(phpMiniRoot, abs).replace(/\\/g, '/');
+        for (const s of adapter.extractSymbols(rel, fs.readFileSync(abs, 'utf8'))) {
+          kinds.add(s.kind);
+          names.add(s.name);
+        }
+      }
+    };
+    walk(phpMiniRoot);
+    for (const kind of ['class', 'interface', 'trait', 'enum', 'method', 'namespace', 'function', 'constructor']) {
+      // function may be absent; constructor/method/class/interface/trait/enum/namespace required
+      if (kind === 'function') continue;
+      assert.ok(kinds.has(kind), `missing symbol kind ${kind}; have ${[...kinds].join(',')}`);
+    }
+    for (const name of [
+      'Refundable',
+      'LogsActivity',
+      'OrderStatus',
+      'OrderController',
+      'Order',
+      'OrderPolicy',
+      'ProcessRefund',
+      'OrderRefunded',
+      'SendRefundNotification',
+      'RefundStaleOrders',
+      'RefundGateway',
+    ]) {
+      assert.ok(names.has(name), `missing symbol ${name}`);
+    }
+  });
+
+  it('surfaces heuristic container diagnostics on IndexStatus', async () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'mergecore-php-diag-'));
+    const root = path.join(tmp, 'repo');
+    copyDir(phpMiniRoot, root);
+    const storageDir = path.join(tmp, 'rag');
+    const indexer = await createRepositoryFileIndexer({
+      workspaceRoot: root,
+      storageDir,
+      useCompilerGraph: false,
+    });
+    try {
+      const status = await indexer.startInitialIndex();
+      assert.ok(status.diagnostics && status.diagnostics.length > 0, 'expected diagnostics');
+      assert.ok(
+        status.diagnostics!.some((d) => d.code === 'php-container-runtime'),
+        'expected php-container-runtime diagnostic from RefundGateway'
+      );
+      assert.ok(
+        status.diagnostics!.every((d) => d.severity === 'info' || d.severity === 'warning' || d.severity === 'error')
+      );
+    } finally {
+      await indexer.dispose();
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
   });
 
   it('indexes php-mini through the same core indexer APIs', async () => {

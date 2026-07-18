@@ -1,4 +1,5 @@
 import type {
+  AdapterDiagnostic,
   ContextClaim,
   DependencyEdge,
   DocumentChunk,
@@ -7,6 +8,8 @@ import type {
   SourceReference,
   SymbolRecord,
 } from './types';
+
+export type { AdapterDiagnostic } from './types';
 
 /**
  * Strength of a language-adapter capability.
@@ -45,16 +48,6 @@ export interface LanguageProjectHint {
   readonly confidence: 'high' | 'medium' | 'low';
   readonly signals: readonly string[];
   readonly frameworkHints?: readonly string[];
-}
-
-/** Parse / analysis diagnostic produced by an adapter (not a linter). */
-export interface AdapterDiagnostic {
-  readonly path: string;
-  readonly startLine: number;
-  readonly endLine: number;
-  readonly severity: 'error' | 'warning' | 'info';
-  readonly message: string;
-  readonly code?: string;
 }
 
 /** Parse / chunk a source file for a given language. */

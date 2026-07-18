@@ -320,6 +320,16 @@ export type IndexPhase =
   | 'cancelled'
   | 'error';
 
+/** Parse / analysis diagnostic produced by a language adapter (not a linter). */
+export interface AdapterDiagnostic {
+  readonly path: string;
+  readonly startLine: number;
+  readonly endLine: number;
+  readonly severity: 'error' | 'warning' | 'info';
+  readonly message: string;
+  readonly code?: string;
+}
+
 /** Status of the local repository index. */
 export interface IndexStatus {
   readonly workspaceRoot: string;
@@ -342,4 +352,9 @@ export interface IndexStatus {
   readonly fingerprint?: string;
   readonly lastError?: string;
   readonly exclusions?: readonly ExclusionRecord[];
+  /**
+   * Recent adapter diagnostics from the latest index pass (capped).
+   * Not persisted to SQLite — status/debug channel only.
+   */
+  readonly diagnostics?: readonly AdapterDiagnostic[];
 }

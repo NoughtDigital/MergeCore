@@ -442,7 +442,11 @@ export async function hybridSearchRepositoryContext(
           callGraph: edge.confidence === 'certain' ? 40 : 22,
         },
         reasonParts: [`caller of ${sym.name} at ${edge.fromPath}`],
-        analysis: edge.confidence === 'certain' ? 'deterministic' : 'heuristic',
+        analysis:
+          edge.confidence === 'certain' ||
+          isDeterministicEdgeResolution(edge.resolutionMethod)
+            ? 'deterministic'
+            : 'heuristic',
         charEstimate: 160,
       });
     }
@@ -459,7 +463,11 @@ export async function hybridSearchRepositoryContext(
           callGraph: edge.confidence === 'certain' ? 35 : 18,
         },
         reasonParts: [`callee of ${sym.name}`],
-        analysis: edge.confidence === 'certain' ? 'deterministic' : 'heuristic',
+        analysis:
+          edge.confidence === 'certain' ||
+          isDeterministicEdgeResolution(edge.resolutionMethod)
+            ? 'deterministic'
+            : 'heuristic',
         charEstimate: 160,
       });
     }
@@ -480,7 +488,10 @@ export async function hybridSearchRepositoryContext(
           `related test ${rel.edge.fromPath} (${(rel.evidence ?? []).slice(0, 2).join(', ') || rel.confidence})`,
         ],
         analysis:
-          rel.confidence === 'heuristic' ? 'heuristic' : 'deterministic',
+          rel.confidence === 'heuristic' ||
+          !isDeterministicEdgeResolution(rel.edge.resolutionMethod)
+            ? 'heuristic'
+            : 'deterministic',
         charEstimate: 400,
       });
     }
@@ -508,7 +519,11 @@ export async function hybridSearchRepositoryContext(
       reasonParts: [
         `test coverage edge → ${edge.toPath} [${(edge.evidence ?? []).slice(0, 2).join(', ')}]`,
       ],
-      analysis: edge.confidence === 'heuristic' ? 'heuristic' : 'deterministic',
+      analysis:
+        edge.confidence === 'heuristic' ||
+        !isDeterministicEdgeResolution(edge.resolutionMethod)
+          ? 'heuristic'
+          : 'deterministic',
       charEstimate: 400,
     });
   }

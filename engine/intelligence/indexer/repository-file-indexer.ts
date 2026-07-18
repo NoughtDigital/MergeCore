@@ -8,6 +8,7 @@ import {
   stampAdapterId,
 } from '../adapters';
 import type {
+  AdapterDiagnostic,
   DependencyEdge,
   ExclusionRecord,
   IndexPhase,
@@ -134,6 +135,7 @@ class RepositoryFileIndexerImpl implements RepositoryFileIndexer {
   private filesPending = 0;
   private lastError: string | undefined;
   private exclusions: ExclusionRecord[] = [];
+  private diagnostics: AdapterDiagnostic[] = [];
   private disposed = false;
   private readonly adapters: readonly LanguageAdapter[];
   private readonly maxFileBytes: number;
@@ -181,6 +183,7 @@ class RepositoryFileIndexerImpl implements RepositoryFileIndexer {
     this.filesSkipped = 0;
     this.lastError = undefined;
     this.exclusions = [];
+    this.diagnostics = [];
     this.emit();
 
     try {
@@ -227,6 +230,14 @@ class RepositoryFileIndexerImpl implements RepositoryFileIndexer {
     if (this.debugExclusions) {
       this.exclusions = [];
     }
+    // Drop prior diagnostics for paths about to be reindexed
+    const changedPaths = new Set(
+      changes.flatMap((c) => {
+        if (c.type === 'rename') return [c.fromPath, c.toPath];
+        return [c.path];
+      }).map((p) => p.replace(/\\/g, '/'))
+    );
+    this.diagnostics = this.diagnostics.filter((d) => !changedPaths.has(d.path.replace(/\\/g, '/')));
     this.filesPending = changes.length;
     this.emit();
 
@@ -358,6 +369,7 @@ class RepositoryFileIndexerImpl implements RepositoryFileIndexer {
       updatedAt: this.store.updatedAt,
       lastError: this.lastError,
       exclusions: this.debugExclusions ? this.exclusions.slice(-200) : undefined,
+      diagnostics: this.diagnostics.length > 0 ? this.diagnostics.slice(-200) : undefined,
     };
   }
 
@@ -488,6 +500,15 @@ class RepositoryFileIndexerImpl implements RepositoryFileIndexer {
     } else {
       symbols = stampAdapterId(adapter.extractSymbols(relPath, text), adapter.adapterId);
       edges = collectAdapterEdges(adapter, relPath, text);
+    }
+
+    const fileDiagnostics = adapter.extractDiagnostics?.(relPath, text) ?? [];
+    if (fileDiagnostics.length > 0) {
+      // Replace any prior diagnostics for this path from this pass
+      this.diagnostics = this.diagnostics.filter(
+        (d) => d.path.replace(/\\/g, '/') !== relPath.replace(/\\/g, '/')
+      );
+      this.diagnostics.push(...fileDiagnostics);
     }
 
     const ragChunks = docChunks.map((c) => ({
