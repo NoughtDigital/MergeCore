@@ -1,7 +1,7 @@
 {
   "name": "mergecore",
   "displayName": "MergeCore",
-  "description": "Local-first repository cognition: understand architecture, explain code on hover, and preserve engineering knowledge — not another autocomplete tool.",
+  "description": "Local-first repository cognition: understand architecture, explain code on hover, and preserve engineering knowledge \u2014 not another autocomplete tool.",
   "version": "0.1.0",
   "publisher": "mergecore",
   "engines": {
@@ -89,6 +89,13 @@
     "onCommand:mergecore.disableExternalModels",
     "onCommand:mergecore.previewDataSentToModel",
     "onCommand:mergecore.exportDiagnostics",
+    "onCommand:mergecore.markMissingContext",
+    "onCommand:mergecore.exportUsageAnalytics",
+    "onCommand:mergecore.deleteLocalUsageDiagnostics",
+    "onCommand:mergecore.disableUsageAnalytics",
+    "onCommand:mergecore.enableUsageAnalytics",
+    "onCommand:mergecore.showUsageMetrics",
+    "onCommand:mergecore.inspectLastRetrieval",
     "onView:mergecore.sidebar"
   ],
   "main": "./out/extension.js",
@@ -287,6 +294,34 @@
       {
         "command": "mergecore.exportDiagnostics",
         "title": "MergeCore: Export Diagnostics"
+      },
+      {
+        "command": "mergecore.inspectLastRetrieval",
+        "title": "MergeCore: Inspect Last Retrieval"
+      },
+      {
+        "command": "mergecore.showUsageMetrics",
+        "title": "MergeCore: Show Usage Metrics"
+      },
+      {
+        "command": "mergecore.enableUsageAnalytics",
+        "title": "MergeCore: Enable Usage Analytics"
+      },
+      {
+        "command": "mergecore.disableUsageAnalytics",
+        "title": "MergeCore: Disable Usage Analytics"
+      },
+      {
+        "command": "mergecore.deleteLocalUsageDiagnostics",
+        "title": "MergeCore: Delete Local Usage Diagnostics"
+      },
+      {
+        "command": "mergecore.exportUsageAnalytics",
+        "title": "MergeCore: Export Usage Analytics"
+      },
+      {
+        "command": "mergecore.markMissingContext",
+        "title": "MergeCore: Mark Missing Context"
       }
     ],
     "menus": {
@@ -355,50 +390,151 @@
         }
       ],
       "commandPalette": [
-        { "command": "mergecore.indexRepository" },
-        { "command": "mergecore.setExplanationMode" },
-        { "command": "mergecore.setIntelligenceProfile" },
-        { "command": "mergecore.review.quick" },
-        { "command": "mergecore.review.file" },
-        { "command": "mergecore.review.flow" },
-        { "command": "mergecore.review.pr" },
-        { "command": "mergecore.review.disaster" },
-        { "command": "mergecore.reviewSelection" },
-        { "command": "mergecore.reviewFile" },
-        { "command": "mergecore.reviewGitDiff" },
-        { "command": "mergecore.reviewStagedDiff" },
-        { "command": "mergecore.showSidebar" },
-        { "command": "mergecore.exportReviewMarkdown" },
-        { "command": "mergecore.setApiToken" },
-        { "command": "mergecore.clearApiToken" },
-        { "command": "mergecore.showLogs" },
-        { "command": "mergecore.chooseReviewerPersona" },
-        { "command": "mergecore.scanProdRisks" },
-        { "command": "mergecore.hover.openExplanation" },
-        { "command": "mergecore.hover.generateTaskContext" },
+        {
+          "command": "mergecore.indexRepository"
+        },
+        {
+          "command": "mergecore.setExplanationMode"
+        },
+        {
+          "command": "mergecore.setIntelligenceProfile"
+        },
+        {
+          "command": "mergecore.review.quick"
+        },
+        {
+          "command": "mergecore.review.file"
+        },
+        {
+          "command": "mergecore.review.flow"
+        },
+        {
+          "command": "mergecore.review.pr"
+        },
+        {
+          "command": "mergecore.review.disaster"
+        },
+        {
+          "command": "mergecore.reviewSelection"
+        },
+        {
+          "command": "mergecore.reviewFile"
+        },
+        {
+          "command": "mergecore.reviewGitDiff"
+        },
+        {
+          "command": "mergecore.reviewStagedDiff"
+        },
+        {
+          "command": "mergecore.showSidebar"
+        },
+        {
+          "command": "mergecore.exportReviewMarkdown"
+        },
+        {
+          "command": "mergecore.setApiToken"
+        },
+        {
+          "command": "mergecore.clearApiToken"
+        },
+        {
+          "command": "mergecore.showLogs"
+        },
+        {
+          "command": "mergecore.chooseReviewerPersona"
+        },
+        {
+          "command": "mergecore.scanProdRisks"
+        },
+        {
+          "command": "mergecore.hover.openExplanation"
+        },
+        {
+          "command": "mergecore.hover.generateTaskContext"
+        },
         {
           "command": "mergecore.explainSelectedCode",
           "when": "resourceLangId =~ /^(typescript|typescriptreact|javascript|javascriptreact)$/"
         },
-        { "command": "mergecore.memory.initialise" },
-        { "command": "mergecore.memory.review" },
-        { "command": "mergecore.memory.approve" },
-        { "command": "mergecore.memory.reject" },
-        { "command": "mergecore.memory.refreshStale" },
-        { "command": "mergecore.memory.openFolder" },
-        { "command": "mergecore.generateTaskContext" },
-        { "command": "mergecore.copyMcpConfig" },
-        { "command": "mergecore.showPrivacyStatus" },
-        { "command": "mergecore.showIndexedFiles" },
-        { "command": "mergecore.showExcludedFiles" },
-        { "command": "mergecore.previewIndexRules" },
-        { "command": "mergecore.openIndexLocation" },
-        { "command": "mergecore.deleteLocalIndex" },
-        { "command": "mergecore.rebuildLocalIndex" },
-        { "command": "mergecore.configureModelProvider" },
-        { "command": "mergecore.disableExternalModels" },
-        { "command": "mergecore.previewDataSentToModel" },
-        { "command": "mergecore.exportDiagnostics" }
+        {
+          "command": "mergecore.memory.initialise"
+        },
+        {
+          "command": "mergecore.memory.review"
+        },
+        {
+          "command": "mergecore.memory.approve"
+        },
+        {
+          "command": "mergecore.memory.reject"
+        },
+        {
+          "command": "mergecore.memory.refreshStale"
+        },
+        {
+          "command": "mergecore.memory.openFolder"
+        },
+        {
+          "command": "mergecore.generateTaskContext"
+        },
+        {
+          "command": "mergecore.copyMcpConfig"
+        },
+        {
+          "command": "mergecore.showPrivacyStatus"
+        },
+        {
+          "command": "mergecore.showIndexedFiles"
+        },
+        {
+          "command": "mergecore.showExcludedFiles"
+        },
+        {
+          "command": "mergecore.previewIndexRules"
+        },
+        {
+          "command": "mergecore.openIndexLocation"
+        },
+        {
+          "command": "mergecore.deleteLocalIndex"
+        },
+        {
+          "command": "mergecore.rebuildLocalIndex"
+        },
+        {
+          "command": "mergecore.configureModelProvider"
+        },
+        {
+          "command": "mergecore.disableExternalModels"
+        },
+        {
+          "command": "mergecore.previewDataSentToModel"
+        },
+        {
+          "command": "mergecore.exportDiagnostics"
+        },
+        {
+          "command": "mergecore.inspectLastRetrieval"
+        },
+        {
+          "command": "mergecore.showUsageMetrics"
+        },
+        {
+          "command": "mergecore.enableUsageAnalytics"
+        },
+        {
+          "command": "mergecore.disableUsageAnalytics"
+        },
+        {
+          "command": "mergecore.deleteLocalUsageDiagnostics"
+        },
+        {
+          "command": "mergecore.exportUsageAnalytics"
+        },
+        {
+          "command": "mergecore.markMissingContext"
+        }
       ]
     },
     "viewsContainers": {
@@ -437,12 +573,17 @@
         "mergecore.privacy.modelProvider": {
           "type": "string",
           "default": "none",
-          "enum": ["none", "ollama", "openai", "anthropic"],
+          "enum": [
+            "none",
+            "ollama",
+            "openai",
+            "anthropic"
+          ],
           "enumDescriptions": [
-            "Deterministic only — no model calls",
+            "Deterministic only \u2014 no model calls",
             "Local Ollama (loopback by default)",
-            "OpenAI — bring-your-own-key via SecretStorage",
-            "Anthropic — bring-your-own-key via SecretStorage"
+            "OpenAI \u2014 bring-your-own-key via SecretStorage",
+            "Anthropic \u2014 bring-your-own-key via SecretStorage"
           ],
           "markdownDescription": "Active model provider. External providers require **mergecore.privacy.externalRequestsEnabled** and a first-time confirmation. API keys are never written to settings.json."
         },
@@ -451,9 +592,16 @@
           "default": false,
           "markdownDescription": "When exporting diagnostics, replace repository folder names with anonymised labels."
         },
+        "mergecore.privacy.usageAnalyticsEnabled": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "Opt-in anonymised local usage counts (latency histograms, hashed path keys). **Off by default.** Enable via **MergeCore: Enable Usage Analytics** after reviewing collected categories. Does not send data automatically \u2014 use **Export Usage Analytics** for a scrubbed bundle."
+        },
         "mergecore.privacy.extraExclusions": {
           "type": "array",
-          "items": { "type": "string" },
+          "items": {
+            "type": "string"
+          },
           "default": [],
           "markdownDescription": "Additional gitignore-style patterns always classified as **never_index** (additive overlay on global/workspace privacy rules)."
         },
@@ -465,9 +613,13 @@
         "mergecore.taskContext.defaultDepth": {
           "type": "string",
           "default": "standard",
-          "enum": ["shallow", "standard", "deep"],
+          "enum": [
+            "shallow",
+            "standard",
+            "deep"
+          ],
           "enumDescriptions": [
-            "Fewer files/symbols — faster, tighter packs",
+            "Fewer files/symbols \u2014 faster, tighter packs",
             "Balanced retrieval budgets (recommended)",
             "Larger neighbourhood and character budget"
           ],
@@ -476,7 +628,12 @@
         "mergecore.explanationMode": {
           "type": "string",
           "default": "junior",
-          "enum": ["junior", "mid", "senior", "expert"],
+          "enum": [
+            "junior",
+            "mid",
+            "senior",
+            "expert"
+          ],
           "enumDescriptions": [
             "Fundamentals, concepts, common mistakes, simple reasoning.",
             "Practical architecture, maintainability, workflow reasoning.",

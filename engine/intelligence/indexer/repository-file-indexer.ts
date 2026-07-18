@@ -147,6 +147,7 @@ class RepositoryFileIndexerImpl implements RepositoryFileIndexer {
   private graph: TsJsCodeGraphService | undefined;
   private readonly reconcile: GraphReconcileScheduler | undefined;
   private graphBootstrapped = false;
+  private indexStartedAt = 0;
 
   constructor(
     readonly workspaceRoot: string,
@@ -188,6 +189,7 @@ class RepositoryFileIndexerImpl implements RepositoryFileIndexer {
     this.lastError = undefined;
     this.exclusions = [];
     this.diagnostics = [];
+    this.indexStartedAt = Date.now();
     this.emit();
 
     try {
@@ -206,7 +208,27 @@ class RepositoryFileIndexerImpl implements RepositoryFileIndexer {
 
       await this.indexPathList([...scan.files], signal, /* prune */ true);
       this.phase = signal?.aborted ? 'cancelled' : 'done';
-      return this.buildStatus();
+      const status = this.buildStatus();
+      try {
+        const { recordUsageEvent } = await import('../diagnostics/index');
+        const elapsed = Date.now() - this.indexStartedAt;
+        if (Number.isFinite(elapsed) && elapsed > 0) {
+          await recordUsageEvent(this.workspaceRoot, {
+            kind: 'index_latency',
+            latencyMs: elapsed,
+          });
+        }
+        const parseFails = (status.diagnostics ?? []).length;
+        if (parseFails > 0) {
+          await recordUsageEvent(this.workspaceRoot, {
+            kind: 'parse_failure',
+            count: parseFails,
+          });
+        }
+      } catch {
+        // metrics optional
+      }
+      return status;
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') {
         this.phase = 'cancelled';

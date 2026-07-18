@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { createRepositoryIndex } from '@mergecore/intelligence';
+import { createRepositoryIndex, recordUsageEvent } from '@mergecore/intelligence';
 import type { ExplainerPorts } from '../../infrastructure/explain/explainer';
 import type { IndexerService } from '../../infrastructure/index/indexer.service';
 import {
@@ -186,6 +186,9 @@ export function registerExplainSelectedCode(
               },
             }
           );
+          void recordUsageEvent(scope.workspaceRoot, {
+            kind: 'explanation_opened',
+          }).catch(() => undefined);
         }
       );
     })

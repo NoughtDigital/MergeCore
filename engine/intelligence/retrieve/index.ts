@@ -3,11 +3,20 @@ export type {
   RepositoryContextResult,
   RetrievalAnalysis,
   RetrievalBudgets,
+  RetrievalBudgetUsage,
+  RetrievalCandidateSummary,
   RetrievalDebugInfo,
+  RetrievalDependencyPathSummary,
   RetrievalHit,
+  RetrievalIndexHealth,
+  RetrievalInspectionRecord,
+  RetrievalParserFailure,
   RetrievalResultType,
+  RetrievalSourceFreshness,
+  RetrievalStageTiming,
   ScoreBreakdown,
   SearchRepositoryContextOptions,
+  SourceFreshnessStatus,
 } from './types';
 export { DEFAULT_RETRIEVAL_BUDGETS } from './types';
 

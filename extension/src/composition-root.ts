@@ -30,6 +30,7 @@ import { registerMemoryCommands } from './presentation/memory/register-memory-co
 import { registerGenerateTaskContext } from './presentation/context/register-task-context';
 import { registerCopyMcpConfig } from './presentation/commands/register-copy-mcp-config';
 import { registerPrivacyCommands } from './presentation/privacy/register-privacy-commands';
+import { registerDiagnosticsCommands } from './presentation/diagnostics/register-diagnostics-commands';
 import {
   modelEnhancementAllowed,
   resolveChatPorts,
@@ -214,6 +215,7 @@ export function createMergeCoreApp(context: vscode.ExtensionContext): void {
     secrets,
     logger,
   });
+  registerDiagnosticsCommands({ context, indexer });
 
   const provider = vscode.window.registerWebviewViewProvider(MergeCoreSidebarProvider.viewId, sidebar, {
     webviewOptions: {

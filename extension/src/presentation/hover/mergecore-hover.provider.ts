@@ -266,6 +266,12 @@ export class MergeCoreHoverProvider implements vscode.HoverProvider {
         return null;
       }
 
+      void import('@mergecore/intelligence')
+        .then(({ recordUsageEvent }) =>
+          recordUsageEvent(workspaceRoot, { kind: 'hover_use' })
+        )
+        .catch(() => undefined);
+
       const markdown = formatHoverMarkdown(summary, workspaceRoot);
       const md = new vscode.MarkdownString(markdown, true);
       md.isTrusted = { enabledCommands: [...HOVER_ENABLED_COMMANDS] };

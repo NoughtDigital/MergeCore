@@ -26,6 +26,7 @@ export interface PrivacyStatusSnapshot {
   readonly indexPhase: string | null;
   readonly modelMode: string;
   readonly externalRequestsEnabled: boolean;
+  readonly usageAnalyticsEnabled: boolean;
   readonly providerConfigured: string;
   readonly providerKeyPresent: boolean;
   readonly transmittedRepositoryContent: boolean;
@@ -157,6 +158,7 @@ export async function collectPrivacyStatus(input: {
     indexPhase,
     modelMode,
     externalRequestsEnabled: settings.externalRequestsEnabled,
+    usageAnalyticsEnabled: settings.usageAnalyticsEnabled,
     providerConfigured: settings.modelProvider,
     providerKeyPresent,
     transmittedRepositoryContent: Boolean(lastTx),
@@ -191,6 +193,7 @@ export function formatPrivacyStatusMarkdown(s: PrivacyStatusSnapshot): string {
     `- **Schema version:** ${s.schemaVersion ?? '(unknown)'}`,
     `- **Model mode:** ${s.modelMode}`,
     `- **External requests enabled:** ${s.externalRequestsEnabled ? 'yes' : 'no'}`,
+    `- **Usage analytics (opt-in):** ${s.usageAnalyticsEnabled ? 'yes' : 'no'}`,
     `- **Provider configured:** ${s.providerConfigured}`,
     `- **Provider key present:** ${s.providerKeyPresent ? 'yes' : 'no'} _(value never shown)_`,
     `- **Generated result transmitted repository content:** ${s.transmittedRepositoryContent ? 'yes' : 'no'}`,

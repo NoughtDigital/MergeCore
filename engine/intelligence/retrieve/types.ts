@@ -65,6 +65,61 @@ export interface FilteringDecision {
   readonly reason: string;
 }
 
+export type SourceFreshnessStatus = 'fresh' | 'stale' | 'missing' | 'unknown';
+
+export interface RetrievalStageTiming {
+  readonly name: string;
+  readonly elapsedMs: number;
+}
+
+export interface RetrievalCandidateSummary {
+  readonly id: string;
+  readonly path: string;
+  readonly resultType: RetrievalResultType;
+  readonly score: number;
+}
+
+export interface RetrievalBudgetUsage {
+  readonly maxChars: number;
+  readonly usedChars: number;
+  readonly maxFiles: number;
+  readonly usedFiles: number;
+  readonly maxSymbols: number;
+  readonly usedSymbols: number;
+  readonly maxChunks: number;
+  readonly usedChunks: number;
+}
+
+export interface RetrievalSourceFreshness {
+  readonly path: string;
+  readonly status: SourceFreshnessStatus;
+}
+
+export interface RetrievalParserFailure {
+  readonly path: string;
+  readonly message?: string;
+}
+
+export interface RetrievalIndexHealth {
+  readonly updatedAt?: number;
+  readonly fileCount: number;
+  readonly chunkCount: number;
+  readonly schemaVersion?: number;
+  readonly incomplete: boolean;
+  /** True when index looks empty or never updated. */
+  readonly possiblyStale: boolean;
+}
+
+export interface RetrievalDependencyPathSummary {
+  readonly label: string;
+  readonly paths: readonly string[];
+  readonly score?: number;
+}
+
+/**
+ * Explainable retrieval inspection — paths and scores only.
+ * Never includes chunk text, excerpts, prompts, or task bodies.
+ */
 export interface RetrievalDebugInfo {
   readonly candidateCount: number;
   readonly selectedCount: number;
@@ -78,8 +133,32 @@ export interface RetrievalDebugInfo {
   readonly selectedIds: readonly string[];
   readonly rejectedIds: readonly string[];
   readonly elapsedMs: number;
-  /** Paths only — never full file bodies. */
+  /** Paths / tokens only — never full file bodies. */
   readonly notes: readonly string[];
+  /** SHA-256 of original query (safe for aggregate logs). */
+  readonly queryFingerprint: string;
+  /** Tokenised / normalised query terms (no free-form task prose beyond tokens). */
+  readonly normalisedQuery: readonly string[];
+  readonly stages: readonly RetrievalStageTiming[];
+  readonly candidates: readonly RetrievalCandidateSummary[];
+  readonly budgetUsage: RetrievalBudgetUsage;
+  readonly sourceFreshness: readonly RetrievalSourceFreshness[];
+  readonly parserFailures: readonly RetrievalParserFailure[];
+  readonly indexHealth: RetrievalIndexHealth;
+  readonly dependencyPaths: readonly RetrievalDependencyPathSummary[];
+}
+
+/**
+ * Session inspection record — may include original query for the local panel only.
+ * Must not be written to aggregate metrics files.
+ */
+export interface RetrievalInspectionRecord {
+  readonly capturedAt: number;
+  readonly workspaceRoot: string;
+  /** Present only in-memory / session UI — never persist to aggregate logs. */
+  readonly originalQuery?: string;
+  readonly result: RepositoryContextResult;
+  readonly debug: RetrievalDebugInfo;
 }
 
 export interface RepositoryContextResult {

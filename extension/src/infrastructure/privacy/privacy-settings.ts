@@ -17,6 +17,7 @@ export function readPrivacySettings(): PrivacySettings {
     externalRequestsEnabled: cfg.get<boolean>('privacy.externalRequestsEnabled', false) === true,
     modelProvider: parseModelProviderId(cfg.get<string>('privacy.modelProvider', 'none')),
     anonymiseDiagnostics: cfg.get<boolean>('privacy.anonymiseDiagnostics', false) === true,
+    usageAnalyticsEnabled: cfg.get<boolean>('privacy.usageAnalyticsEnabled', false) === true,
     enableModelExplanation: cfg.get<boolean>('hover.enableModelExplanation', false) === true,
     ollamaBaseUrl:
       cfg.get<string>('local.ollamaBaseUrl', 'http://127.0.0.1:11434') ??
@@ -30,6 +31,12 @@ export async function setExternalRequestsEnabled(enabled: boolean): Promise<void
   await vscode.workspace
     .getConfiguration('mergecore')
     .update('privacy.externalRequestsEnabled', enabled, vscode.ConfigurationTarget.Global);
+}
+
+export async function setUsageAnalyticsEnabled(enabled: boolean): Promise<void> {
+  await vscode.workspace
+    .getConfiguration('mergecore')
+    .update('privacy.usageAnalyticsEnabled', enabled, vscode.ConfigurationTarget.Global);
 }
 
 export async function setModelProvider(provider: PrivacyModelProviderId): Promise<void> {

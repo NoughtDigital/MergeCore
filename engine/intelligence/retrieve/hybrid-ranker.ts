@@ -9,6 +9,10 @@ import { sha256 } from '../rag/hash';
 import type { RagStore } from '../rag/store';
 import type { RagSymbolRecord } from '../rag/types';
 import {
+  assembleRetrievalDebugInfo,
+  stageTimer,
+} from '../diagnostics/inspection';
+import {
   approxTokens,
   confidenceFromScore,
   generatedPenalty,
@@ -23,6 +27,7 @@ import {
 import type {
   FilteringDecision,
   RepositoryContextResult,
+  RetrievalCandidateSummary,
   RetrievalDebugInfo,
   RetrievalHit,
   ScoreBreakdown,
@@ -218,6 +223,7 @@ export async function hybridSearchRepositoryContext(
   instructionResolver?: InstructionResolver
 ): Promise<RepositoryContextResult> {
   const started = Date.now();
+  const timer = stageTimer();
   const budgets = { ...DEFAULT_RETRIEVAL_BUDGETS, ...options.budgets };
   const maxCharBudget =
     options.budgets?.maxChars ??
@@ -338,6 +344,7 @@ export async function hybridSearchRepositoryContext(
     });
   }
 
+  timer.mark('symbols');
   // --- 2) Path / module relevance for files
   for (const p of files) {
     const pathScore = pathBasenameScore(q, p);
@@ -375,6 +382,7 @@ export async function hybridSearchRepositoryContext(
     }
   }
 
+  timer.mark('paths');
   // --- 3) Lexical chunk hits
   const lexHits = lexicalRetrieve(store, q, {
     k: Math.max(budgets.maxChunks * 2, 16),
@@ -422,6 +430,7 @@ export async function hybridSearchRepositoryContext(
     });
   }
 
+  timer.mark('lexical');
   // --- 4) Import distance from seeds
   const importDist = buildImportDistanceMap(
     store,
@@ -453,6 +462,7 @@ export async function hybridSearchRepositoryContext(
     });
   }
 
+  timer.mark('importDistance');
   // --- 5) Call graph + test relations via code graph query
   const graph = createCodeGraphQuery(store);
   const seedSymbols: RagSymbolRecord[] = [];
@@ -581,6 +591,7 @@ export async function hybridSearchRepositoryContext(
     });
   }
 
+  timer.mark('callGraph');
   // --- 6) Instructions + architecture/ADR for top seed paths
   if (instructionResolver) {
     const targets = [...seedPaths].slice(0, 6);
@@ -647,6 +658,7 @@ export async function hybridSearchRepositoryContext(
     }
   }
 
+  timer.mark('instructions');
   // --- Rank, dedupe overlapping spans, apply budgets
   let ranked = [...candidates.values()]
     .map((c) => toHit(c, store))
@@ -805,9 +817,24 @@ export async function hybridSearchRepositoryContext(
     }
   }
 
+  timer.mark('rankBudget');
+  const incomplete =
+    modelFiltered.length === 0 ||
+    modelFiltered.every((h) => h.confidence === 'uncertain');
+
   let debug: RetrievalDebugInfo | undefined;
   if (options.debug) {
-    debug = {
+    const candidateSummaries: RetrievalCandidateSummary[] = ranked
+      .slice(0, 60)
+      .map((h) => ({
+        id: h.id,
+        path: h.path,
+        resultType: h.resultType,
+        score: h.score,
+      }));
+    debug = assembleRetrievalDebugInfo({
+      query: q,
+      store,
       candidateCount,
       selectedCount: modelFiltered.length,
       rejected,
@@ -825,16 +852,29 @@ export async function hybridSearchRepositoryContext(
         `seedPaths=${[...seedPaths].slice(0, 12).join(',')}`,
         `budgets files=${budgets.maxFiles} symbols=${budgets.maxSymbols} chunks=${budgets.maxChunks} chars=${maxCharBudget}`,
       ],
-    };
+      stages: timer.stages(),
+      candidates: candidateSummaries,
+      budgetUsage: {
+        maxChars: maxCharBudget,
+        usedChars: chars,
+        maxFiles: budgets.maxFiles,
+        usedFiles: filesN,
+        maxSymbols: budgets.maxSymbols,
+        usedSymbols: symbolsN,
+        maxChunks: budgets.maxChunks,
+        usedChunks: chunksN,
+      },
+      selectedPaths: modelFiltered.map((h) => h.path),
+      seedPaths: [...seedPaths],
+      incomplete,
+    });
   }
 
   return {
     workspaceRoot: store.root,
     query: q,
     results: modelFiltered,
-    incomplete:
-      modelFiltered.length === 0 ||
-      modelFiltered.every((h) => h.confidence === 'uncertain'),
+    incomplete,
     notes,
     debug,
   };

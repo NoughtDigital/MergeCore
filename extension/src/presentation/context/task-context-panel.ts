@@ -1,6 +1,11 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
-import type { TaskContextDepth, TaskContextPack } from '@mergecore/intelligence';
+import {
+  hashRelativePath,
+  recordUsageEvent,
+  type TaskContextDepth,
+  type TaskContextPack,
+} from '@mergecore/intelligence';
 import { markdownToSafeHtml } from '../explain/explanation-markdown';
 
 export interface TaskContextPanelState {
@@ -144,9 +149,27 @@ async function handleMessage(msg: { type?: string }): Promise<void> {
         canPickMany: true,
       });
       if (!picked) return;
+      const next = picked.map((p) => p.label);
+      const nextSet = new Set(next);
+      for (const f of next) {
+        if (!current.has(f)) {
+          void recordUsageEvent(state.workspaceRoot, {
+            kind: 'manually_added_file',
+            pathHash: hashRelativePath(f),
+          }).catch(() => undefined);
+        }
+      }
+      for (const f of current) {
+        if (!nextSet.has(f)) {
+          void recordUsageEvent(state.workspaceRoot, {
+            kind: 'manually_removed_file',
+            pathHash: hashRelativePath(f),
+          }).catch(() => undefined);
+        }
+      }
       const pack = await actions.regenerate({
         depth: state.pack.meta.depth,
-        selectedFiles: picked.map((p) => p.label),
+        selectedFiles: next,
       });
       activeState = { ...state, pack, savedPath: undefined };
       if (currentPanel) {

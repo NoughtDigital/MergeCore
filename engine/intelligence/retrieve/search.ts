@@ -1,5 +1,12 @@
 import type { ContextClaim, SourceReference } from '../contracts';
 import { createSourceReference } from '../attribution/index';
+import {
+  hashRelativePath,
+  inspectionFromResult,
+  recordUsageEvent,
+  saveLastInspection,
+  setSessionLastInspection,
+} from '../diagnostics/index';
 import { createCodeGraphQuery } from '../graph/query';
 import type { InstructionResolver } from '../instructions/resolver';
 import { createInstructionResolver } from '../instructions/resolver';
@@ -57,8 +64,46 @@ export async function createRepositorySearchEngine(
     }
   }
 
-  const search = (query: string, opts?: SearchRepositoryContextOptions) =>
-    hybridSearchRepositoryContext(store, query, opts ?? {}, resolver);
+  const search = async (
+    query: string,
+    opts?: SearchRepositoryContextOptions
+  ): Promise<RepositoryContextResult> => {
+    const result = await hybridSearchRepositoryContext(
+      store,
+      query,
+      opts ?? {},
+      resolver
+    );
+    if (result.debug) {
+      const inspection = inspectionFromResult(result, query);
+      if (inspection) {
+        setSessionLastInspection(inspection);
+        void saveLastInspection(store.root, inspection).catch(() => undefined);
+      }
+      void recordUsageEvent(store.root, {
+        kind: 'retrieval_latency',
+        latencyMs: result.debug.elapsedMs,
+      }).catch(() => undefined);
+      if (
+        result.incomplete ||
+        result.results.every(
+          (h) => h.confidence === 'low' || h.confidence === 'uncertain'
+        )
+      ) {
+        void recordUsageEvent(store.root, {
+          kind: 'low_confidence_query',
+          queryFingerprint: result.debug.queryFingerprint,
+        }).catch(() => undefined);
+      }
+      for (const hit of result.results.slice(0, 12)) {
+        void recordUsageEvent(store.root, {
+          kind: 'frequent_source',
+          pathHash: hashRelativePath(hit.path),
+        }).catch(() => undefined);
+      }
+    }
+    return result;
+  };
 
   return {
     searchRepositoryContext: search,

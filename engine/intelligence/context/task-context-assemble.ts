@@ -11,6 +11,7 @@ import { fingerprintFile } from '../memory/provenance';
 import { budgetsForDepth } from './task-context-budgets';
 import { buildTaskContextPack } from './task-context-markdown';
 import { detectTaskRiskIndicators } from './task-risks';
+import { recordUsageEvent } from '../diagnostics/index';
 import type {
   TaskContextInput,
   TaskContextPack,
@@ -138,6 +139,7 @@ export async function assembleTaskContextPack(
     useInstructions: true,
   });
   const search = await engine.searchRepositoryContext(task, {
+    debug: true,
     k,
     pathHint: input.pathHint ?? selectedFiles[0],
     selectedFiles: selectedFiles.length > 0 ? selectedFiles : undefined,
@@ -571,6 +573,10 @@ export async function assembleTaskContextPack(
     });
     draft = buildTaskContextPack(draft.meta, sections);
   }
+
+  void recordUsageEvent(input.workspaceRoot, {
+    kind: 'context_pack_generated',
+  }).catch(() => undefined);
 
   return draft;
 }

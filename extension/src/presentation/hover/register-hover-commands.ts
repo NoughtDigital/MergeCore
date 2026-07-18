@@ -3,6 +3,7 @@ import * as vscode from 'vscode';
 import {
   createCodeGraphQuery,
   createInstructionResolver,
+  recordUsageEvent,
 } from '@mergecore/intelligence';
 import type { Explainer } from '../../infrastructure/explain/explainer';
 import type { IndexerService } from '../../infrastructure/index/indexer.service';
@@ -309,5 +310,8 @@ export function registerHoverCommands(
       language: 'markdown',
     });
     await vscode.window.showTextDocument(doc, { preview: true });
+    void recordUsageEvent(args.workspaceRoot, { kind: 'explanation_opened' }).catch(
+      () => undefined
+    );
   });
 }

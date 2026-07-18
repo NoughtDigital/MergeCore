@@ -27,6 +27,7 @@ function settings(partial: Partial<PrivacySettings>): PrivacySettings {
     externalRequestsEnabled: false,
     modelProvider: 'none',
     anonymiseDiagnostics: false,
+    usageAnalyticsEnabled: false,
     enableModelExplanation: false,
     ollamaBaseUrl: 'http://127.0.0.1:11434',
     chatModel: 'llama3.2',

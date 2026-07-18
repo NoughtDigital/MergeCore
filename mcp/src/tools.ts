@@ -8,6 +8,8 @@ import {
   createInstructionResolver,
   createRepositorySearchEngine,
   createSourceReference,
+  getSessionLastInspection,
+  loadLastInspection,
   detectTaskRiskIndicators,
   formatRelationshipPathLabel,
   MEMORY_DIR,
@@ -191,6 +193,7 @@ export async function toolSearchRepositoryContext(args: {
   preferMemory?: boolean;
   mode?: ExplanationMode;
   profile?: IntelligenceProfile;
+  debug?: boolean;
 }) {
   if (!args.query?.trim()) {
     return errorResult('malformed_request', 'query is required');
@@ -209,6 +212,7 @@ export async function toolSearchRepositoryContext(args: {
       preferMemory: args.preferMemory ?? true,
       mode: args.mode,
       profile: args.profile,
+      debug: args.debug === true,
       budgets: {
         maxFiles: args.maxFiles,
         maxSymbols: args.maxSymbols,
@@ -239,14 +243,77 @@ export async function toolSearchRepositoryContext(args: {
       );
     }
     logMeta('search_repository_context', opened.workspaceRoot, { hits: hits.length });
-    return textResult({
+    const payload: Record<string, unknown> = {
       workspaceRoot: result.workspaceRoot,
       query: result.query,
       incomplete: result.incomplete,
       notes: result.notes,
       hits,
       storeDir: opened.store.storeDirectory,
-    });
+    };
+    if (args.debug === true && result.debug) {
+      payload.debug = {
+        queryFingerprint: result.debug.queryFingerprint,
+        normalisedQuery: result.debug.normalisedQuery,
+        stages: result.debug.stages,
+        candidateCount: result.debug.candidateCount,
+        selectedCount: result.debug.selectedCount,
+        selectedIds: result.debug.selectedIds,
+        rejected: result.debug.rejected,
+        filtering: result.debug.filtering,
+        scoreComponents: result.debug.scoreComponents,
+        budgetUsage: result.debug.budgetUsage,
+        sourceFreshness: result.debug.sourceFreshness,
+        parserFailures: result.debug.parserFailures,
+        indexHealth: result.debug.indexHealth,
+        dependencyPaths: result.debug.dependencyPaths,
+        candidates: result.debug.candidates,
+        elapsedMs: result.debug.elapsedMs,
+        notes: result.debug.notes,
+      };
+    }
+    return textResult(payload);
+  });
+}
+
+/** Paths/scores only — last retrieval inspection (no file bodies). */
+export async function toolInspectLastRetrieval() {
+  return withOpenedIndex('inspect_last_retrieval', false, async ({ opened }) => {
+    const session = getSessionLastInspection();
+    if (session) {
+      logMeta('inspect_last_retrieval', opened.workspaceRoot, { source: 'session' });
+      return textResult({
+        source: 'session',
+        capturedAt: session.capturedAt,
+        queryFingerprint: session.debug.queryFingerprint,
+        normalisedQuery: session.debug.normalisedQuery,
+        incomplete: session.result.incomplete,
+        selectedPaths: session.result.results.map((r) => r.path),
+        selectedIds: session.debug.selectedIds,
+        rejected: session.debug.rejected,
+        filtering: session.debug.filtering,
+        scoreComponents: session.debug.scoreComponents,
+        stages: session.debug.stages,
+        budgetUsage: session.debug.budgetUsage,
+        sourceFreshness: session.debug.sourceFreshness,
+        parserFailures: session.debug.parserFailures,
+        indexHealth: session.debug.indexHealth,
+        dependencyPaths: session.debug.dependencyPaths,
+        candidates: session.debug.candidates,
+        notes: session.debug.notes,
+        elapsedMs: session.debug.elapsedMs,
+        candidateCount: session.debug.candidateCount,
+        selectedCount: session.debug.selectedCount,
+      });
+    }
+    const disk = await loadLastInspection(opened.workspaceRoot);
+    if (!disk) {
+      return errorResult('malformed_request', 'No last retrieval inspection available', {
+        hint: 'Run search_repository_context with debug=true or Generate Task Context first.',
+      });
+    }
+    logMeta('inspect_last_retrieval', opened.workspaceRoot, { source: 'disk' });
+    return textResult({ source: 'disk', ...disk });
   });
 }
 

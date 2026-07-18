@@ -4,6 +4,7 @@ export interface PrivacySettings {
   readonly externalRequestsEnabled: boolean;
   readonly modelProvider: PrivacyModelProviderId;
   readonly anonymiseDiagnostics: boolean;
+  readonly usageAnalyticsEnabled: boolean;
   readonly enableModelExplanation: boolean;
   readonly ollamaBaseUrl: string;
   readonly chatModel: string;

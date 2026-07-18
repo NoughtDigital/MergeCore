@@ -42,3 +42,4 @@ coverage/
 # .mergecore/memory/ and .mergecore/config.json may be committed)
 .mergecore/rag/
 .mergecore/generated/
+.mergecore/diagnostics/

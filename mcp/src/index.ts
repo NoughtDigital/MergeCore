@@ -22,6 +22,7 @@ import {
   toolRetrieve,
   toolScanProdRisks,
   toolSearchRepositoryContext,
+  toolInspectLastRetrieval,
   toolWorkspaceProfile,
 } from './tools.js';
 import { resolveWorkspaceRoot } from './workspace.js';
@@ -77,8 +78,19 @@ function createServer(): McpServer {
       preferMemory: z.boolean().optional(),
       mode: explanationMode.optional(),
       profile: intelligenceProfile.optional(),
+      debug: z
+        .boolean()
+        .optional()
+        .describe('Include retrieval inspection (paths/scores only; no file bodies)'),
     },
     async (args) => toolSearchRepositoryContext(args)
+  );
+
+  server.tool(
+    'inspect_last_retrieval',
+    'Return the last retrieval inspection (paths, scores, stages, budget — no file bodies).',
+    {},
+    async () => toolInspectLastRetrieval()
   );
 
   server.tool(

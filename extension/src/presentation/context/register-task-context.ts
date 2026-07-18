@@ -2,6 +2,8 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import {
   assembleTaskContextPack,
+  hashRelativePath,
+  recordUsageEvent,
   parseTaskContextDepth,
   writeTaskContextPack,
   type TaskContextDepth,
@@ -193,6 +195,12 @@ export function registerGenerateTaskContext(
                   .replace(/\\/g, '/');
               })
               .filter(Boolean);
+            for (const f of selectedFiles) {
+              void recordUsageEvent(workspaceRoot, {
+                kind: 'manually_added_file',
+                pathHash: hashRelativePath(f),
+              }).catch(() => undefined);
+            }
           }
         }
 
