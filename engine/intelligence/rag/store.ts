@@ -177,7 +177,8 @@ function schema(db: Database): void {
       return_type_text TEXT,
       jsdoc_summary TEXT,
       signature_text TEXT,
-      overload_index INTEGER
+      overload_index INTEGER,
+      adapter_id TEXT
     );
     CREATE TABLE IF NOT EXISTS edges (
       id TEXT PRIMARY KEY,
@@ -357,6 +358,39 @@ export class RagStore {
 
   allEdges(): readonly RagDependencyEdge[] {
     return this.snapshot.edges ?? [];
+  }
+
+  /** Append edges without replacing file graphs (e.g. cross-language links). */
+  appendEdges(edges: readonly RagDependencyEdge[]): number {
+    this.ensureOpen();
+    if (edges.length === 0) {
+      return 0;
+    }
+    const existing = this.snapshot.edges ?? [];
+    const seen = new Set(existing.map((e) => e.id));
+    const appended: RagDependencyEdge[] = [];
+    for (const e of edges) {
+      if (seen.has(e.id)) continue;
+      seen.add(e.id);
+      appended.push({
+        ...e,
+        fromPath: normalise(e.fromPath),
+        toPath: normalise(e.toPath),
+      });
+    }
+    if (appended.length === 0) {
+      return 0;
+    }
+    this.snapshot = {
+      ...this.snapshot,
+      edges: [...existing, ...appended],
+      updatedAt: Date.now(),
+    };
+    return appended.length;
+  }
+
+  allFilePaths(): readonly string[] {
+    return Object.keys(this.snapshot.files);
   }
 
   findSymbolsByName(name: string): readonly RagSymbolRecord[] {
@@ -609,10 +643,6 @@ export class RagStore {
     this.dirty = true;
   }
 
-  allFilePaths(): readonly string[] {
-    return Object.keys(this.snapshot.files);
-  }
-
   private ensureOpen(): void {
     if (this.closed) {
       throw new Error('RagStore is closed');
@@ -819,6 +849,7 @@ function migrateGraphTables(db: Database): void {
     ['jsdoc_summary', 'jsdoc_summary TEXT'],
     ['signature_text', 'signature_text TEXT'],
     ['overload_index', 'overload_index INTEGER'],
+    ['adapter_id', 'adapter_id TEXT'],
   ]);
   addCols('edges', [
     ['start_column', 'start_column INTEGER'],
@@ -908,6 +939,36 @@ function hydrateFromDb(workspaceRoot: string, db: Database): RagStoreSnapshot {
     const symRows = db.exec(
       `SELECT id, name, kind, path, start_line, end_line, language, exported, container_name,
               start_column, end_column, parameters_json, return_type_text, jsdoc_summary,
+              signature_text, overload_index, adapter_id FROM symbols`
+    );
+    for (const row of symRows[0]?.values ?? []) {
+      const id = String(row[0]);
+      symbols[id] = {
+        id,
+        name: String(row[1]),
+        kind: String(row[2]),
+        path: String(row[3]),
+        startLine: Number(row[4]),
+        endLine: Number(row[5]),
+        language: String(row[6]),
+        exported: row[7] == null ? undefined : Number(row[7]) === 1,
+        containerName: row[8] != null ? String(row[8]) : undefined,
+        startColumn: row[9] != null ? Number(row[9]) : undefined,
+        endColumn: row[10] != null ? Number(row[10]) : undefined,
+        parametersJson: row[11] != null ? String(row[11]) : undefined,
+        returnTypeText: row[12] != null ? String(row[12]) : undefined,
+        jsdocSummary: row[13] != null ? String(row[13]) : undefined,
+        signatureText: row[14] != null ? String(row[14]) : undefined,
+        overloadIndex: row[15] != null ? Number(row[15]) : undefined,
+        adapterId: row[16] != null ? String(row[16]) : String(row[6]),
+      };
+    }
+  } catch {
+    // Fallback for legacy symbol table without adapter_id
+    try {
+      const symRows = db.exec(
+      `SELECT id, name, kind, path, start_line, end_line, language, exported, container_name,
+              start_column, end_column, parameters_json, return_type_text, jsdoc_summary,
               signature_text, overload_index FROM symbols`
     );
     for (const row of symRows[0]?.values ?? []) {
@@ -929,6 +990,7 @@ function hydrateFromDb(workspaceRoot: string, db: Database): RagStoreSnapshot {
         jsdocSummary: row[13] != null ? String(row[13]) : undefined,
         signatureText: row[14] != null ? String(row[14]) : undefined,
         overloadIndex: row[15] != null ? Number(row[15]) : undefined,
+        adapterId: String(row[6]),
       };
     }
   } catch {
@@ -949,11 +1011,13 @@ function hydrateFromDb(workspaceRoot: string, db: Database): RagStoreSnapshot {
           language: String(row[6]),
           exported: row[7] == null ? undefined : Number(row[7]) === 1,
           containerName: row[8] != null ? String(row[8]) : undefined,
+          adapterId: String(row[6]),
         };
       }
     } catch {
       // symbols table may be missing on legacy DBs
     }
+  }
   }
 
   try {
@@ -1074,7 +1138,8 @@ function syncDbFromSnapshot(db: Database, snapshot: RagStoreSnapshot): void {
       return_type_text TEXT,
       jsdoc_summary TEXT,
       signature_text TEXT,
-      overload_index INTEGER
+      overload_index INTEGER,
+      adapter_id TEXT
     );
     CREATE TABLE IF NOT EXISTS edges (
       id TEXT PRIMARY KEY,
@@ -1149,8 +1214,8 @@ function syncDbFromSnapshot(db: Database, snapshot: RagStoreSnapshot): void {
   for (const sym of Object.values(snapshot.symbols ?? {})) {
     db.run(
       `INSERT OR REPLACE INTO symbols(id, name, kind, path, start_line, end_line, language, exported, container_name,
-        start_column, end_column, parameters_json, return_type_text, jsdoc_summary, signature_text, overload_index)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        start_column, end_column, parameters_json, return_type_text, jsdoc_summary, signature_text, overload_index, adapter_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         sym.id,
         sym.name,
@@ -1168,6 +1233,7 @@ function syncDbFromSnapshot(db: Database, snapshot: RagStoreSnapshot): void {
         sym.jsdocSummary ?? null,
         sym.signatureText ?? null,
         sym.overloadIndex ?? null,
+        sym.adapterId ?? sym.language,
       ]
     );
   }

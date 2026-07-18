@@ -230,28 +230,18 @@ async function openRelativeLink(
   scope: ExplainScope,
   href: string
 ): Promise<void> {
-  const m = href.match(/^([^#:]+)(?:#L?|:|@)(\d+)/);
-  const rel = m?.[1] ?? href.split('#')[0] ?? href;
-  const line = m?.[2] ? Number(m[2]) : 1;
-  const abs = path.isAbsolute(rel)
-    ? rel
-    : path.join(scope.workspaceRoot, rel);
-  try {
-    const uri = vscode.Uri.file(abs);
-    const doc = await vscode.workspace.openTextDocument(uri);
-    const editor = await vscode.window.showTextDocument(doc, {
-      preview: true,
-      viewColumn: vscode.ViewColumn.One,
-    });
-    const pos = new vscode.Position(Math.max(0, line - 1), 0);
-    editor.selection = new vscode.Selection(pos, pos);
-    editor.revealRange(
-      new vscode.Range(pos, pos),
-      vscode.TextEditorRevealType.InCenter
-    );
-  } catch {
-    void vscode.window.showWarningMessage(`Could not open ${href}`);
-  }
+  const m = href.match(/^([^#:]+)(?:#L?|:|@)(\d+)(?:-L?(\d+))?/);
+  const rel = (m?.[1] ?? href.split('#')[0] ?? href).replace(/\\/g, '/');
+  const startLine = m?.[2] ? Number(m[2]) : 1;
+  const endLine = m?.[3] ? Number(m[3]) : startLine;
+  const { openAttributedSource } = await import('../sources/open-attributed-source');
+  await openAttributedSource({
+    workspaceRoot: scope.workspaceRoot,
+    path: rel,
+    startLine,
+    endLine,
+    sourceType: 'source',
+  });
 }
 
 async function handleMessage(msg: { type?: string; href?: string }): Promise<void> {

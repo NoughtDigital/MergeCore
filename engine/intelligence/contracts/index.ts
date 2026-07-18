@@ -22,9 +22,25 @@ export type {
   ContextPack,
   IndexStatus,
   IndexPhase,
+  SourceAuthored,
+  SourceExtraction,
+  ConfidenceLevel,
+  ComponentCertainty,
+  SourceFreshness,
+  ConfidenceComponents,
+  ClaimConfidence,
+} from './types';
+
+export {
+  DETERMINISTIC_EDGE_RESOLUTION,
+  isDeterministicEdgeResolution,
 } from './types';
 
 export type {
+  AdapterCapabilityLevel,
+  LanguageAdapterCapabilities,
+  LanguageProjectHint,
+  AdapterDiagnostic,
   LanguageAdapter,
   IndexStore,
   RetrieveQueryOptions,

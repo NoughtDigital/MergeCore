@@ -480,6 +480,7 @@ describe('explain selected code', () => {
         },
       ],
       evidenceRefs: [{ path: 'src/a.ts', startLine: 1, endLine: 5 }],
+      attributedSources: [],
       markdown: '# Purpose\n',
       usedModel: false,
       modelTransmissionVisible: false,

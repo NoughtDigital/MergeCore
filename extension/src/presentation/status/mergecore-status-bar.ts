@@ -32,7 +32,7 @@ export function registerMergeCoreStatusBar(
   item.command = 'mergecore.indexRepository';
   item.text = '$(book) MergeCore';
   item.tooltip =
-    'MergeCore — local repository cognition. Click to index. Hover PHP symbols for explanations.';
+    'MergeCore — local repository cognition. Click to index. Run “MergeCore: Show Privacy Status” to see where data lives.';
 
   let lastMessage = 'MergeCore';
   let busy = false;

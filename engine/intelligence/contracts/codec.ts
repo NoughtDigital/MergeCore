@@ -186,12 +186,15 @@ export function parseSymbolRecord(json: string): SymbolRecord {
   if (!isObject(location)) {
     throw new Error('SymbolRecord.location must be an object');
   }
+  const language = requireString(raw, 'language');
+  const adapterId = optionalString(raw, 'adapterId') ?? language;
   const result: SymbolRecord = {
     id: requireString(raw, 'id'),
     name: requireString(raw, 'name'),
     kind: requireString(raw, 'kind'),
     location: parseSymbolLocation(JSON.stringify(location)),
-    language: requireString(raw, 'language'),
+    language,
+    adapterId,
   };
   const exported = optionalBoolean(raw, 'exported');
   const containerName = optionalString(raw, 'containerName');
@@ -270,6 +273,9 @@ const EDGE_KINDS = new Set([
 const EDGE_CONFIDENCE = new Set(['certain', 'high', 'medium', 'low', 'heuristic']);
 
 const EDGE_RESOLUTION = new Set([
+  'compiler',
+  'ast',
+  'convention',
   'typescript-checker',
   'typescript-ast',
   'path-alias',
@@ -371,19 +377,55 @@ export function parseSourceReference(json: string): SourceReference {
   if (!isObject(raw)) {
     throw new Error('SourceReference must be an object');
   }
+  const path = requireString(raw, 'path').replace(/\\/g, '/');
+  const authoredRaw = optionalString(raw, 'authored');
+  const authored =
+    authoredRaw === 'human' || authoredRaw === 'generated'
+      ? authoredRaw
+      : path.includes('/.mergecore/generated/')
+        ? 'generated'
+        : 'human';
+  const extractionRaw = optionalString(raw, 'extraction');
+  const extraction =
+    extractionRaw === 'deterministic' || extractionRaw === 'heuristic'
+      ? extractionRaw
+      : 'deterministic';
   const result: SourceReference = {
-    path: requireString(raw, 'path'),
+    workspaceId: optionalString(raw, 'workspaceId') ?? 'unknown',
+    path,
     startLine: requireNumber(raw, 'startLine'),
     endLine: requireNumber(raw, 'endLine'),
     sourceType: requireString(raw, 'sourceType') as SourceReference['sourceType'],
+    sourceFingerprint:
+      optionalString(raw, 'sourceFingerprint') ??
+      optionalString(raw, 'fileHash') ??
+      '',
+    authored,
+    extraction,
   };
+  const startColumn = optionalNumber(raw, 'startColumn');
+  const endColumn = optionalNumber(raw, 'endColumn');
   const symbol = optionalString(raw, 'symbol');
+  const symbolId = optionalString(raw, 'symbolId');
   const excerpt = optionalString(raw, 'excerpt');
+  const evidenceId = optionalString(raw, 'evidenceId');
+  if (startColumn !== undefined) {
+    (result as { startColumn?: number }).startColumn = startColumn;
+  }
+  if (endColumn !== undefined) {
+    (result as { endColumn?: number }).endColumn = endColumn;
+  }
   if (symbol !== undefined) {
     (result as { symbol?: string }).symbol = symbol;
   }
+  if (symbolId !== undefined) {
+    (result as { symbolId?: string }).symbolId = symbolId;
+  }
   if (excerpt !== undefined) {
     (result as { excerpt?: string }).excerpt = excerpt;
+  }
+  if (evidenceId !== undefined) {
+    (result as { evidenceId?: string }).evidenceId = evidenceId;
   }
   return result;
 }
@@ -397,24 +439,58 @@ export function parseContextClaim(json: string): ContextClaim {
   if (!isObject(raw)) {
     throw new Error('ContextClaim must be an object');
   }
-  const confidence = requireString(raw, 'confidence');
-  if (
-    confidence !== 'high' &&
-    confidence !== 'medium' &&
-    confidence !== 'low' &&
-    confidence !== 'uncertain'
-  ) {
+  let confidence = requireString(raw, 'confidence');
+  if (confidence === 'uncertain') {
+    confidence = 'low';
+  }
+  if (confidence !== 'high' && confidence !== 'medium' && confidence !== 'low') {
     throw new Error(`Invalid ContextClaim.confidence: ${confidence}`);
   }
   const references = raw.references;
   if (!Array.isArray(references)) {
     throw new Error('ContextClaim.references must be an array');
   }
+  const parsedRefs = references.map((r) => parseSourceReference(JSON.stringify(r)));
+  const generalConsideration =
+    optionalBoolean(raw, 'generalConsideration') === true || parsedRefs.length === 0;
+  if (!generalConsideration && parsedRefs.length === 0) {
+    throw new Error(
+      'ContextClaim requires references or generalConsideration=true'
+    );
+  }
+  const detailRaw = raw.confidenceDetail;
+  let confidenceDetail: ContextClaim['confidenceDetail'];
+  if (isObject(detailRaw) && isObject(detailRaw.components)) {
+    const level = optionalString(detailRaw, 'level') ?? confidence;
+    const levelNorm =
+      level === 'high' || level === 'medium' || level === 'low' ? level : confidence;
+    const rationale = Array.isArray(detailRaw.rationale)
+      ? detailRaw.rationale.filter((x): x is string => typeof x === 'string')
+      : [];
+    confidenceDetail = {
+      level: levelNorm as ContextClaim['confidence'],
+      components: detailRaw.components as ContextClaim['confidenceDetail']['components'],
+      rationale,
+      diagnosticScore: optionalNumber(detailRaw, 'diagnosticScore'),
+    };
+  } else {
+    confidenceDetail = {
+      level: confidence as ContextClaim['confidence'],
+      components: {
+        independentSourceCount: parsedRefs.length,
+        sourceFreshness: 'unknown',
+        modelGenerated: false,
+      },
+      rationale: ['legacy-claim-without-detail'],
+    };
+  }
   return {
     id: requireString(raw, 'id'),
     text: requireString(raw, 'text'),
-    confidence,
-    references: references.map((r) => parseSourceReference(JSON.stringify(r))),
+    confidence: confidence as ContextClaim['confidence'],
+    confidenceDetail,
+    references: parsedRefs,
+    ...(generalConsideration ? { generalConsideration: true } : {}),
     score: optionalNumber(raw, 'score'),
   };
 }

@@ -46,12 +46,14 @@ describe('repository-aware hover', () => {
 
   it('assembles summary with evidence vs inference labels', () => {
     const summary = assembleHoverSummary({
+      workspaceId: 'ws-test',
       symbol: {
         id: 'typescript:src/a.ts:foo:function:1:1',
         name: 'foo',
         kind: 'function',
         location: { path: 'src/a.ts', startLine: 1, endLine: 5 },
         language: 'typescript',
+        adapterId: 'typescript',
         exported: true,
         jsdocSummary: 'Does a thing',
         parameters: [{ name: 'x', typeText: 'number' }],
@@ -84,12 +86,14 @@ describe('repository-aware hover', () => {
 
   it('formats compact markdown with command links and source metadata', () => {
     const summary = assembleHoverSummary({
+      workspaceId: 'ws-test',
       symbol: {
         id: 'typescript:src/a.ts:foo:function:1:1',
         name: 'foo',
         kind: 'function',
         location: { path: 'src/a.ts', startLine: 2, endLine: 4 },
         language: 'typescript',
+        adapterId: 'typescript',
         jsdocSummary: 'Hello',
       },
       callers: [],
@@ -101,6 +105,7 @@ describe('repository-aware hover', () => {
     const md = formatHoverMarkdown(summary, '/tmp/ws');
     assert.ok(md.includes('### `foo`'));
     assert.ok(md.includes('model not used'));
+    assert.ok(md.includes('deterministic language intelligence'));
     assert.ok(md.includes(`command:${HOVER_COMMANDS.openSource}`));
     assert.ok(md.includes(`command:${HOVER_COMMANDS.viewCallers}`));
     assert.ok(HOVER_ENABLED_COMMANDS.includes(HOVER_COMMANDS.openExplanation));
@@ -302,12 +307,14 @@ describe('repository-aware hover', () => {
     assert.ok(
       formatHoverMarkdown(
         assembleHoverSummary({
+      workspaceId: 'ws-test',
           symbol: {
             id: 'id',
             name: 'x',
             kind: 'function',
             location: { path: 'a.ts', startLine: 1, endLine: 1 },
             language: 'typescript',
+            adapterId: 'typescript',
           },
           callers: [],
           callees: [],

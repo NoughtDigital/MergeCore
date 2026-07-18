@@ -1,7 +1,10 @@
 import type { SourceReference } from '../contracts';
+import { isDeterministicEdgeResolution } from '../contracts';
+import { createSourceReference } from '../attribution/index';
 import { createCodeGraphQuery } from '../graph/query';
 import type { InstructionResolver } from '../instructions/resolver';
 import { retrieve as lexicalRetrieve } from '../rag/retrieve';
+import { sha256 } from '../rag/hash';
 import type { RagStore } from '../rag/store';
 import type { RagSymbolRecord } from '../rag/types';
 import {
@@ -25,6 +28,7 @@ import type {
   SearchRepositoryContextOptions,
 } from './types';
 import { DEFAULT_RETRIEVAL_BUDGETS } from './types';
+import { confidenceFromRetrieval, createAttributedClaim } from '../attribution/index';
 
 interface Candidate {
   id: string;
@@ -124,21 +128,27 @@ function reasonFromBreakdown(b: ScoreBreakdown, parts: string[]): string {
   return labels.slice(0, 3).join('; ') || 'combined hybrid score';
 }
 
-function toHit(c: Candidate): RetrievalHit {
+function toHit(c: Candidate, store: RagStore): RetrievalHit {
   const score = sumBreakdown(c.breakdown);
+  const file = store.getFile(c.path);
+  const workspaceId = store.workspaceId ?? sha256(store.root).slice(0, 16);
   return {
     id: c.id,
     resultType: c.resultType,
     score,
     breakdown: c.breakdown,
-    reference: {
+    reference: createSourceReference({
+      workspaceId,
       path: c.path,
       startLine: c.startLine,
       endLine: c.endLine,
       sourceType: c.sourceType,
+      sourceFingerprint: file?.hash ?? '',
+      symbolId: c.symbolId,
       symbol: c.symbolName,
       excerpt: c.excerpt?.slice(0, 240),
-    },
+      extraction: c.analysis,
+    }),
     reason: reasonFromBreakdown(c.breakdown, c.reasonParts),
     confidence: confidenceFromScore(score, c.analysis),
     analysis: c.analysis,
@@ -291,7 +301,9 @@ export async function hybridSearchRepositoryContext(
         path: pathBasenameScore(q, edge.fromPath) || undefined,
       },
       reasonParts: [`export/import alias "${edge.specifier}" overlaps query`],
-      analysis: edge.resolutionMethod === 'typescript-checker' ? 'deterministic' : 'heuristic',
+      analysis: isDeterministicEdgeResolution(edge.resolutionMethod)
+        ? 'deterministic'
+        : 'heuristic',
       charEstimate: 120,
     });
   }
@@ -569,7 +581,7 @@ export async function hybridSearchRepositoryContext(
 
   // --- Rank, dedupe overlapping spans, apply budgets
   let ranked = [...candidates.values()]
-    .map(toHit)
+    .map((c) => toHit(c, store))
     .filter((h) => h.score > 0)
     .sort((a, b) => {
       if (b.score !== a.score) return b.score - a.score;
@@ -745,18 +757,24 @@ export async function hybridSearchRepositoryContext(
   };
 }
 
-/** Map hybrid hits into legacy ContextClaim shape for RepositoryIndex.retrieve. */
+/** Map hybrid hits into ContextClaim shape for RepositoryIndex.retrieve. */
 export function hitsToClaims(hits: readonly RetrievalHit[]): {
   claims: import('../contracts').ContextClaim[];
   references: SourceReference[];
 } {
-  const claims = hits.map((h, i) => ({
-    id: h.id || `claim:${i}`,
-    text: `${h.reason} (${h.resultType} · score ${h.score.toFixed(1)} · ${h.analysis}).`,
-    confidence: h.confidence,
-    references: [h.reference],
-    score: h.score,
-  }));
+  const claims = hits.map((h, i) =>
+    createAttributedClaim({
+      id: h.id || `claim:${i}`,
+      text: `${h.reason} (${h.resultType} · score ${h.score.toFixed(1)} · ${h.analysis}).`,
+      references: [h.reference],
+      confidenceDetail: confidenceFromRetrieval({
+        analysis: h.analysis,
+        hitConfidence: h.confidence,
+        independentSourceCount: 1,
+      }),
+      score: h.score,
+    })
+  );
   return {
     claims,
     references: hits.map((h) => h.reference),

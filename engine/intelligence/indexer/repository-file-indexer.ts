@@ -1,6 +1,12 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import { defaultLanguageAdapters, resolveLanguageAdapter } from '../adapters';
+import {
+  collectAdapterEdges,
+  defaultLanguageAdapters,
+  linkCrossLanguageRouteEdges,
+  resolveLanguageAdapter,
+  stampAdapterId,
+} from '../adapters';
 import type {
   DependencyEdge,
   ExclusionRecord,
@@ -12,7 +18,6 @@ import type {
 import {
   createTsJsCodeGraphService,
   GraphReconcileScheduler,
-  isTsJsPath,
   type TsJsCodeGraphService,
 } from '../graph';
 import { sha256 } from '../rag/hash';
@@ -80,6 +85,7 @@ function toRagSymbol(s: SymbolRecord): RagSymbolRecord {
     startColumn: s.location.startColumn,
     endColumn: s.location.endColumn,
     language: s.language,
+    adapterId: s.adapterId,
     exported: s.exported,
     containerName: s.containerName,
     parametersJson: s.parameters ? JSON.stringify(s.parameters) : undefined,
@@ -88,6 +94,17 @@ function toRagSymbol(s: SymbolRecord): RagSymbolRecord {
     signatureText: s.signatureText,
     overloadIndex: s.overloadIndex,
   };
+}
+
+function usesCompilerGraph(
+  adapter: LanguageAdapter,
+  graph: TsJsCodeGraphService | undefined
+): boolean {
+  return (
+    Boolean(graph) &&
+    adapter.capabilities.prefersCompilerGraph === true &&
+    (adapter.languageId === 'typescript' || adapter.languageId === 'javascript')
+  );
 }
 
 /**
@@ -131,7 +148,9 @@ class RepositoryFileIndexerImpl implements RepositoryFileIndexer {
     private store: RagStore,
     private readonly options: CreateRepositoryFileIndexerOptions
   ) {
-    this.adapters = options.languageAdapters ?? defaultLanguageAdapters();
+    this.adapters =
+      options.languageAdapters ??
+      defaultLanguageAdapters({ workspaceRoot });
     this.maxFileBytes = options.maxFileBytes ?? DEFAULT_MAX_FILE_BYTES;
     this.debugExclusions = options.debugExclusions === true;
     if (options.useCompilerGraph !== false) {
@@ -213,7 +232,7 @@ class RepositoryFileIndexerImpl implements RepositoryFileIndexer {
 
     try {
       const toIndex: string[] = [];
-      const changedTsJs: string[] = [];
+      const changedForInvalidation: string[] = [];
       for (const change of changes) {
         throwIfAborted(signal);
         if (change.type === 'delete') {
@@ -221,9 +240,7 @@ class RepositoryFileIndexerImpl implements RepositoryFileIndexer {
           this.graph?.removeFile(p);
           this.store.removeFile(p);
           this.filesIndexed++;
-          if (isTsJsPath(p)) {
-            changedTsJs.push(p);
-          }
+          changedForInvalidation.push(p);
           continue;
         }
         if (change.type === 'rename') {
@@ -232,26 +249,32 @@ class RepositoryFileIndexerImpl implements RepositoryFileIndexer {
           this.graph?.removeFile(from);
           this.store.removeFile(from);
           toIndex.push(to);
-          if (isTsJsPath(from) || isTsJsPath(to)) {
-            changedTsJs.push(from, to);
-          }
+          changedForInvalidation.push(from, to);
           continue;
         }
         const p = change.path.replace(/\\/g, '/');
         toIndex.push(p);
-        if (isTsJsPath(p)) {
-          changedTsJs.push(p);
-        }
+        changedForInvalidation.push(p);
       }
 
       await this.indexPathList(toIndex, signal, /* prune */ false);
 
-      if (this.reconcile && changedTsJs.length > 0) {
+      if (this.reconcile && changedForInvalidation.length > 0) {
         const dependents = new Set<string>();
-        for (const p of changedTsJs) {
+        const allEdges = this.store.allEdges();
+        for (const p of changedForInvalidation) {
+          const adapter = resolveLanguageAdapter(p, this.adapters);
+          if (adapter.capabilities.incrementalInvalidation === 'none') {
+            continue;
+          }
           for (const imp of this.store.importersOf(p)) {
             if (!toIndex.includes(imp)) {
               dependents.add(imp);
+            }
+          }
+          for (const target of adapter.collectInvalidationTargets?.(p, allEdges) ?? []) {
+            if (!toIndex.includes(target)) {
+              dependents.add(target);
             }
           }
         }
@@ -381,6 +404,7 @@ class RepositoryFileIndexerImpl implements RepositoryFileIndexer {
 
     if (prune) {
       this.store.pruneMissing(keep);
+      await this.linkCrossLanguageEvidence(signal);
     }
 
     this.phase = 'persisting';
@@ -457,13 +481,13 @@ class RepositoryFileIndexerImpl implements RepositoryFileIndexer {
 
     let symbols: readonly SymbolRecord[];
     let edges: readonly DependencyEdge[];
-    if (this.graph && isTsJsPath(relPath)) {
-      const extracted = this.graph.extractFile(relPath, text);
-      symbols = extracted.symbols;
+    if (usesCompilerGraph(adapter, this.graph)) {
+      const extracted = this.graph!.extractFile(relPath, text);
+      symbols = stampAdapterId(extracted.symbols, adapter.adapterId);
       edges = extracted.edges;
     } else {
-      symbols = adapter.extractSymbols(relPath, text);
-      edges = adapter.extractDependencies(relPath, text);
+      symbols = stampAdapterId(adapter.extractSymbols(relPath, text), adapter.adapterId);
+      edges = collectAdapterEdges(adapter, relPath, text);
     }
 
     const ragChunks = docChunks.map((c) => ({
@@ -483,11 +507,41 @@ class RepositoryFileIndexerImpl implements RepositoryFileIndexer {
 
     this.store.replaceFileGraph(relPath, hash, mtimeMs, ragChunks, ragSymbols, ragEdges, {
       workspaceId: this.workspaceId,
-      language: languageForPath(relPath),
+      language: adapter.languageId || languageForPath(relPath),
       byteLength: content.byteLength,
       indexedAt: Date.now(),
       parseStatus: 'ok',
     });
     this.filesIndexed++;
+  }
+
+  /**
+   * After a full index, attach cross-language route evidence where string
+   * equality provides a link (always heuristic).
+   */
+  private async linkCrossLanguageEvidence(signal?: AbortSignal): Promise<void> {
+    throwIfAborted(signal);
+    const routeEdges = this.store
+      .allEdges()
+      .filter((e) => e.specifier.startsWith('route:'));
+    if (routeEdges.length === 0) {
+      return;
+    }
+    const contents = new Map<string, string>();
+    for (const p of this.store.allFilePaths()) {
+      const normalised = p.replace(/\\/g, '/');
+      if (/\.php$/i.test(normalised)) continue;
+      if (!/\.(ts|tsx|js|jsx|mjs|cjs)$/i.test(normalised)) continue;
+      try {
+        const abs = path.join(this.workspaceRoot, normalised);
+        contents.set(normalised, await fs.readFile(abs, 'utf8'));
+      } catch {
+        // skip missing
+      }
+    }
+    const linked = linkCrossLanguageRouteEdges(this.store.allEdges(), contents);
+    if (linked.length > 0) {
+      this.store.appendEdges(linked);
+    }
   }
 }

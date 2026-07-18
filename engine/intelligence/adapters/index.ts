@@ -6,9 +6,25 @@ export {
   GenericLanguageAdapter,
   defaultLanguageAdapters,
   resolveLanguageAdapter,
+  detectWorkspaceLanguages,
+  collectAdapterEdges,
+  stampAdapterId,
+  type DefaultLanguageAdaptersOptions,
 } from './language-adapters';
+
 export {
-  extractJsTsSymbols,
-  extractJsTsDependencies,
-  resolveImportSpecifier,
-} from './js-ts-extract';
+  extractPhpSymbols,
+  extractPhpDependencies,
+  extractPhpTypeRelationships,
+  extractPhpCallersOrReferences,
+  extractPhpTestRelationships,
+  extractPhpDiagnostics,
+  collectPhpInvalidationTargets,
+  detectPhpProject,
+  resolvePhpFqcnToPath,
+  loadComposerPsr4Map,
+} from './php-extract';
+
+export { linkCrossLanguageRouteEdges } from './cross-language-routes';
+
+export { extractJsTsSymbols, extractJsTsDependencies } from './js-ts-extract';

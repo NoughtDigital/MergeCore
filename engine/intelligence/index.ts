@@ -78,6 +78,17 @@ export type {
   ContextPack,
   IndexStatus,
   IndexPhase,
+  SourceAuthored,
+  SourceExtraction,
+  ConfidenceLevel,
+  ComponentCertainty,
+  SourceFreshness,
+  ConfidenceComponents,
+  ClaimConfidence,
+  AdapterCapabilityLevel,
+  LanguageAdapterCapabilities,
+  LanguageProjectHint,
+  AdapterDiagnostic,
   LanguageAdapter,
   IndexStore,
   RetrieveQueryOptions,
@@ -86,6 +97,8 @@ export type {
 } from './contracts';
 export {
   noopModelProvider,
+  DETERMINISTIC_EDGE_RESOLUTION,
+  isDeterministicEdgeResolution,
   serializeWorkspaceDescriptor,
   parseWorkspaceDescriptor,
   serializeFileFingerprint,
@@ -164,10 +177,13 @@ export {
 export {
   defaultLanguageAdapters,
   resolveLanguageAdapter,
+  detectWorkspaceLanguages,
+  collectAdapterEdges,
   TypeScriptLanguageAdapter,
   JavaScriptLanguageAdapter,
   MarkdownLanguageAdapter,
   PhpLanguageAdapter,
+  GenericLanguageAdapter,
 } from './adapters';
 
 export { createIgnoreMatcher, resolveInsideWorkspace, NestedIgnoreResolver } from './ignore';
@@ -277,3 +293,28 @@ export {
   type FileGraphExtract,
   type TsJsCodeGraphService,
 } from './graph';
+
+export {
+  createSourceReference,
+  createAttributedClaim,
+  computeClaimConfidence,
+  confidenceFromRetrieval,
+  assertClaimAttributed,
+  assignEvidenceIds,
+  evidenceMapById,
+  validateModelClaimBundle,
+  parseModelClaimsJson,
+  inspectSourceReference,
+  sourceRangeForReveal,
+  formatClaimAttributionLabel,
+  normaliseSourcePath,
+  GENERAL_CONSIDERATION_LABEL,
+  AttributionError,
+  type SourceReferenceInput,
+  type ModelClaimInput,
+  type ModelClaimsBundle,
+  type ModelClaimValidationResult,
+  type SourceLinkInspection,
+  type SourceLinkStatus,
+  type WorkspaceRootRef,
+} from './attribution/index';

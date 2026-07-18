@@ -2,11 +2,13 @@ import * as vscode from 'vscode';
 import { MergeCoreLogger } from './logger';
 
 const API_TOKEN_KEY = 'mergecore.apiToken';
+const OPENAI_KEY = 'mergecore.provider.openai.apiKey';
+const ANTHROPIC_KEY = 'mergecore.provider.anthropic.apiKey';
 const MIGRATED_KEY = 'mergecore.apiToken.migratedFromSettings';
 
 /**
- * Wraps `ExtensionContext.secrets` (OS-keychain backed) so the bearer token
- * never lands in plain `settings.json` and is not propagated by Settings Sync.
+ * Wraps `ExtensionContext.secrets` (OS-keychain backed) so API keys
+ * never land in plain `settings.json`, `.mergecore`, logs, or Settings Sync.
  */
 export class MergeCoreSecretStore {
   constructor(private readonly secrets: vscode.SecretStorage) {}
@@ -16,16 +18,68 @@ export class MergeCoreSecretStore {
   }
 
   async setApiToken(token: string): Promise<void> {
-    const trimmed = token.trim();
-    if (trimmed.length === 0) {
-      await this.secrets.delete(API_TOKEN_KEY);
-      return;
-    }
-    await this.secrets.store(API_TOKEN_KEY, trimmed);
+    await this.storeOrDelete(API_TOKEN_KEY, token);
   }
 
   async clearApiToken(): Promise<void> {
     await this.secrets.delete(API_TOKEN_KEY);
+  }
+
+  async getOpenAiApiKey(): Promise<string | undefined> {
+    return this.secrets.get(OPENAI_KEY);
+  }
+
+  async setOpenAiApiKey(token: string): Promise<void> {
+    await this.storeOrDelete(OPENAI_KEY, token);
+  }
+
+  async clearOpenAiApiKey(): Promise<void> {
+    await this.secrets.delete(OPENAI_KEY);
+  }
+
+  async hasOpenAiKey(): Promise<boolean> {
+    const v = await this.getOpenAiApiKey();
+    return Boolean(v && v.trim().length > 0);
+  }
+
+  async getAnthropicApiKey(): Promise<string | undefined> {
+    return this.secrets.get(ANTHROPIC_KEY);
+  }
+
+  async setAnthropicApiKey(token: string): Promise<void> {
+    await this.storeOrDelete(ANTHROPIC_KEY, token);
+  }
+
+  async clearAnthropicApiKey(): Promise<void> {
+    await this.secrets.delete(ANTHROPIC_KEY);
+  }
+
+  async hasAnthropicKey(): Promise<boolean> {
+    const v = await this.getAnthropicApiKey();
+    return Boolean(v && v.trim().length > 0);
+  }
+
+  /** Presence flags only — never returns secret values. */
+  async keyPresence(): Promise<{
+    readonly apiToken: boolean;
+    readonly openai: boolean;
+    readonly anthropic: boolean;
+  }> {
+    const [apiToken, openai, anthropic] = await Promise.all([
+      this.getApiToken().then((t) => Boolean(t && t.trim())),
+      this.hasOpenAiKey(),
+      this.hasAnthropicKey(),
+    ]);
+    return { apiToken, openai, anthropic };
+  }
+
+  private async storeOrDelete(key: string, token: string): Promise<void> {
+    const trimmed = token.trim();
+    if (trimmed.length === 0) {
+      await this.secrets.delete(key);
+      return;
+    }
+    await this.secrets.store(key, trimmed);
   }
 }
 

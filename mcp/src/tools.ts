@@ -6,11 +6,13 @@ import {
   createCodeGraphQuery,
   createInstructionResolver,
   createRepositorySearchEngine,
+  createSourceReference,
   detectTaskRiskIndicators,
   MEMORY_DIR,
   parseTaskContextDepth,
   RAG_DIR,
   scanProdRisks,
+  sha256,
   writeTaskContextPack,
   type DependencyEdgeKind,
   type ExplanationMode,
@@ -277,12 +279,6 @@ export async function toolExplainSymbol(args: {
       );
     }
     const sym = matches[0]!;
-    if (!['typescript', 'javascript', 'tsx', 'jsx', 'ts', 'js'].includes(sym.language.toLowerCase())) {
-      // Still return graph evidence when present; flag unsupported for non-indexed langs with no signature.
-      if (!sym.signatureText && matches.every((m) => !m.signatureText)) {
-        // continue — graph may still have useful edges
-      }
-    }
 
     const callers = graph.getCallers(sym.id);
     const callees = graph.getCallees(sym.id);
@@ -358,13 +354,19 @@ export async function toolExplainSymbol(args: {
       })),
       risks,
       sources: [
-        {
+        createSourceReference({
+          workspaceId: opened.store.workspaceId ?? 'unknown',
           path: sym.location.path,
           startLine: sym.location.startLine,
           endLine: sym.location.endLine,
+          startColumn: sym.location.startColumn,
+          endColumn: sym.location.endColumn,
           sourceType: 'symbol',
+          sourceFingerprint: opened.store.getFile(sym.location.path)?.hash ?? '',
+          symbolId: sym.id,
           symbol: sym.name,
-        },
+          extraction: 'deterministic',
+        }),
       ],
       modelProvider: 'none',
     });
@@ -401,6 +403,7 @@ export async function toolGetRelevantInstructions(args: {
     const instructions = await resolver.getApplicableInstructions(safe.rel);
     const conflicts = await resolver.findInstructionConflicts(safe.rel);
     const precedence = await resolver.explainInstructionPrecedence(safe.rel);
+    const workspaceId = sha256(permitted.workspaceRoot).slice(0, 16);
     return textResult({
       workspaceRoot: permitted.workspaceRoot,
       targetFile: safe.rel,
@@ -416,12 +419,16 @@ export async function toolGetRelevantInstructions(args: {
       })),
       conflicts,
       precedence,
-      sources: instructions.map((i) => ({
-        path: i.sourceFile,
-        startLine: i.startLine,
-        endLine: i.endLine,
-        sourceType: 'instruction',
-      })),
+      sources: instructions.map((i) =>
+        createSourceReference({
+          workspaceId,
+          path: i.sourceFile,
+          startLine: i.startLine,
+          endLine: i.endLine,
+          sourceType: 'instruction',
+          extraction: 'deterministic',
+        })
+      ),
     });
   } catch (err) {
     return errorResult(
@@ -693,25 +700,25 @@ export async function toolGetArchitectureSummary(args: {
     }
 
     const uncertainty: string[] = [];
-    const sources: Array<{
-      path: string;
-      startLine: number;
-      endLine: number;
-      sourceType: string;
-      excerpt?: string;
-    }> = [];
+    const sources: ReturnType<typeof createSourceReference>[] = [];
+    const workspaceId = opened.store.workspaceId ?? 'unknown';
 
     let architectureMd: string | null = null;
     const archPath = join(MEMORY_DIR, 'architecture.md');
     try {
       architectureMd = await readFile(join(opened.workspaceRoot, archPath), 'utf8');
-      sources.push({
-        path: archPath,
-        startLine: 1,
-        endLine: Math.min(40, architectureMd.split('\n').length),
-        sourceType: 'memory',
-        excerpt: architectureMd.slice(0, 500),
-      });
+      sources.push(
+        createSourceReference({
+          workspaceId,
+          path: archPath,
+          startLine: 1,
+          endLine: Math.min(40, architectureMd.split('\n').length),
+          sourceType: 'memory',
+          sourceFingerprint: sha256(architectureMd),
+          excerpt: architectureMd.slice(0, 500),
+          extraction: 'deterministic',
+        })
+      );
     } catch {
       uncertainty.push(`No shareable ${archPath} present`);
     }
@@ -742,13 +749,7 @@ export async function toolGetArchitectureSummary(args: {
     );
 
     for (const hit of result.results.slice(0, 20)) {
-      sources.push({
-        path: hit.reference.path,
-        startLine: hit.reference.startLine,
-        endLine: hit.reference.endLine,
-        sourceType: hit.reference.sourceType,
-        excerpt: hit.reference.excerpt?.slice(0, 240),
-      });
+      sources.push(hit.reference);
     }
 
     if (result.incomplete) {

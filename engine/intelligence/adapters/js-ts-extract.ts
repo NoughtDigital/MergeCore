@@ -55,6 +55,7 @@ export function extractJsTsSymbols(
         location: { path: rel, startLine: i + 1, endLine: end + 1 },
         exported,
         language,
+        adapterId: language,
       });
       continue;
     }
@@ -72,6 +73,7 @@ export function extractJsTsSymbols(
         location: { path: rel, startLine: i + 1, endLine: end + 1 },
         exported,
         language,
+        adapterId: language,
       });
       continue;
     }
@@ -89,6 +91,7 @@ export function extractJsTsSymbols(
         location: { path: rel, startLine: i + 1, endLine: end + 1 },
         exported,
         language,
+        adapterId: language,
       });
       continue;
     }
@@ -106,6 +109,7 @@ export function extractJsTsSymbols(
         location: { path: rel, startLine: i + 1, endLine: end + 1 },
         exported,
         language,
+        adapterId: language,
       });
       continue;
     }
@@ -120,6 +124,7 @@ export function extractJsTsSymbols(
         location: { path: rel, startLine: i + 1, endLine: i + 1 },
         exported,
         language,
+        adapterId: language,
       });
       continue;
     }
@@ -135,6 +140,7 @@ export function extractJsTsSymbols(
         location: { path: rel, startLine: i + 1, endLine: end + 1 },
         exported,
         language,
+        adapterId: language,
       });
     }
   }

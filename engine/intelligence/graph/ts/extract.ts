@@ -273,6 +273,7 @@ export function extractFileWithCompiler(
       kind,
       location,
       language,
+      adapterId: language,
       exported: extras?.exported ?? declarationExported(node),
       containerName: extras?.containerName,
       parameters: extras?.parameters,

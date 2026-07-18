@@ -1,0 +1,33 @@
+{
+  "tasks": [
+    {
+      "id": "order-refund-flow",
+      "query": "how does order refund work",
+      "relevantFiles": [
+        "app/Http/Controllers/OrderController.php",
+        "app/Models/Order.php",
+        "app/Jobs/ProcessRefund.php",
+        "app/Policies/OrderPolicy.php",
+        "routes/api.php",
+        "tests/Feature/OrderRefundTest.php"
+      ]
+    },
+    {
+      "id": "refund-api-route",
+      "query": "POST /orders refund route controller",
+      "relevantFiles": [
+        "routes/api.php",
+        "app/Http/Controllers/OrderController.php",
+        "resources/js/orders-client.ts"
+      ]
+    },
+    {
+      "id": "order-policy-authorisation",
+      "query": "OrderPolicy refund authorisation",
+      "relevantFiles": [
+        "app/Policies/OrderPolicy.php",
+        "app/Http/Controllers/OrderController.php"
+      ]
+    }
+  ]
+}

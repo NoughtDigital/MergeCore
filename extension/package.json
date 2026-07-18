@@ -78,6 +78,16 @@
     "onCommand:mergecore.memory.openFolder",
     "onCommand:mergecore.generateTaskContext",
     "onCommand:mergecore.copyMcpConfig",
+    "onCommand:mergecore.showPrivacyStatus",
+    "onCommand:mergecore.showIndexedFiles",
+    "onCommand:mergecore.showExcludedFiles",
+    "onCommand:mergecore.openIndexLocation",
+    "onCommand:mergecore.deleteLocalIndex",
+    "onCommand:mergecore.rebuildLocalIndex",
+    "onCommand:mergecore.configureModelProvider",
+    "onCommand:mergecore.disableExternalModels",
+    "onCommand:mergecore.previewDataSentToModel",
+    "onCommand:mergecore.exportDiagnostics",
     "onView:mergecore.sidebar"
   ],
   "main": "./out/extension.js",
@@ -232,6 +242,46 @@
       {
         "command": "mergecore.copyMcpConfig",
         "title": "MergeCore: Copy MCP Client Config"
+      },
+      {
+        "command": "mergecore.showPrivacyStatus",
+        "title": "MergeCore: Show Privacy Status"
+      },
+      {
+        "command": "mergecore.showIndexedFiles",
+        "title": "MergeCore: Show Indexed Files"
+      },
+      {
+        "command": "mergecore.showExcludedFiles",
+        "title": "MergeCore: Show Excluded Files"
+      },
+      {
+        "command": "mergecore.openIndexLocation",
+        "title": "MergeCore: Open Index Location"
+      },
+      {
+        "command": "mergecore.deleteLocalIndex",
+        "title": "MergeCore: Delete Local Index"
+      },
+      {
+        "command": "mergecore.rebuildLocalIndex",
+        "title": "MergeCore: Rebuild Local Index"
+      },
+      {
+        "command": "mergecore.configureModelProvider",
+        "title": "MergeCore: Configure Model Provider"
+      },
+      {
+        "command": "mergecore.disableExternalModels",
+        "title": "MergeCore: Disable External Models"
+      },
+      {
+        "command": "mergecore.previewDataSentToModel",
+        "title": "MergeCore: Preview Data Sent to Model"
+      },
+      {
+        "command": "mergecore.exportDiagnostics",
+        "title": "MergeCore: Export Diagnostics"
       }
     ],
     "menus": {
@@ -332,7 +382,17 @@
         { "command": "mergecore.memory.refreshStale" },
         { "command": "mergecore.memory.openFolder" },
         { "command": "mergecore.generateTaskContext" },
-        { "command": "mergecore.copyMcpConfig" }
+        { "command": "mergecore.copyMcpConfig" },
+        { "command": "mergecore.showPrivacyStatus" },
+        { "command": "mergecore.showIndexedFiles" },
+        { "command": "mergecore.showExcludedFiles" },
+        { "command": "mergecore.openIndexLocation" },
+        { "command": "mergecore.deleteLocalIndex" },
+        { "command": "mergecore.rebuildLocalIndex" },
+        { "command": "mergecore.configureModelProvider" },
+        { "command": "mergecore.disableExternalModels" },
+        { "command": "mergecore.previewDataSentToModel" },
+        { "command": "mergecore.exportDiagnostics" }
       ]
     },
     "viewsContainers": {
@@ -361,7 +421,29 @@
         "mergecore.hover.enableModelExplanation": {
           "type": "boolean",
           "default": false,
-          "markdownDescription": "When enabled, on-demand full explanations and task-context packs may call the configured local/provider model with retrieved evidence only. Mere hover never calls the model."
+          "markdownDescription": "When enabled, on-demand full explanations and task-context packs may call the configured model provider with retrieved evidence only (subject to privacy gates). Mere hover never calls the model."
+        },
+        "mergecore.privacy.externalRequestsEnabled": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "Allow repository evidence to leave this machine (non-loopback Ollama, OpenAI, Anthropic, or MergeCore review API). **Off by default.** Local loopback Ollama does not require this."
+        },
+        "mergecore.privacy.modelProvider": {
+          "type": "string",
+          "default": "none",
+          "enum": ["none", "ollama", "openai", "anthropic"],
+          "enumDescriptions": [
+            "Deterministic only — no model calls",
+            "Local Ollama (loopback by default)",
+            "OpenAI — bring-your-own-key via SecretStorage",
+            "Anthropic — bring-your-own-key via SecretStorage"
+          ],
+          "markdownDescription": "Active model provider. External providers require **mergecore.privacy.externalRequestsEnabled** and a first-time confirmation. API keys are never written to settings.json."
+        },
+        "mergecore.privacy.anonymiseDiagnostics": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "When exporting diagnostics, replace repository folder names with anonymised labels."
         },
         "mergecore.taskContext.defaultDepth": {
           "type": "string",

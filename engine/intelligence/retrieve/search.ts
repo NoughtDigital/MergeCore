@@ -1,7 +1,9 @@
 import type { ContextClaim, SourceReference } from '../contracts';
+import { createSourceReference } from '../attribution/index';
 import { createCodeGraphQuery } from '../graph/query';
 import type { InstructionResolver } from '../instructions/resolver';
 import { createInstructionResolver } from '../instructions/resolver';
+import { sha256 } from '../rag/hash';
 import type { RagStore } from '../rag/store';
 import {
   hitsToClaims,
@@ -128,18 +130,26 @@ export async function createRepositorySearchEngine(
       // Ensure the definition itself is present with a strong reason
       const hasDef = result.results.some((r) => r.symbolId === symbolId);
       if (!hasDef) {
+        const file = store.getFile(def.location.path);
+        const workspaceId = store.workspaceId ?? sha256(store.root).slice(0, 16);
         const hit: RetrievalHit = {
           id: `sym:${symbolId}`,
           resultType: 'symbol',
           score: 200,
           breakdown: { exactSymbol: 100, userSelected: 100 },
-          reference: {
+          reference: createSourceReference({
+            workspaceId,
             path: def.location.path,
             startLine: def.location.startLine,
             endLine: def.location.endLine,
+            startColumn: def.location.startColumn,
+            endColumn: def.location.endColumn,
             sourceType: 'symbol',
+            sourceFingerprint: file?.hash ?? '',
+            symbolId,
             symbol: def.name,
-          },
+            extraction: 'deterministic',
+          }),
           reason: `definition of ${def.name} (${symbolId})`,
           confidence: 'high',
           analysis: 'deterministic',

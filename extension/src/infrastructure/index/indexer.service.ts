@@ -96,6 +96,7 @@ export class IndexerService {
     }
     const indexer = await createRepositoryFileIndexer({
       workspaceRoot,
+      debugExclusions: true,
       onStatus: (s) => {
         this.emit(s.phase === 'done' ? `Indexed ${s.chunkCount} chunks` : s.phase, s.busy);
         this.emitDetail(s);
@@ -236,6 +237,37 @@ export class IndexerService {
     } else {
       void this.dispose();
     }
+  }
+
+  /**
+   * Stop indexing, close storage, and delete on-disk RAG data.
+   * Preserves `.mergecore/memory` and `config.json` unless explicitly requested.
+   */
+  async deleteLocalIndex(
+    workspaceRoot: string,
+    options: {
+      readonly includeGenerated?: boolean;
+      readonly includeShareableMemory?: boolean;
+    } = {}
+  ): Promise<{
+    readonly deletedRag: boolean;
+    readonly deletedGenerated: boolean;
+    readonly deletedMemory: boolean;
+    readonly errors: readonly string[];
+  }> {
+    this.cancel(workspaceRoot);
+    // Allow abort handlers to run
+    await new Promise((r) => setTimeout(r, 25));
+    this.clear(workspaceRoot);
+
+    const { wipeMergeCoreLocalData } = await import('../privacy/wipe-local-index');
+    const result = await wipeMergeCoreLocalData(workspaceRoot, options);
+    this.emit('Local index deleted', false);
+    return result;
+  }
+
+  isIndexing(workspaceRoot: string): boolean {
+    return this.indexing.has(workspaceRoot);
   }
 }
 

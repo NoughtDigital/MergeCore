@@ -10,6 +10,12 @@ import { formatRelatedContextDigest } from './related-context.collector';
 import { omitRewriteIfUnchanged } from './review-result-normalize';
 import { parseReviewResult, ReviewResponseError } from './review-response.guard';
 import type { MergeCoreSecretStore } from './secret-store';
+import { readPrivacySettings } from './privacy/privacy-settings';
+import {
+  assertMaySendRepositoryEvidence,
+  PrivacyGateError,
+  recordModelTransmission,
+} from './privacy/privacy-gate';
 
 const TOKEN_NOT_SET_KEY = 'apiTokenMissingNoticeSeen';
 const ORIGIN_APPROVED_PREFIX = 'mergecore.trustedOrigin:';
@@ -43,6 +49,23 @@ export class MergeCoreReviewAdapter implements ReviewEngine {
       }
       const r = await this.mockReviewer.review(request);
       return omitRewriteIfUnchanged(r, request.content);
+    }
+
+    const privacy = readPrivacySettings();
+    try {
+      await assertMaySendRepositoryEvidence(
+        { globalState: this.memento },
+        {
+          settings: privacy,
+          requiresExternal: true,
+          purpose: 'hosted code review',
+        }
+      );
+    } catch (err) {
+      if (err instanceof PrivacyGateError) {
+        throw new Error(err.message);
+      }
+      throw err;
     }
 
     const allowInsecureLocal = config.get<boolean>('allowInsecureLocalApi', false);
@@ -138,6 +161,21 @@ export class MergeCoreReviewAdapter implements ReviewEngine {
       }
       throw new Error('MergeCore API response failed validation. See the MergeCore output channel for details.');
     }
+
+    await recordModelTransmission(
+      this.memento,
+      [
+        '# Review upload preview',
+        '',
+        `- file: \`${request.filePath ?? '(none)'}\``,
+        `- language: ${request.languageId ?? '(unknown)'}`,
+        `- content length: ${request.content.length}`,
+        '',
+        '```',
+        request.content.slice(0, 4000),
+        '```',
+      ].join('\n')
+    );
 
     return omitRewriteIfUnchanged(parsed, request.content);
   }

@@ -7,15 +7,26 @@ import {
 } from '@mergecore/intelligence';
 import { assembleHoverSummary, type HoverSummary } from './hover-summary';
 
-const TS_JS_LANGS = new Set([
+const SUPPORTED_HOVER_LANGS = new Set([
   'typescript',
   'typescriptreact',
   'javascript',
   'javascriptreact',
+  'php',
+  'blade',
 ]);
 
 export function isTsJsLanguage(languageId: string): boolean {
-  return TS_JS_LANGS.has(languageId);
+  return (
+    languageId === 'typescript' ||
+    languageId === 'typescriptreact' ||
+    languageId === 'javascript' ||
+    languageId === 'javascriptreact'
+  );
+}
+
+export function isIndexedHoverLanguage(languageId: string): boolean {
+  return SUPPORTED_HOVER_LANGS.has(languageId);
 }
 
 export async function resolveSymbolForHover(
@@ -70,6 +81,7 @@ export async function resolveSymbolForHover(
     exported: best.exported,
     containerName: best.containerName,
     language: best.language,
+    adapterId: best.adapterId ?? best.language,
     parameters: best.parametersJson
       ? (JSON.parse(best.parametersJson) as SymbolRecord['parameters'])
       : undefined,
@@ -164,6 +176,8 @@ export async function buildDeterministicHoverSummary(input: {
 
   return assembleHoverSummary({
     symbol,
+    workspaceId: input.store.workspaceId ?? 'unknown',
+    sourceFingerprint: input.store.getFile(symbol.location.path)?.hash,
     codeSample: input.codeSample,
     callers,
     callees,

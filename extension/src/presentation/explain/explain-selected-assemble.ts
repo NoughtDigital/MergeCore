@@ -1,8 +1,12 @@
 import {
+  assignEvidenceIds,
   createCodeGraphQuery,
   createInstructionResolver,
   createRepositorySearchEngine,
+  createSourceReference,
+  GENERAL_CONSIDERATION_LABEL,
   type RagStore,
+  type SourceReference,
   type SymbolRecord,
   type TsJsCodeGraphService,
 } from '@mergecore/intelligence';
@@ -21,6 +25,7 @@ export interface ExplanationSource {
   readonly endLine: number;
   readonly label: string;
   readonly claim?: string;
+  readonly evidenceId?: string;
 }
 
 export interface ExplanationSection {
@@ -33,10 +38,13 @@ export interface SelectedCodeExplanation {
   readonly sections: readonly ExplanationSection[];
   readonly sources: readonly ExplanationSource[];
   readonly evidenceRefs: readonly EvidenceRef[];
+  readonly attributedSources: readonly SourceReference[];
   readonly markdown: string;
   readonly usedModel: boolean;
   readonly modelTransmissionVisible: boolean;
   readonly injectionFlagged: boolean;
+  /** Whether language intelligence for this explanation is compiler-backed or heuristic. */
+  readonly analysis: 'deterministic' | 'heuristic';
 }
 
 function sourceKey(s: ExplanationSource): string {
@@ -74,17 +82,38 @@ export async function assembleSelectedCodeExplanation(input: {
   const graph = createCodeGraphQuery(store, input.graphService);
   const sources: ExplanationSource[] = [];
   const seen = new Set<string>();
-  const evidenceRefs: EvidenceRef[] = [];
+  const attributed: SourceReference[] = [];
+  const workspaceId = store.workspaceId ?? 'unknown';
+  const analysis: 'deterministic' | 'heuristic' =
+    scope.languageId === 'php' || scope.languageId === 'blade'
+      ? 'heuristic'
+      : 'deterministic';
+  const extraction =
+    analysis === 'deterministic' ? ('deterministic' as const) : ('heuristic' as const);
 
   const pushSrc = (
     path: string,
     startLine: number,
     endLine: number,
     label: string,
-    claim?: string
+    claim?: string,
+    opts?: { symbolId?: string; symbol?: string; sourceType?: SourceReference['sourceType'] }
   ): void => {
     addSource(sources, seen, { path, startLine, endLine, label, claim });
-    evidenceRefs.push({ path, startLine, endLine });
+    const file = store.getFile(path);
+    attributed.push(
+      createSourceReference({
+        workspaceId,
+        path,
+        startLine,
+        endLine,
+        sourceType: opts?.sourceType ?? 'source',
+        sourceFingerprint: file?.hash ?? '',
+        symbolId: opts?.symbolId,
+        symbol: opts?.symbol,
+        extraction,
+      })
+    );
   };
 
   pushSrc(
@@ -106,7 +135,8 @@ export async function assembleSelectedCodeExplanation(input: {
       sym.location.startLine,
       sym.location.endLine,
       `symbol:${sym.name}`,
-      'Symbol definition'
+      'Symbol definition',
+      { symbolId: sym.id, symbol: sym.name, sourceType: 'symbol' }
     );
   }
 
@@ -124,7 +154,7 @@ export async function assembleSelectedCodeExplanation(input: {
     );
   } else {
     purposeBullets.push(
-      `**Inference:** Selected fragment in \`${scope.relPath}\` (lines ${scope.range.startLine}–${scope.range.endLine}).`
+      `**${GENERAL_CONSIDERATION_LABEL}:** Selected fragment in \`${scope.relPath}\` (lines ${scope.range.startLine}–${scope.range.endLine}).`
     );
   }
   const preview = snippetLines(codeSample, 3);
@@ -386,20 +416,34 @@ export async function assembleSelectedCodeExplanation(input: {
 
   // Confidence
   const confidenceBullets = [
+    `**Confidence band** (not a calibrated probability): derived from parser/symbol certainty and independent sources.`,
     `**Deterministic:** Index symbols/edges, JSDoc/signature when present, instruction paths, test edges.`,
-    `**Inferred:** Purpose without JSDoc, side-effect indicators from text patterns, architectural neighbourhood from retrieval.`,
+    `**${GENERAL_CONSIDERATION_LABEL}:** Purpose without JSDoc, side-effect indicators from text patterns.`,
     sym
       ? `**Symbol id:** \`${sym.id}\``
       : '**Symbol id:** none (selection-only scope).',
   ];
 
+  const attributedSources = assignEvidenceIds(attributed);
+  const evidenceRefs: EvidenceRef[] = attributedSources.map((r) => ({
+    path: r.path,
+    startLine: r.startLine,
+    endLine: r.endLine,
+    evidenceId: r.evidenceId,
+  }));
+  const sourcesWithIds: ExplanationSource[] = sources.map((s, i) => ({
+    ...s,
+    evidenceId: attributedSources[i]?.evidenceId,
+  }));
+
   // Sources section bullets
-  const sourceBullets = sources.slice(0, 40).map((s) => {
+  const sourceBullets = sourcesWithIds.slice(0, 40).map((s) => {
     const lines =
       s.startLine === s.endLine
         ? `L${s.startLine}`
         : `L${s.startLine}–${s.endLine}`;
-    return `- [\`${s.path}:${lines}\`](${s.path}#L${s.startLine}) — ${s.label}${s.claim ? ` · ${s.claim}` : ''}`;
+    const id = s.evidenceId ? ` · \`${s.evidenceId}\`` : '';
+    return `- [\`${s.path}:${lines}\`](${s.path}#L${s.startLine}) — ${s.label}${s.claim ? ` · ${s.claim}` : ''}${id}`;
   });
 
   const sections: ExplanationSection[] = [
@@ -424,17 +468,20 @@ export async function assembleSelectedCodeExplanation(input: {
     sections,
     usedModel: false,
     modelBanner: false,
+    analysis,
   });
 
   return {
     title,
     sections,
-    sources,
+    sources: sourcesWithIds,
     evidenceRefs,
+    attributedSources,
     markdown,
     usedModel: false,
     modelTransmissionVisible: false,
     injectionFlagged,
+    analysis,
   };
 }
 
@@ -443,6 +490,7 @@ export function formatExplanationMarkdown(input: {
   readonly sections: readonly ExplanationSection[];
   readonly usedModel: boolean;
   readonly modelBanner: boolean;
+  readonly analysis?: 'deterministic' | 'heuristic';
   readonly extraFooter?: string;
 }): string {
   const lines: string[] = [];
@@ -454,7 +502,11 @@ export function formatExplanationMarkdown(input: {
     );
     lines.push('');
   } else {
-    lines.push('> Deterministic explanation — no model was used.');
+    lines.push(
+      input.analysis === 'heuristic'
+        ? '> Heuristic language intelligence — source-backed, not compiler-certain.'
+        : '> Deterministic explanation — no model was used.'
+    );
     lines.push('');
   }
   for (const section of input.sections) {
@@ -470,10 +522,14 @@ export function formatExplanationMarkdown(input: {
     lines.push('');
   }
   lines.push('---');
+  const analysisLabel =
+    input.analysis === 'heuristic'
+      ? 'heuristic language intelligence'
+      : 'deterministic';
   lines.push(
     input.usedModel
       ? '_MergeCore · model-enhanced · citations validated against evidence_'
-      : '_MergeCore · deterministic · source-backed_'
+      : `_MergeCore · ${analysisLabel} · source-backed_`
   );
   if (input.extraFooter) {
     lines.push(input.extraFooter);

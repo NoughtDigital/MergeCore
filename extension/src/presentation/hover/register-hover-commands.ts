@@ -8,6 +8,7 @@ import type { Explainer } from '../../infrastructure/explain/explainer';
 import type { IndexerService } from '../../infrastructure/index/indexer.service';
 import { getExplanationMode, type ExplanationMode } from '../../domain/explanation-modes';
 import { HOVER_COMMANDS, type HoverCommandArgs } from './hover-markdown';
+import { openAttributedSource } from '../sources/open-attributed-source';
 
 export interface HoverCommandDeps {
   readonly indexer: IndexerService;
@@ -40,16 +41,17 @@ function parseArgs(raw: unknown): HoverCommandArgs | undefined {
 }
 
 async function openSource(args: HoverCommandArgs): Promise<void> {
-  const abs = path.isAbsolute(args.path)
-    ? args.path
-    : path.join(args.workspaceRoot, args.path);
-  const uri = vscode.Uri.file(abs);
-  const doc = await vscode.workspace.openTextDocument(uri);
-  const editor = await vscode.window.showTextDocument(doc, { preview: true });
-  const start = new vscode.Position(Math.max(0, args.startLine - 1), 0);
-  const end = new vscode.Position(Math.max(0, args.endLine - 1), 0);
-  editor.selection = new vscode.Selection(start, end);
-  editor.revealRange(new vscode.Range(start, end), vscode.TextEditorRevealType.InCenter);
+  await openAttributedSource({
+    workspaceRoot: args.workspaceRoot,
+    workspaceId: args.workspaceId,
+    path: args.path,
+    startLine: args.startLine,
+    endLine: args.endLine,
+    startColumn: args.startColumn,
+    endColumn: args.endColumn,
+    sourceFingerprint: args.sourceFingerprint,
+    sourceType: 'symbol',
+  });
 }
 
 async function showQuickPickPaths(

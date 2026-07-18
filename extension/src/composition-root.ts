@@ -29,6 +29,11 @@ import { registerExplainSelectedCode } from './presentation/explain/register-exp
 import { registerMemoryCommands } from './presentation/memory/register-memory-commands';
 import { registerGenerateTaskContext } from './presentation/context/register-task-context';
 import { registerCopyMcpConfig } from './presentation/commands/register-copy-mcp-config';
+import { registerPrivacyCommands } from './presentation/privacy/register-privacy-commands';
+import {
+  modelEnhancementAllowed,
+  resolveChatPorts,
+} from './infrastructure/explain/model-provider-factory';
 import { ReviewSessionState } from './presentation/state/review-session.state';
 import { registerMergeCoreStatusBar } from './presentation/status/mergecore-status-bar';
 import { MergeCoreSidebarProvider } from './presentation/webview/mergecore-sidebar.provider';
@@ -64,9 +69,30 @@ export function createMergeCoreApp(context: vscode.ExtensionContext): void {
     }),
   };
   const explainer = new Explainer({
-    chat: (messages, signal) => ollamaRef.current.chat(messages, signal),
-    isAvailable: (signal) => ollamaRef.current.isAvailable(signal),
+    chat: (messages, signal) =>
+      resolveChatPorts({
+        secrets,
+        getOllama: () => ollamaRef.current,
+      }).chat(messages, signal),
+    isAvailable: (signal) =>
+      resolveChatPorts({
+        secrets,
+        getOllama: () => ollamaRef.current,
+      }).isAvailable(signal),
   });
+  const modelPorts = {
+    chat: (messages: Parameters<typeof ollamaRef.current.chat>[0], signal?: AbortSignal) =>
+      resolveChatPorts({
+        secrets,
+        getOllama: () => ollamaRef.current,
+      }).chat(messages, signal),
+    isAvailable: (signal?: AbortSignal) =>
+      resolveChatPorts({
+        secrets,
+        getOllama: () => ollamaRef.current,
+      }).isAvailable(signal),
+  };
+  const isModelExplanationEnabled = () => modelEnhancementAllowed();
   const indexer = new IndexerService(logger, context.extensionPath);
   indexer.setEmbeddingPort({
     embed: (texts) => ollamaRef.current.embed(texts),
@@ -129,40 +155,28 @@ export function createMergeCoreApp(context: vscode.ExtensionContext): void {
     indexer,
     explainer,
     ensureIndexed,
-    isModelExplanationEnabled: () =>
-      vscode.workspace.getConfiguration('mergecore').get<boolean>('hover.enableModelExplanation') ===
-      true,
+    isModelExplanationEnabled,
   });
   registerHoverCommands(context, {
     indexer,
     explainer,
     getMode: () => readExplanationMode(),
-    isModelExplanationEnabled: () =>
-      vscode.workspace.getConfiguration('mergecore').get<boolean>('hover.enableModelExplanation') ===
-      true,
+    isModelExplanationEnabled,
   });
   registerExplainSelectedCode(context, {
     indexer,
     ensureIndexed,
-    modelPorts: {
-      chat: (messages, signal) => ollamaRef.current.chat(messages, signal),
-      isAvailable: (signal) => ollamaRef.current.isAvailable(signal),
-    },
-    isModelExplanationEnabled: () =>
-      vscode.workspace.getConfiguration('mergecore').get<boolean>('hover.enableModelExplanation') ===
-      true,
+    modelPorts,
+    isModelExplanationEnabled,
+    globalState: context.globalState,
   });
   registerMemoryCommands(context);
   registerGenerateTaskContext(context, {
     indexer,
     ensureIndexed,
-    modelPorts: {
-      chat: (messages, signal) => ollamaRef.current.chat(messages, signal),
-      isAvailable: (signal) => ollamaRef.current.isAvailable(signal),
-    },
-    isModelExplanationEnabled: () =>
-      vscode.workspace.getConfiguration('mergecore').get<boolean>('hover.enableModelExplanation') ===
-      true,
+    modelPorts,
+    isModelExplanationEnabled,
+    globalState: context.globalState,
   });
   context.subscriptions.push({
     dispose: () => hoverProvider.clearCache(),
@@ -193,6 +207,12 @@ export function createMergeCoreApp(context: vscode.ExtensionContext): void {
     sidebar,
   });
   registerCopyMcpConfig(context);
+  registerPrivacyCommands({
+    context,
+    indexer,
+    secrets,
+    logger,
+  });
 
   const provider = vscode.window.registerWebviewViewProvider(MergeCoreSidebarProvider.viewId, sidebar, {
     webviewOptions: {

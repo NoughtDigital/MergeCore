@@ -91,15 +91,28 @@ export interface SymbolRecord {
   readonly exported?: boolean;
   readonly containerName?: string;
   readonly language: string;
+  /**
+   * Stable id of the LanguageAdapter (or compiler-backed adapter) that
+   * produced this symbol. Required for multi-language workspaces.
+   */
+  readonly adapterId: string;
   readonly parameters?: readonly SymbolParameter[];
-  readonly returnTypeText?: string;
+  /** Doc-comment summary (JSDoc, PHPDoc, etc.). */
   readonly jsdocSummary?: string;
+  readonly returnTypeText?: string;
   readonly signatureText?: string;
   readonly overloadIndex?: number;
 }
 
-/** How a graph edge was resolved. */
+/**
+ * How a graph edge was resolved.
+ * Prefer language-neutral values (`compiler`, `ast`, `convention`) for new code.
+ * TypeScript-specific aliases remain valid for stored indexes and hosts.
+ */
 export type EdgeResolutionMethod =
+  | 'compiler'
+  | 'ast'
+  | 'convention'
   | 'typescript-checker'
   | 'typescript-ast'
   | 'path-alias'
@@ -107,6 +120,23 @@ export type EdgeResolutionMethod =
   | 'import-graph'
   | 'unresolved'
   | 'heuristic';
+
+/** Resolution methods treated as deterministic analysis (not convention heuristics). */
+export const DETERMINISTIC_EDGE_RESOLUTION: ReadonlySet<EdgeResolutionMethod> =
+  new Set([
+    'compiler',
+    'ast',
+    'typescript-checker',
+    'typescript-ast',
+    'path-alias',
+    'import-graph',
+  ]);
+
+export function isDeterministicEdgeResolution(
+  method: EdgeResolutionMethod | undefined
+): boolean {
+  return method !== undefined && DETERMINISTIC_EDGE_RESOLUTION.has(method);
+}
 
 /** Confidence that a graph edge is correct. */
 export type EdgeConfidence = 'certain' | 'high' | 'medium' | 'low' | 'heuristic';
@@ -172,22 +202,88 @@ export interface InstructionRule {
   readonly source: SourceReference;
 }
 
-/** Evidence pointer for a factual claim about the repository. */
+/** Whether the source document was written by a human or generated. */
+export type SourceAuthored = 'human' | 'generated';
+
+/** How the reference was extracted from the repository. */
+export type SourceExtraction = 'deterministic' | 'heuristic';
+
+/**
+ * Evidence pointer for a factual claim about the repository.
+ * Relative paths use forward slashes; workspaceId scopes multi-root workspaces.
+ */
 export interface SourceReference {
+  readonly workspaceId: string;
+  /** Workspace-relative path (POSIX separators). */
   readonly path: string;
   readonly startLine: number;
   readonly endLine: number;
+  readonly startColumn?: number;
+  readonly endColumn?: number;
   readonly sourceType: SourceType;
+  /** Content hash (or other fingerprint) of the supporting file at capture time. */
+  readonly sourceFingerprint: string;
+  readonly symbolId?: string;
+  /** Display name for the symbol when useful. */
   readonly symbol?: string;
+  readonly authored: SourceAuthored;
+  readonly extraction: SourceExtraction;
   readonly excerpt?: string;
+  /** Stable id when packaged as model evidence (e.g. evidence-12). */
+  readonly evidenceId?: string;
 }
 
-/** One evidence-backed claim returned by retrieval. */
+/** Normalised confidence band — not a calibrated probability. */
+export type ConfidenceLevel = 'high' | 'medium' | 'low';
+
+/** Ordinal certainty for a single confidence component. */
+export type ComponentCertainty = 'certain' | 'high' | 'medium' | 'low' | 'none';
+
+/** Freshness of supporting source files relative to captured fingerprints. */
+export type SourceFreshness = 'fresh' | 'stale' | 'missing' | 'unknown';
+
+/**
+ * Explainable confidence components. Diagnostic scores derived from these
+ * are not statistical probabilities unless explicitly calibrated elsewhere.
+ */
+export interface ConfidenceComponents {
+  readonly parserCertainty?: ComponentCertainty;
+  readonly symbolResolutionCertainty?: ComponentCertainty;
+  readonly dependencyResolutionCertainty?: ComponentCertainty;
+  readonly documentClassificationCertainty?: ComponentCertainty;
+  readonly instructionScopeCertainty?: ComponentCertainty;
+  readonly independentSourceCount?: number;
+  readonly sourceFreshness?: SourceFreshness;
+  readonly modelGenerated?: boolean;
+}
+
+export interface ClaimConfidence {
+  readonly level: ConfidenceLevel;
+  readonly components: ConfidenceComponents;
+  readonly rationale: readonly string[];
+  /**
+   * Optional diagnostic aggregate for tooling only.
+   * Must never be presented as a calibrated probability.
+   */
+  readonly diagnosticScore?: number;
+}
+
+/**
+ * One evidence-backed claim returned by retrieval / hosts.
+ * Repository facts require ≥1 SourceReference; otherwise set generalConsideration.
+ */
 export interface ContextClaim {
   readonly id: string;
   readonly text: string;
-  readonly confidence: 'high' | 'medium' | 'low' | 'uncertain';
+  readonly confidence: ConfidenceLevel;
+  readonly confidenceDetail: ClaimConfidence;
   readonly references: readonly SourceReference[];
+  /**
+   * When true, the statement is a general consideration — not a repository fact.
+   * Required when references is empty.
+   */
+  readonly generalConsideration?: boolean;
+  /** Legacy retrieval rank — not a probability. Prefer confidenceDetail. */
   readonly score?: number;
 }
 

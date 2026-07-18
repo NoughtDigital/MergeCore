@@ -17,10 +17,14 @@ export const HOVER_ENABLED_COMMANDS: readonly string[] = Object.values(HOVER_COM
 
 export interface HoverCommandArgs {
   readonly workspaceRoot: string;
+  readonly workspaceId?: string;
   readonly symbolId: string;
   readonly path: string;
   readonly startLine: number;
   readonly endLine: number;
+  readonly startColumn?: number;
+  readonly endColumn?: number;
+  readonly sourceFingerprint?: string;
   readonly name: string;
 }
 
@@ -38,10 +42,14 @@ export function formatHoverMarkdown(
 ): string {
   const args: HoverCommandArgs = {
     workspaceRoot,
+    workspaceId: summary.workspaceId,
     symbolId: summary.symbolId,
     path: summary.path,
     startLine: summary.startLine,
     endLine: summary.endLine,
+    startColumn: summary.startColumn,
+    endColumn: summary.endColumn,
+    sourceFingerprint: summary.sourceFingerprint,
     name: summary.name,
   };
 
@@ -60,11 +68,13 @@ export function formatHoverMarkdown(
 
   if (summary.risks.length > 0) {
     const riskBits = summary.risks.map((r) => r.label).join(' · ');
-    lines.push(`**Risk indicators** · ${riskBits} _(indicators, not confirmed issues)_`);
+    lines.push(
+      `**Risk indicators** · ${riskBits} _(general consideration — indicators, not confirmed issues)_`
+    );
   }
 
   lines.push(
-    `**Confidence** · ${summary.confidence} · ${summary.analysis}`
+    `**Confidence** · ${summary.confidence} · ${summary.analysis} _(band, not a probability)_`
   );
 
   // Tiny evidence samples (max 3)
@@ -97,7 +107,11 @@ export function formatHoverMarkdown(
 
   lines.push('');
   lines.push('---');
-  lines.push('_MergeCore · deterministic hover · model not used_');
+  const analysisLabel =
+    summary.analysis === 'deterministic'
+      ? 'deterministic language intelligence'
+      : 'heuristic language intelligence';
+  lines.push(`_MergeCore · ${analysisLabel} · model not used_`);
 
   return lines.join('\n');
 }

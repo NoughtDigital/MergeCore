@@ -66,6 +66,8 @@ export interface RagSymbolRecord {
   readonly jsdocSummary?: string;
   readonly signatureText?: string;
   readonly overloadIndex?: number;
+  /** Language adapter that produced this symbol. */
+  readonly adapterId?: string;
 }
 
 /** Stored dependency edge (mirrors contracts.DependencyEdge). */
@@ -93,6 +95,9 @@ export interface RagDependencyEdge {
   readonly endColumn?: number;
   readonly confidence?: 'certain' | 'high' | 'medium' | 'low' | 'heuristic';
   readonly resolutionMethod?:
+    | 'compiler'
+    | 'ast'
+    | 'convention'
     | 'typescript-checker'
     | 'typescript-ast'
     | 'path-alias'

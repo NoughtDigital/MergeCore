@@ -1,6 +1,6 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import { resolveLanguageAdapter, defaultLanguageAdapters } from '../adapters';
+import { collectAdapterEdges, defaultLanguageAdapters, resolveLanguageAdapter, stampAdapterId } from '../adapters';
 import type { LanguageAdapter } from '../contracts';
 import { createIgnoreMatcher } from '../ignore';
 import { sha256 } from './hash';
@@ -46,7 +46,8 @@ export interface IndexWorkspaceResult {
 export async function indexWorkspace(opts: IndexWorkspaceOptions): Promise<IndexWorkspaceResult> {
   const store = opts.store ?? (await RagStore.open(opts.workspaceRoot));
   const onProgress = opts.onProgress;
-  const adapters = opts.languageAdapters ?? defaultLanguageAdapters();
+  const adapters =
+    opts.languageAdapters ?? defaultLanguageAdapters({ workspaceRoot: opts.workspaceRoot });
   const respectIgnore = opts.respectIgnoreFiles !== false;
 
   let files: string[];
@@ -114,8 +115,8 @@ export async function indexWorkspace(opts: IndexWorkspaceOptions): Promise<Index
 
     const adapter = resolveLanguageAdapter(rel, adapters);
     const docChunks = adapter.chunk(rel, content);
-    const symbols = adapter.extractSymbols(rel, content);
-    const edges = adapter.extractDependencies(rel, content);
+    const symbols = stampAdapterId(adapter.extractSymbols(rel, content), adapter.adapterId);
+    const edges = collectAdapterEdges(adapter, rel, content);
 
     const ragChunks = docChunks.map((c) => ({
       id: c.id,
@@ -139,6 +140,7 @@ export async function indexWorkspace(opts: IndexWorkspaceOptions): Promise<Index
       startColumn: s.location.startColumn,
       endColumn: s.location.endColumn,
       language: s.language,
+      adapterId: s.adapterId,
       exported: s.exported,
       containerName: s.containerName,
       parametersJson: s.parameters ? JSON.stringify(s.parameters) : undefined,

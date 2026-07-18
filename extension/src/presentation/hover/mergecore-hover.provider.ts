@@ -138,55 +138,77 @@ export class MergeCoreHoverProvider implements vscode.HoverProvider {
 
       let summary: HoverSummary | undefined;
 
-      if (!isPhp) {
-        const cacheKey = HoverSummaryCache.key({
+      const cacheKey = HoverSummaryCache.key({
+        workspaceRoot,
+        symbolId: `${relPath}:${position.line}:${position.character}`,
+        fileVersion: document.version,
+      });
+      const line = document.lineAt(position.line).text;
+      const codeSample = extractNearbyCode(document, position);
+
+      // Prefer indexed graph/store for all languages (same core APIs)
+      summary = await buildDeterministicHoverSummary({
+        workspaceRoot,
+        store,
+        graphService: isPhp ? undefined : graphService,
+        relPath,
+        position: { line: position.line + 1, column: position.character + 1 },
+        codeSample,
+        signal: abort.signal,
+      });
+
+      if (token.isCancellationRequested) {
+        return null;
+      }
+
+      if (summary) {
+        const stableKey = HoverSummaryCache.key({
           workspaceRoot,
-          symbolId: `${relPath}:${position.line}:${position.character}`,
+          symbolId: summary.symbolId,
           fileVersion: document.version,
         });
-        // Position-based provisional key; refine after resolve
-        const line = document.lineAt(position.line).text;
-        const codeSample = extractNearbyCode(document, position);
-
-        summary = await buildDeterministicHoverSummary({
-          workspaceRoot,
-          store,
-          graphService,
-          relPath,
-          position: { line: position.line + 1, column: position.character + 1 },
-          codeSample,
-          signal: abort.signal,
-        });
-
-        if (token.isCancellationRequested) {
-          return null;
-        }
-
-        if (summary) {
-          const stableKey = HoverSummaryCache.key({
-            workspaceRoot,
-            symbolId: summary.symbolId,
-            fileVersion: document.version,
-          });
-          const cached = this.cache.get(stableKey);
-          if (cached) {
-            summary = cached;
-          } else {
-            this.cache.set(stableKey, summary, [
-              summary.path,
-              ...summary.callers.map((c) => c.path),
-              ...summary.relatedTests.map((t) => t.path),
-            ]);
+        const cached = this.cache.get(stableKey);
+        if (cached) {
+          summary = cached;
+        } else {
+          // PHP symbols from the heuristic adapter remain heuristic analysis
+          if (isPhp && summary.analysis === 'deterministic') {
+            summary = { ...summary, analysis: 'heuristic' };
           }
-          void cacheKey;
-          void line;
+          this.cache.set(stableKey, summary, [
+            summary.path,
+            ...summary.callers.map((c) => c.path),
+            ...summary.relatedTests.map((t) => t.path),
+          ]);
         }
-      } else {
-        // PHP: keep lightweight symbol resolve; still no model on hover
+        void cacheKey;
+        void line;
+      } else if (isPhp) {
+        // Fallback when index has no symbol yet
         const phpSym = resolvePhpSymbolAt(document.getText(), position.line);
         if (!phpSym) {
           return null;
         }
+        const phpRef = {
+          workspaceId: 'unknown',
+          path: relPath,
+          startLine: position.line + 1,
+          endLine: position.line + 1,
+          sourceType: 'source' as const,
+          sourceFingerprint: '',
+          authored: 'human' as const,
+          extraction: 'heuristic' as const,
+        };
+        const phpDetail = {
+          level: 'medium' as const,
+          components: {
+            parserCertainty: 'medium' as const,
+            independentSourceCount: 1,
+            sourceFreshness: 'unknown' as const,
+            modelGenerated: false,
+          },
+          rationale: ['php-heuristic-resolve'],
+        };
         summary = {
           symbolId: `php:${relPath}:${phpSym.symbol}`,
           name: phpSym.symbol,
@@ -195,19 +217,44 @@ export class MergeCoreHoverProvider implements vscode.HoverProvider {
           path: relPath,
           startLine: position.line + 1,
           endLine: position.line + 1,
+          workspaceId: 'unknown',
+          sourceFingerprint: '',
           purpose: {
-            text: phpSym.kind === 'method' ? `PHP method \`${phpSym.symbol}\`` : `PHP ${phpSym.kind}`,
+            text:
+              phpSym.kind === 'method'
+                ? `PHP method \`${phpSym.symbol}\``
+                : `PHP ${phpSym.kind}`,
             kind: 'inference',
+            references: [phpRef],
+            confidenceDetail: phpDetail,
           },
-          role: { text: `Defined in \`${relPath}\``, kind: 'evidence' },
-          inputs: { text: 'see signature', kind: 'inference' },
-          output: { text: 'unknown', kind: 'inference' },
+          role: {
+            text: `Defined in \`${relPath}\``,
+            kind: 'evidence',
+            references: [phpRef],
+            confidenceDetail: phpDetail,
+          },
+          inputs: {
+            text: 'see signature',
+            kind: 'inference',
+            references: [],
+            generalConsideration: true,
+            confidenceDetail: phpDetail,
+          },
+          output: {
+            text: 'unknown',
+            kind: 'inference',
+            references: [],
+            generalConsideration: true,
+            confidenceDetail: phpDetail,
+          },
           dependencies: [],
           callers: [],
           relatedTests: [],
           instructions: [],
           risks: [],
           confidence: 'medium',
+          confidenceDetail: phpDetail,
           analysis: 'heuristic',
           callerCount: 0,
           dependencyCount: 0,

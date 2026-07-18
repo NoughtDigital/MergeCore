@@ -83,8 +83,19 @@ describe('package boundaries', () => {
     assert.ok(fs.existsSync(fixtures.typescriptMiniRoot));
     assert.ok(fs.existsSync(fixtures.javascriptMiniRoot));
     assert.ok(fs.existsSync(fixtures.typescriptGraphRoot));
+    assert.ok(fs.existsSync((fixtures as { phpMiniRoot?: string }).phpMiniRoot ?? ''));
     assert.ok(fs.existsSync(path.join(fixtures.typescriptMiniRoot, 'src', 'index.ts')));
     assert.ok(fs.existsSync(path.join(fixtures.javascriptMiniRoot, 'src', 'index.js')));
     assert.ok(fs.existsSync(path.join(fixtures.typescriptGraphRoot, 'src', 'core.ts')));
+    assert.ok(
+      fs.existsSync(
+        path.join(
+          (fixtures as { phpMiniRoot: string }).phpMiniRoot,
+          'app',
+          'Models',
+          'Order.php'
+        )
+      )
+    );
   });
 });

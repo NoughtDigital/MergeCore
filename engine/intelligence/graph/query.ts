@@ -72,6 +72,7 @@ function ragToSymbol(sym: {
   jsdocSummary?: string;
   signatureText?: string;
   overloadIndex?: number;
+  adapterId?: string;
 }): SymbolRecord {
   let parameters: SymbolRecord['parameters'];
   if (sym.parametersJson) {
@@ -95,6 +96,7 @@ function ragToSymbol(sym: {
     exported: sym.exported,
     containerName: sym.containerName,
     language: sym.language,
+    adapterId: sym.adapterId ?? sym.language,
     parameters,
     returnTypeText: sym.returnTypeText,
     jsdocSummary: sym.jsdocSummary,
@@ -162,7 +164,8 @@ export function createCodeGraphQuery(
               startColumn: position.column,
               endColumn: position.column,
             },
-            language: parts[0] === 'javascript' ? 'javascript' : 'typescript',
+            language: parts[0] === 'javascript' ? 'javascript' : parts[0] === 'php' ? 'php' : 'typescript',
+            adapterId: parts[0] === 'javascript' ? 'javascript' : parts[0] === 'php' ? 'php' : 'typescript',
           };
         }
       }

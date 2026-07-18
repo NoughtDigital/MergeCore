@@ -1,4 +1,15 @@
-import type { DependencyEdge, SymbolRecord } from '@mergecore/intelligence';
+import type {
+  ClaimConfidence,
+  DependencyEdge,
+  SourceReference,
+  SymbolRecord,
+} from '@mergecore/intelligence';
+import {
+  computeClaimConfidence,
+  createSourceReference,
+  formatClaimAttributionLabel,
+  GENERAL_CONSIDERATION_LABEL,
+} from '@mergecore/intelligence';
 import { detectRiskIndicators, type RiskIndicator } from './hover-risks';
 
 export type ClaimKind = 'evidence' | 'inference';
@@ -6,6 +17,10 @@ export type ClaimKind = 'evidence' | 'inference';
 export interface HoverClaim {
   readonly text: string;
   readonly kind: ClaimKind;
+  readonly references: readonly SourceReference[];
+  /** When true (or references empty), not a repository fact. */
+  readonly generalConsideration?: boolean;
+  readonly confidenceDetail: ClaimConfidence;
 }
 
 export interface HoverSummary {
@@ -16,6 +31,10 @@ export interface HoverSummary {
   readonly path: string;
   readonly startLine: number;
   readonly endLine: number;
+  readonly startColumn?: number;
+  readonly endColumn?: number;
+  readonly workspaceId: string;
+  readonly sourceFingerprint: string;
   readonly signature?: string;
   readonly jsdocSummary?: string;
   readonly purpose: HoverClaim;
@@ -27,7 +46,8 @@ export interface HoverSummary {
   readonly relatedTests: readonly { path: string; evidence: readonly string[]; confidence?: string }[];
   readonly instructions: readonly { path: string; title: string; excerpt: string }[];
   readonly risks: readonly RiskIndicator[];
-  readonly confidence: 'high' | 'medium' | 'low' | 'uncertain';
+  readonly confidence: 'high' | 'medium' | 'low';
+  readonly confidenceDetail: ClaimConfidence;
   readonly analysis: 'deterministic' | 'heuristic';
   readonly callerCount: number;
   readonly dependencyCount: number;
@@ -37,6 +57,8 @@ export interface HoverSummary {
 
 export interface AssembleHoverSummaryInput {
   readonly symbol: SymbolRecord;
+  readonly workspaceId: string;
+  readonly sourceFingerprint?: string;
   readonly codeSample?: string;
   readonly callers: readonly DependencyEdge[];
   readonly callees: readonly DependencyEdge[];
@@ -68,11 +90,69 @@ function paramsText(sym: SymbolRecord): string {
     .join(', ');
 }
 
+function symbolRef(
+  workspaceId: string,
+  sym: SymbolRecord,
+  fingerprint: string
+): SourceReference {
+  return createSourceReference({
+    workspaceId,
+    path: sym.location.path,
+    startLine: sym.location.startLine,
+    endLine: sym.location.endLine,
+    startColumn: sym.location.startColumn,
+    endColumn: sym.location.endColumn,
+    sourceType: 'symbol',
+    sourceFingerprint: fingerprint,
+    symbolId: sym.id,
+    symbol: sym.name,
+    extraction: 'deterministic',
+  });
+}
+
+function makeClaim(input: {
+  text: string;
+  kind: ClaimKind;
+  references?: readonly SourceReference[];
+  generalConsideration?: boolean;
+  components?: Parameters<typeof computeClaimConfidence>[0];
+}): HoverClaim {
+  const references = input.references ?? [];
+  const generalConsideration =
+    input.generalConsideration === true ||
+    (input.kind === 'inference' && references.length === 0);
+  const confidenceDetail = computeClaimConfidence(
+    input.components ?? {
+      parserCertainty: references.length > 0 ? 'high' : 'none',
+      symbolResolutionCertainty: references.length > 0 ? 'high' : 'low',
+      independentSourceCount: references.length,
+      sourceFreshness: fingerprintFreshness(references),
+      modelGenerated: false,
+    }
+  );
+  return {
+    text: input.text,
+    kind: input.kind,
+    references,
+    ...(generalConsideration ? { generalConsideration: true } : {}),
+    confidenceDetail,
+  };
+}
+
+function fingerprintFreshness(
+  refs: readonly SourceReference[]
+): 'fresh' | 'unknown' {
+  return refs.some((r) => r.sourceFingerprint) ? 'fresh' : 'unknown';
+}
+
 /**
  * Build a compact, evidence-first hover summary (no model calls).
  */
 export function assembleHoverSummary(input: AssembleHoverSummaryInput): HoverSummary {
   const { symbol: sym } = input;
+  const fingerprint = input.sourceFingerprint ?? '';
+  const selfRef = symbolRef(input.workspaceId, sym, fingerprint);
+
   const callerEdges = input.callers;
   const depEdges = [
     ...input.callees.filter((e) => e.kind === 'call'),
@@ -86,28 +166,50 @@ export function assembleHoverSummary(input: AssembleHoverSummaryInput): HoverSum
     ),
   ];
 
-  const purpose: HoverClaim = sym.jsdocSummary
-    ? { text: sym.jsdocSummary, kind: 'evidence' }
-    : {
+  const purpose = sym.jsdocSummary
+    ? makeClaim({
+        text: sym.jsdocSummary,
+        kind: 'evidence',
+        references: [selfRef],
+      })
+    : makeClaim({
         text: `${sym.kind} \`${sym.name}\`${sym.exported ? ' (exported)' : ''}`,
         kind: 'inference',
-      };
+        references: [selfRef],
+        components: {
+          parserCertainty: 'high',
+          symbolResolutionCertainty: 'high',
+          independentSourceCount: 1,
+          sourceFreshness: fingerprint ? 'fresh' : 'unknown',
+        },
+      });
 
-  const role: HoverClaim = {
+  const role = makeClaim({
     text: sym.containerName
       ? `Member of \`${sym.containerName}\` in \`${sym.location.path}\``
       : `Defined in \`${sym.location.path}\`${sym.exported ? ' · module export' : ''}`,
     kind: 'evidence',
-  };
+    references: [selfRef],
+  });
 
-  const inputs: HoverClaim = {
+  const inputs = makeClaim({
     text: paramsText(sym),
     kind: sym.parameters && sym.parameters.length > 0 ? 'evidence' : 'inference',
-  };
+    references: sym.parameters && sym.parameters.length > 0 ? [selfRef] : [],
+    generalConsideration: !(sym.parameters && sym.parameters.length > 0),
+  });
 
-  const output: HoverClaim = sym.returnTypeText
-    ? { text: sym.returnTypeText, kind: 'evidence' }
-    : { text: 'unknown', kind: 'inference' };
+  const output = sym.returnTypeText
+    ? makeClaim({
+        text: sym.returnTypeText,
+        kind: 'evidence',
+        references: [selfRef],
+      })
+    : makeClaim({
+        text: 'unknown',
+        kind: 'inference',
+        generalConsideration: true,
+      });
 
   const dependencies = depEdges.slice(0, 8).map((e) => ({
     path: e.toPath,
@@ -143,9 +245,21 @@ export function assembleHoverSummary(input: AssembleHoverSummaryInput): HoverSum
     relatedTestCount: relatedTests.length,
   });
 
-  const hasJsdoc = Boolean(sym.jsdocSummary);
-  const confidence: HoverSummary['confidence'] =
-    hasJsdoc && callerEdges.length >= 0 ? 'high' : sym.exported ? 'medium' : 'medium';
+  const confidenceDetail = computeClaimConfidence({
+    parserCertainty: 'high',
+    symbolResolutionCertainty: 'high',
+    independentSourceCount:
+      1 + (callerEdges.length > 0 ? 1 : 0) + (relatedTests.length > 0 ? 1 : 0),
+    sourceFreshness: fingerprint ? 'fresh' : 'unknown',
+    modelGenerated: false,
+  });
+
+  const analysis: 'deterministic' | 'heuristic' =
+    sym.adapterId === 'typescript' || sym.adapterId === 'javascript'
+      ? 'deterministic'
+      : sym.language === 'typescript' || sym.language === 'javascript'
+        ? 'deterministic'
+        : 'heuristic';
 
   return {
     symbolId: sym.id,
@@ -155,6 +269,10 @@ export function assembleHoverSummary(input: AssembleHoverSummaryInput): HoverSum
     path: sym.location.path,
     startLine: sym.location.startLine,
     endLine: sym.location.endLine,
+    startColumn: sym.location.startColumn,
+    endColumn: sym.location.endColumn,
+    workspaceId: input.workspaceId,
+    sourceFingerprint: fingerprint,
     signature: sym.signatureText,
     jsdocSummary: sym.jsdocSummary,
     purpose,
@@ -166,8 +284,9 @@ export function assembleHoverSummary(input: AssembleHoverSummaryInput): HoverSum
     relatedTests,
     instructions,
     risks,
-    confidence,
-    analysis: 'deterministic',
+    confidence: confidenceDetail.level,
+    confidenceDetail,
+    analysis,
     callerCount: callerEdges.length,
     dependencyCount: dependencies.length,
     relatedTestCount: relatedTests.length,
@@ -176,5 +295,18 @@ export function assembleHoverSummary(input: AssembleHoverSummaryInput): HoverSum
 }
 
 export function claimLabel(claim: HoverClaim): string {
-  return claim.kind === 'inference' ? `${claim.text} _(inference)_` : claim.text;
+  if (claim.generalConsideration || claim.references.length === 0) {
+    return `${claim.text} _(${GENERAL_CONSIDERATION_LABEL})_`;
+  }
+  const attr = formatClaimAttributionLabel({
+    id: 'hover',
+    text: claim.text,
+    confidence: claim.confidenceDetail.level,
+    confidenceDetail: claim.confidenceDetail,
+    references: claim.references,
+  });
+  if (claim.kind === 'inference') {
+    return `${claim.text} _(inference · ${attr})_`;
+  }
+  return `${claim.text} _(${attr})_`;
 }

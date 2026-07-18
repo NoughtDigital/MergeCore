@@ -12,9 +12,13 @@ const typescriptGraphRoot = path.join(__dirname, 'typescript-graph');
 /** Absolute path to the billing/refund retrieval eval fixture. */
 const billingRefundEvalRoot = path.join(__dirname, 'billing-refund-eval');
 
+/** Absolute path to the PHP / Laravel mini fixture repository. */
+const phpMiniRoot = path.join(__dirname, 'php-mini');
+
 module.exports = {
   typescriptMiniRoot,
   javascriptMiniRoot,
   typescriptGraphRoot,
   billingRefundEvalRoot,
+  phpMiniRoot,
 };

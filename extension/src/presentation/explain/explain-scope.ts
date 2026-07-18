@@ -1,7 +1,6 @@
 import * as path from 'path';
 import type { RagStore, SymbolRecord } from '@mergecore/intelligence';
 import {
-  isTsJsLanguage,
   relativeWorkspacePath,
   resolveSymbolForHover,
 } from '../hover/hover-assemble';
@@ -11,6 +10,8 @@ export const SUPPORTED_EXPLAIN_LANGS = [
   'typescriptreact',
   'javascript',
   'javascriptreact',
+  'php',
+  'blade',
 ] as const;
 
 export type ExplainScopeErrorCode =
@@ -55,7 +56,7 @@ export interface EditorLike {
 }
 
 export function validateExplainLanguage(languageId: string): boolean {
-  return isTsJsLanguage(languageId);
+  return (SUPPORTED_EXPLAIN_LANGS as readonly string[]).includes(languageId);
 }
 
 /**
@@ -97,7 +98,7 @@ export async function resolveExplainScope(input: {
       ok: false,
       code: 'unsupported-language',
       message:
-        'Explain Selected Code supports TypeScript and JavaScript files only.',
+        'Explain Selected Code supports TypeScript, JavaScript, and PHP files.',
     };
   }
 

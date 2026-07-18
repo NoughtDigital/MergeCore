@@ -2,6 +2,15 @@ import * as vscode from 'vscode';
 import { createRepositoryIndex } from '@mergecore/intelligence';
 import type { ExplainerPorts } from '../../infrastructure/explain/explainer';
 import type { IndexerService } from '../../infrastructure/index/indexer.service';
+import {
+  assertMaySendRepositoryEvidence,
+  PrivacyGateError,
+  recordModelTransmission,
+} from '../../infrastructure/privacy/privacy-gate';
+import {
+  providerRequiresExternalRequests,
+  readPrivacySettings,
+} from '../../infrastructure/privacy/privacy-settings';
 import { assembleFallbackPack } from './explain-context-pack-fallback';
 import { assembleSelectedCodeExplanation } from './explain-selected-assemble';
 import { enhanceSelectedExplanationWithModel } from './explain-selected-model';
@@ -15,6 +24,7 @@ export interface RegisterExplainSelectedDeps {
   readonly modelPorts: ExplainerPorts;
   readonly ensureIndexed: (workspaceRoot: string) => Promise<void>;
   readonly isModelExplanationEnabled: () => boolean;
+  readonly globalState: vscode.Memento;
 }
 
 export function registerExplainSelectedCode(
@@ -81,6 +91,16 @@ export function registerExplainSelectedCode(
 
           if (deps.isModelExplanationEnabled()) {
             try {
+              const settings = readPrivacySettings();
+              const requiresExternal = providerRequiresExternalRequests(settings);
+              await assertMaySendRepositoryEvidence(
+                { globalState: deps.globalState },
+                {
+                  settings,
+                  requiresExternal,
+                  purpose: 'Explain Selected Code',
+                }
+              );
               const enhanced = await enhanceSelectedExplanationWithModel({
                 scope,
                 explanation,
@@ -88,9 +108,18 @@ export function registerExplainSelectedCode(
               });
               if (enhanced) {
                 explanation = enhanced;
+                if (enhanced.usedModel) {
+                  await recordModelTransmission(
+                    deps.globalState,
+                    enhanced.markdown.slice(0, 8000)
+                  );
+                }
               }
-            } catch {
-              // keep deterministic
+            } catch (err) {
+              if (err instanceof PrivacyGateError) {
+                void vscode.window.showWarningMessage(err.message);
+              }
+              // keep deterministic — never fall back to another provider
             }
           }
 

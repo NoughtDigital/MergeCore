@@ -1,21 +1,33 @@
 /**
- * Validate model citations against the evidence set that was actually sent.
+ * Validate model citations: prefer evidence IDs; fall back to path/line stripping.
  */
+
+import {
+  evidenceMapById,
+  parseModelClaimsJson,
+  validateModelClaimBundle,
+  type SourceReference,
+} from '@mergecore/intelligence';
 
 export interface EvidenceRef {
   readonly path: string;
   readonly startLine?: number;
   readonly endLine?: number;
+  readonly evidenceId?: string;
 }
 
 export interface CitationValidationResult {
   readonly markdown: string;
   readonly keptCitations: readonly string[];
   readonly discardedCitations: readonly string[];
+  readonly acceptedClaimTexts?: readonly string[];
+  readonly rejectedClaimCount?: number;
 }
 
 const CITATION_RE =
   /(?:`?([\w./@+-]+\.(?:ts|tsx|js|jsx|mjs|cjs|md|mdc))`?)(?:\s*(?:#|@|:|\bline\b|\blines\b)\s*L?(\d+)(?:\s*[-–—]\s*L?(\d+))?)?/gi;
+
+const EVIDENCE_ID_RE = /\bevidence-\d+\b/g;
 
 function normalisePath(p: string): string {
   return p.replace(/\\/g, '/').replace(/^\.\//, '');
@@ -26,7 +38,6 @@ function evidenceAllows(ref: EvidenceRef, evidence: readonly EvidenceRef[]): boo
   for (const e of evidence) {
     const ep = normalisePath(e.path);
     if (ep !== path && !ep.endsWith('/' + path) && !path.endsWith('/' + ep)) {
-      // also allow basename match when unique
       if (ep.split('/').pop() !== path.split('/').pop()) {
         continue;
       }
@@ -39,12 +50,10 @@ function evidenceAllows(ref: EvidenceRef, evidence: readonly EvidenceRef[]): boo
     if (ref.startLine >= es - 2 && ref.startLine <= ee + 2) {
       return true;
     }
-    // path match without tight line is still allowed for file-level cites
     if (e.startLine === undefined) {
       return true;
     }
   }
-  // Exact path present in evidence (any lines)
   return evidence.some((e) => {
     const ep = normalisePath(e.path);
     return (
@@ -68,8 +77,30 @@ export function validateAndStripCitations(
   const discarded: string[] = [];
   let cleaned = markdown;
 
-  const matches = [...markdown.matchAll(CITATION_RE)];
-  // Process from end to preserve indices
+  const knownIds = new Set(
+    evidence.map((e) => e.evidenceId).filter((id): id is string => Boolean(id))
+  );
+  if (knownIds.size > 0) {
+    const idMatches = [...markdown.matchAll(EVIDENCE_ID_RE)];
+    for (let i = idMatches.length - 1; i >= 0; i--) {
+      const m = idMatches[i]!;
+      const id = m[0]!;
+      if (knownIds.has(id)) {
+        kept.push(id);
+      } else {
+        discarded.push(id);
+        const idx = m.index ?? -1;
+        if (idx >= 0) {
+          cleaned =
+            cleaned.slice(0, idx) +
+            `_(citation removed: unknown evidence id)_` +
+            cleaned.slice(idx + id.length);
+        }
+      }
+    }
+  }
+
+  const matches = [...cleaned.matchAll(CITATION_RE)];
   for (let i = matches.length - 1; i >= 0; i--) {
     const m = matches[i]!;
     const full = m[0]!;
@@ -101,5 +132,55 @@ export function validateAndStripCitations(
     markdown: cleaned,
     keptCitations: [...new Set(kept)],
     discardedCitations: [...new Set(discarded)],
+  };
+}
+
+/**
+ * Prefer structured claim JSON with evidenceIds. Reject unsupported claims entirely.
+ */
+export function validateModelClaimsAgainstEvidence(
+  modelText: string,
+  evidence: readonly SourceReference[]
+): CitationValidationResult {
+  const withIds = evidence.every((e) => e.evidenceId)
+    ? evidence
+    : evidence.map((e, i) => ({ ...e, evidenceId: e.evidenceId ?? `evidence-${i + 1}` }));
+  const map = evidenceMapById(withIds);
+  const bundle = parseModelClaimsJson(modelText);
+  if (!bundle) {
+    // Fall back to legacy path/line stripping
+    return validateAndStripCitations(
+      modelText,
+      withIds.map((e) => ({
+        path: e.path,
+        startLine: e.startLine,
+        endLine: e.endLine,
+        evidenceId: e.evidenceId,
+      }))
+    );
+  }
+  const result = validateModelClaimBundle(bundle, map);
+  const lines = [
+    '# Model claims (validated evidence IDs only)',
+    '',
+    ...result.accepted.map(
+      (c) =>
+        `- ${c.text} _(evidence: ${c.references.map((r) => r.evidenceId).join(', ')}; confidence ${c.confidence})_`
+    ),
+  ];
+  if (result.rejected.length > 0) {
+    lines.push('');
+    lines.push(
+      `---\n_MergeCore rejected ${result.rejected.length} unsupported model claim(s) (missing or unknown evidence IDs)._`
+    );
+  }
+  return {
+    markdown: lines.join('\n'),
+    keptCitations: result.accepted.flatMap((c) =>
+      c.references.map((r) => r.evidenceId!).filter(Boolean)
+    ),
+    discardedCitations: result.rejected.flatMap((r) => [...r.evidenceIds]),
+    acceptedClaimTexts: result.accepted.map((c) => c.text),
+    rejectedClaimCount: result.rejected.length,
   };
 }

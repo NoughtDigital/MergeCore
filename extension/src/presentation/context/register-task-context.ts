@@ -10,6 +10,15 @@ import {
 import type { ExplainerPorts } from '../../infrastructure/explain/explainer';
 import type { IndexerService } from '../../infrastructure/index/indexer.service';
 import { readOllamaSettings } from '../commands/register-cognition-commands';
+import {
+  assertMaySendRepositoryEvidence,
+  PrivacyGateError,
+  recordModelTransmission,
+} from '../../infrastructure/privacy/privacy-gate';
+import {
+  providerRequiresExternalRequests,
+  readPrivacySettings,
+} from '../../infrastructure/privacy/privacy-settings';
 import { enhanceTaskContextWithModel } from './task-context-model';
 import { showTaskContextPanel } from './task-context-panel';
 
@@ -20,6 +29,7 @@ export interface RegisterTaskContextDeps {
   readonly modelPorts: ExplainerPorts;
   readonly ensureIndexed: (workspaceRoot: string) => Promise<void>;
   readonly isModelExplanationEnabled: () => boolean;
+  readonly globalState: vscode.Memento;
 }
 
 async function buildPack(input: {
@@ -31,6 +41,7 @@ async function buildPack(input: {
   readonly selectedSymbols?: readonly string[];
   readonly modelPorts: ExplainerPorts;
   readonly modelEnabled: boolean;
+  readonly globalState: vscode.Memento;
 }): Promise<TaskContextPack> {
   const store = await input.indexer.getStore(input.workspaceRoot);
   const graphService = input.indexer.getCodeGraphService(input.workspaceRoot);
@@ -46,15 +57,33 @@ async function buildPack(input: {
 
   if (input.modelEnabled) {
     try {
-      const settings = readOllamaSettings();
+      const settings = readPrivacySettings();
+      const requiresExternal = providerRequiresExternalRequests(settings);
+      await assertMaySendRepositoryEvidence(
+        { globalState: input.globalState },
+        {
+          settings,
+          requiresExternal,
+          purpose: 'Generate Task Context',
+        }
+      );
+      const ollama = readOllamaSettings();
       const enhanced = await enhanceTaskContextWithModel({
         pack,
         ports: input.modelPorts,
-        modelId: settings.chatModel,
+        modelId: ollama.chatModel,
       });
-      if (enhanced) pack = enhanced;
-    } catch {
-      // keep deterministic
+      if (enhanced) {
+        pack = enhanced;
+        if (enhanced.meta.modelProvider && enhanced.meta.modelProvider !== 'none') {
+          await recordModelTransmission(input.globalState, pack.markdown.slice(0, 8000));
+        }
+      }
+    } catch (err) {
+      if (err instanceof PrivacyGateError) {
+        void vscode.window.showWarningMessage(err.message);
+      }
+      // keep deterministic — never fall back to another provider
     }
   }
   return pack;
@@ -177,6 +206,7 @@ export function registerGenerateTaskContext(
                 selectedSymbols: preset?.selectedSymbols,
                 modelPorts: deps.modelPorts,
                 modelEnabled: deps.isModelExplanationEnabled(),
+                globalState: deps.globalState,
               });
 
             let pack = await make(depth, selectedFiles);

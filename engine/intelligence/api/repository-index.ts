@@ -258,7 +258,9 @@ export async function createRepositoryIndex(
     workspaceRoot: root,
     storageDir: options.storageDir,
     debugExclusions: options.debugExclusions,
-    languageAdapters: options.languageAdapters ?? defaultLanguageAdapters(),
+    languageAdapters: options.languageAdapters ?? defaultLanguageAdapters({
+      workspaceRoot: root,
+    }),
   });
   return new RepositoryIndexImpl(root, fileIndexer, {
     ...options,
