@@ -69,6 +69,7 @@
     "onCommand:mergecore.hover.viewRelatedTests",
     "onCommand:mergecore.hover.viewApplicableInstructions",
     "onCommand:mergecore.hover.generateTaskContext",
+    "onCommand:mergecore.explainSelectedCode",
     "onView:mergecore.sidebar"
   ],
   "main": "./out/extension.js",
@@ -187,10 +188,19 @@
       {
         "command": "mergecore.hover.generateTaskContext",
         "title": "MergeCore: Generate Task Context from Symbol"
+      },
+      {
+        "command": "mergecore.explainSelectedCode",
+        "title": "MergeCore: Explain Selected Code"
       }
     ],
     "menus": {
       "editor/context": [
+        {
+          "command": "mergecore.explainSelectedCode",
+          "when": "resourceScheme == file && resourceLangId =~ /^(typescript|typescriptreact|javascript|javascriptreact)$/",
+          "group": "mergecore@0"
+        },
         {
           "command": "mergecore.indexRepository",
           "when": "resourceScheme == file",
@@ -270,7 +280,11 @@
         { "command": "mergecore.chooseReviewerPersona" },
         { "command": "mergecore.scanProdRisks" },
         { "command": "mergecore.hover.openExplanation" },
-        { "command": "mergecore.hover.generateTaskContext" }
+        { "command": "mergecore.hover.generateTaskContext" },
+        {
+          "command": "mergecore.explainSelectedCode",
+          "when": "resourceLangId =~ /^(typescript|typescriptreact|javascript|javascriptreact)$/"
+        }
       ]
     },
     "viewsContainers": {

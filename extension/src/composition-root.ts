@@ -25,6 +25,7 @@ import { registerProdRiskScanCommand } from './presentation/commands/register-pr
 import { FindingDiagnostics } from './presentation/diagnostics/finding-diagnostics';
 import { registerMergeCoreHoverProvider } from './presentation/hover/mergecore-hover.provider';
 import { registerHoverCommands } from './presentation/hover/register-hover-commands';
+import { registerExplainSelectedCode } from './presentation/explain/register-explain-selected';
 import { ReviewSessionState } from './presentation/state/review-session.state';
 import { registerMergeCoreStatusBar } from './presentation/status/mergecore-status-bar';
 import { MergeCoreSidebarProvider } from './presentation/webview/mergecore-sidebar.provider';
@@ -133,6 +134,17 @@ export function createMergeCoreApp(context: vscode.ExtensionContext): void {
     indexer,
     explainer,
     getMode: () => readExplanationMode(),
+    isModelExplanationEnabled: () =>
+      vscode.workspace.getConfiguration('mergecore').get<boolean>('hover.enableModelExplanation') ===
+      true,
+  });
+  registerExplainSelectedCode(context, {
+    indexer,
+    ensureIndexed,
+    modelPorts: {
+      chat: (messages, signal) => ollamaRef.current.chat(messages, signal),
+      isAvailable: (signal) => ollamaRef.current.isAvailable(signal),
+    },
     isModelExplanationEnabled: () =>
       vscode.workspace.getConfiguration('mergecore').get<boolean>('hover.enableModelExplanation') ===
       true,
