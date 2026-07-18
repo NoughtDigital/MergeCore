@@ -1,16 +1,23 @@
 import * as path from 'path';
 import type {
+  ChangeImpactReport,
+  ChangeImpactTarget,
   ContextPack,
   ContextResult,
   IndexStatus,
   LanguageAdapter,
   ModelProvider,
   RetrieveQueryOptions,
+  TraverseBudget,
   WorkspaceDescriptor,
 } from '../contracts';
 import { noopModelProvider } from '../contracts';
 import { defaultLanguageAdapters } from '../adapters';
 import { collectProjectProfile } from '../collect';
+import {
+  analyseChangeImpact as analyseChangeImpactEngine,
+  traverseRelationshipPaths,
+} from '../graph/paths';
 import {
   createRepositoryFileIndexer,
   type RepositoryFileIndexer,
@@ -77,6 +84,10 @@ export interface RepositoryIndex {
   getContextForFile(file: string): Promise<RepositoryContextResult>;
   getContextForSymbol(symbolId: string): Promise<RepositoryContextResult>;
   buildContextPack(query: string, options?: ContextPackOptions): Promise<ContextPack>;
+  analyseChangeImpact(
+    target: ChangeImpactTarget,
+    options?: TraverseBudget
+  ): Promise<ChangeImpactReport>;
   close(): Promise<void>;
 }
 
@@ -223,8 +234,8 @@ class RepositoryIndexImpl implements RepositoryIndex {
     let claims = result.claims;
     let references = result.references;
     let incomplete = result.incomplete;
+    const store = this.fileIndexer.getRagStore();
     if (options.forModelEvidence) {
-      const store = this.fileIndexer.getRagStore();
       claims = claims.filter((c) => {
         const refPath = c.references[0]?.path;
         if (!refPath) {
@@ -238,6 +249,26 @@ class RepositoryIndexImpl implements RepositoryIndex {
       incomplete = incomplete || claims.length === 0;
     }
 
+    const pathHint =
+      options.pathHint?.replace(/\\/g, '/') ??
+      claims[0]?.references[0]?.path ??
+      references[0]?.path;
+    const relationshipPaths = pathHint
+      ? traverseRelationshipPaths({
+          store,
+          start: { path: pathHint },
+          budget: {
+            maxDepth: 3,
+            maxNodes: 40,
+            maxPaths: 8,
+            maxFanOutPerNode: 8,
+            direction: 'both',
+            weightProfile: 'default',
+          },
+          workspaceId: store.workspaceId ?? 'local',
+        })
+      : undefined;
+
     const packId = sha256(`${this.workspaceRoot}|${query}|${Date.now()}`).slice(0, 20);
     return {
       id: `pack:${packId}`,
@@ -248,7 +279,23 @@ class RepositoryIndexImpl implements RepositoryIndex {
       instructions,
       references,
       incomplete,
+      ...(relationshipPaths && relationshipPaths.length > 0
+        ? { relationshipPaths }
+        : {}),
     };
+  }
+
+  async analyseChangeImpact(
+    target: ChangeImpactTarget,
+    options?: TraverseBudget
+  ): Promise<ChangeImpactReport> {
+    this.ensureOpen();
+    return analyseChangeImpactEngine({
+      store: this.fileIndexer.getRagStore(),
+      workspaceRoot: this.workspaceRoot,
+      target,
+      budget: options,
+    });
   }
 
   async close(): Promise<void> {

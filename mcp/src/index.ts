@@ -8,6 +8,7 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { z } from 'zod';
 import {
   buildIndexStatusPayload,
+  toolAnalyseChangeImpact,
   toolExplainContext,
   toolExplainSymbol,
   toolGenerateTaskContext,
@@ -48,6 +49,11 @@ const relationshipKind = z.enum([
   'typeUsage',
   'fileDependency',
   'likelyTestCoverage',
+  'route',
+  'job',
+  'event',
+  'integration',
+  'documentation',
 ]);
 
 function createServer(): McpServer {
@@ -107,6 +113,18 @@ function createServer(): McpServer {
       k: z.number().int().min(1).max(48).optional(),
     },
     async (args) => toolGetRelatedFiles(args)
+  );
+
+  server.tool(
+    'analyse_change_impact',
+    'Likely (not guaranteed) change impact: dependents, downstream paths, tests, public interfaces, integrations, and uncertain dynamics.',
+    {
+      symbol: z.string().optional().describe('Symbol name'),
+      filePath: z.string().optional().describe('Relative path to disambiguate or target a file'),
+      maxDepth: z.number().int().min(1).max(6).optional(),
+      maxPaths: z.number().int().min(1).max(40).optional(),
+    },
+    async (args) => toolAnalyseChangeImpact(args)
   );
 
   server.tool(

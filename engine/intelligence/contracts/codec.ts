@@ -268,6 +268,11 @@ const EDGE_KINDS = new Set([
   'typeUsage',
   'fileDependency',
   'likelyTestCoverage',
+  'route',
+  'job',
+  'event',
+  'integration',
+  'documentation',
 ]);
 
 const EDGE_CONFIDENCE = new Set(['certain', 'high', 'medium', 'low', 'heuristic']);

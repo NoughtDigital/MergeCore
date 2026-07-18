@@ -2,17 +2,20 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import {
   assembleTaskContextPack,
+  analyseChangeImpact,
   collectProjectProfile,
   createCodeGraphQuery,
   createInstructionResolver,
   createRepositorySearchEngine,
   createSourceReference,
   detectTaskRiskIndicators,
+  formatRelationshipPathLabel,
   MEMORY_DIR,
   parseTaskContextDepth,
   RAG_DIR,
   scanProdRisks,
   sha256,
+  traverseRelationshipPaths,
   writeTaskContextPack,
   type DependencyEdgeKind,
   type ExplanationMode,
@@ -41,6 +44,11 @@ const RELATIONSHIP_KINDS = [
   'typeUsage',
   'fileDependency',
   'likelyTestCoverage',
+  'route',
+  'job',
+  'event',
+  'integration',
+  'documentation',
 ] as const satisfies readonly DependencyEdgeKind[];
 
 type RelationshipKind = (typeof RELATIONSHIP_KINDS)[number];
@@ -482,6 +490,15 @@ export async function toolGetRelatedFiles(args: {
       {
         path: string;
         relationshipPaths: string[];
+        structuredPaths?: Array<{
+          id: string;
+          label: string;
+          score: number;
+          confidence: string;
+          deterministic: boolean;
+          cycleClosed?: boolean;
+          steps: Array<{ path: string; name?: string; kind?: string }>;
+        }>;
         confidence: string;
         sources: Array<{ path: string; kind: string; confidence?: string }>;
         score: number;
@@ -493,7 +510,16 @@ export async function toolGetRelatedFiles(args: {
       relationshipPath: string,
       confidence: string,
       source: { path: string; kind: string; confidence?: string },
-      score: number
+      score: number,
+      structured?: {
+        id: string;
+        label: string;
+        score: number;
+        confidence: string;
+        deterministic: boolean;
+        cycleClosed?: boolean;
+        steps: Array<{ path: string; name?: string; kind?: string }>;
+      }
     ) => {
       const key = path.replace(/\\/g, '/');
       const existing = related.get(key);
@@ -501,6 +527,7 @@ export async function toolGetRelatedFiles(args: {
         related.set(key, {
           path: key,
           relationshipPaths: [relationshipPath],
+          structuredPaths: structured ? [structured] : undefined,
           confidence,
           sources: [source],
           score,
@@ -509,6 +536,9 @@ export async function toolGetRelatedFiles(args: {
       }
       if (!existing.relationshipPaths.includes(relationshipPath)) {
         existing.relationshipPaths.push(relationshipPath);
+      }
+      if (structured) {
+        existing.structuredPaths = [...(existing.structuredPaths ?? []), structured];
       }
       existing.sources.push(source);
       if (score > existing.score) existing.score = score;
@@ -538,58 +568,47 @@ export async function toolGetRelatedFiles(args: {
         if (matches[0]) seedPath = matches[0].location.path;
       }
 
-      if (symbolId) {
-        const nodes = graph.traverseGraph(symbolId, {
+      const paths = traverseRelationshipPaths({
+        store: opened.store,
+        start: { symbolId, path: seedPath },
+        budget: {
           maxDepth,
+          maxNodes: 80,
+          maxPaths: args.k ?? 24,
           direction: 'both',
           kinds: kinds.length > 0 ? kinds : undefined,
-        });
-        for (const node of nodes) {
-          const via = node.via;
-          const p =
-            via?.toPath && via.toPath !== seedPath
-              ? via.toPath
-              : via?.fromPath && via.fromPath !== seedPath
-                ? via.fromPath
-                : undefined;
-          if (!p || p === seedPath) continue;
-          const kind = via?.kind ?? 'fileDependency';
-          if (kinds.length > 0 && !kinds.includes(kind as RelationshipKind)) continue;
-          add(
-            p,
-            `${seedPath} -[${kind}/${node.depth}]-> ${p}`,
-            via?.confidence ?? 'medium',
-            { path: p, kind, confidence: via?.confidence },
-            1 / (1 + node.depth)
-          );
-        }
-      }
+          weightProfile: 'default',
+        },
+      });
 
-      if (seedPath) {
-        const kindSet = kinds.length > 0 ? new Set(kinds) : undefined;
-        const edges = opened.store.allEdges();
-        const queue: Array<{ path: string; depth: number }> = [{ path: seedPath, depth: 0 }];
-        const seenPaths = new Set<string>([seedPath]);
-        while (queue.length > 0) {
-          const cur = queue.shift()!;
-          if (cur.depth >= maxDepth) continue;
-          for (const e of edges) {
-            if (kindSet && !kindSet.has(e.kind as RelationshipKind)) continue;
-            let next: string | undefined;
-            if (e.fromPath === cur.path) next = e.toPath;
-            else if (e.toPath === cur.path) next = e.fromPath;
-            if (!next || seenPaths.has(next)) continue;
-            seenPaths.add(next);
-            queue.push({ path: next, depth: cur.depth + 1 });
-            add(
-              next,
-              `${seedPath} -[${e.kind}/${cur.depth + 1}]-> ${next}`,
-              e.confidence ?? 'medium',
-              { path: next, kind: e.kind, confidence: e.confidence },
-              1 / (1 + cur.depth + 1)
-            );
+      for (const rp of paths) {
+        if (rp.steps.length < 2) continue;
+        const leaf = rp.steps[rp.steps.length - 1]!;
+        const p = leaf.node.path;
+        if (!p || p === seedPath) continue;
+        const label = formatRelationshipPathLabel(rp);
+        const kind = leaf.edge?.kind ?? 'fileDependency';
+        if (kinds.length > 0 && !kinds.includes(kind as RelationshipKind)) continue;
+        add(
+          p,
+          label,
+          rp.confidence,
+          { path: p, kind, confidence: rp.confidence },
+          rp.score,
+          {
+            id: rp.id,
+            label,
+            score: rp.score,
+            confidence: rp.confidence,
+            deterministic: rp.deterministic,
+            cycleClosed: rp.cycleClosed,
+            steps: rp.steps.map((s) => ({
+              path: s.node.path,
+              name: s.node.name,
+              kind: s.edge?.kind,
+            })),
           }
-        }
+        );
       }
     }
 
@@ -637,6 +656,91 @@ export async function toolGetRelatedFiles(args: {
       maxDepth,
       relationshipKinds: kinds.length > 0 ? kinds : RELATIONSHIP_KINDS,
       files,
+    });
+  });
+}
+
+export async function toolAnalyseChangeImpact(args: {
+  symbol?: string;
+  filePath?: string;
+  maxDepth?: number;
+  maxPaths?: number;
+}) {
+  if (!args.symbol && !args.filePath) {
+    return errorResult(
+      'malformed_request',
+      'Provide symbol and/or filePath for analyse_change_impact'
+    );
+  }
+  return withOpenedIndex('analyse_change_impact', true, async ({ opened }) => {
+    let seedPath = args.filePath;
+    if (seedPath) {
+      const safe = await safeRelPath(opened.workspaceRoot, seedPath);
+      if (!safe.ok) return safe.response;
+      seedPath = safe.rel;
+    }
+
+    let symbolId: string | undefined;
+    if (args.symbol) {
+      const graph = createCodeGraphQuery(opened.store, opened.indexer.getCodeGraphService());
+      const matches = graph.findSymbol(args.symbol, {
+        pathPrefix: seedPath,
+        exact: false,
+      });
+      if (matches.length > 1 && !seedPath) {
+        return errorResult(
+          'ambiguous_symbol',
+          `Multiple symbols named "${args.symbol}"; pass filePath.`,
+          {
+            matches: matches.slice(0, 8).map((m) => ({
+              id: m.id,
+              path: m.location.path,
+              startLine: m.location.startLine,
+            })),
+          }
+        );
+      }
+      symbolId = matches[0]?.id;
+      if (matches[0] && !seedPath) seedPath = matches[0].location.path;
+    }
+
+    const report = await analyseChangeImpact({
+      store: opened.store,
+      workspaceRoot: opened.workspaceRoot,
+      target: { symbolId, path: seedPath },
+      budget: {
+        maxDepth: args.maxDepth ?? 3,
+        maxPaths: args.maxPaths ?? 12,
+        weightProfile: 'impact',
+      },
+    });
+
+    logMeta('analyse_change_impact', opened.workspaceRoot, {
+      direct: report.directlyAffected.length,
+      downstream: report.likelyDownstream.length,
+    });
+
+    return textResult({
+      ...report,
+      likelyDownstream: report.likelyDownstream.map((p) => ({
+        id: p.id,
+        label: formatRelationshipPathLabel(p),
+        score: p.score,
+        confidence: p.confidence,
+        deterministic: p.deterministic,
+        cycleClosed: p.cycleClosed,
+        reasons: p.reasons,
+        steps: p.steps.map((s) => ({
+          path: s.node.path,
+          name: s.node.name,
+          kind: s.edge?.kind,
+          evidence: s.evidence.map((e) => ({
+            path: e.path,
+            startLine: e.startLine,
+            endLine: e.endLine,
+          })),
+        })),
+      })),
     });
   });
 }

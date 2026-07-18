@@ -1,6 +1,8 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { createCodeGraphQuery } from '../graph/query';
+import { formatRelationshipPathLabel } from '../graph/paths/rank';
+import { traverseRelationshipPaths } from '../graph/paths/traverse';
 import { createInstructionResolver } from '../instructions/resolver';
 import type { RagStore } from '../rag/store';
 import { createRepositorySearchEngine } from '../retrieve/search';
@@ -201,24 +203,71 @@ export async function assembleTaskContextPack(
   let totalCallers = 0;
   let totalTests = 0;
 
+  // Prefer explainable multi-hop relationship paths over flat edge lists
+  const pathSeeds: Array<{ symbolId?: string; path?: string }> = [];
+  for (const h of symbolHits.slice(0, 6)) {
+    if (h.symbolId) pathSeeds.push({ symbolId: h.symbolId });
+  }
+  for (const f of selectedFiles.slice(0, 4)) {
+    pathSeeds.push({ path: f });
+  }
+  if (pathSeeds.length === 0 && capped[0]) {
+    pathSeeds.push({ path: capped[0].path });
+  }
+  const seenPathLabels = new Set<string>();
+  for (const seed of pathSeeds.slice(0, 4)) {
+    const relPaths = traverseRelationshipPaths({
+      store,
+      start: seed,
+      budget: {
+        maxDepth: Math.min(3, budgets.maxDependencyDepth || 3),
+        maxNodes: 40,
+        maxPaths: 6,
+        maxFanOutPerNode: 8,
+        direction: 'both',
+        weightProfile: 'default',
+      },
+    });
+    for (const rp of relPaths) {
+      if (rp.steps.length < 2) continue;
+      const label = formatRelationshipPathLabel(rp);
+      if (seenPathLabels.has(label)) continue;
+      seenPathLabels.add(label);
+      depBullets.push(
+        `${label} _(score ${rp.score.toFixed(0)}, ${rp.deterministic ? 'deterministic' : 'heuristic'})_`
+      );
+      for (const step of rp.steps) {
+        const ev = step.evidence[0];
+        pushSrc(
+          step.node.path,
+          ev?.startLine ?? step.edge?.startLine ?? 1,
+          ev?.endLine ?? step.edge?.endLine ?? ev?.startLine ?? 1,
+          step.edge?.kind ?? 'path'
+        );
+      }
+    }
+  }
+
   for (const h of symbolHits.slice(0, 12)) {
     if (!h.symbolId) continue;
     const def = graph.getSymbolDefinition(h.symbolId);
     if (!def) continue;
 
-    const deps = graph.getDependencies(h.symbolId, [
-      'import',
-      'call',
-      'typeUsage',
-      'extends',
-      'implements',
-      'fileDependency',
-    ]);
-    for (const e of deps.slice(0, budgets.maxDependencyDepth * 4)) {
-      depBullets.push(
-        `\`${def.name}\` → \`${e.specifier || e.toSymbol || e.toPath}\` in \`${e.toPath}\` (${e.kind})`
-      );
-      pushSrc(e.toPath, e.startLine ?? 1, e.endLine ?? e.startLine ?? 1, `dep:${e.kind}`);
+    if (depBullets.length < 4) {
+      const deps = graph.getDependencies(h.symbolId, [
+        'import',
+        'call',
+        'typeUsage',
+        'extends',
+        'implements',
+        'fileDependency',
+      ]);
+      for (const e of deps.slice(0, budgets.maxDependencyDepth * 4)) {
+        depBullets.push(
+          `\`${def.name}\` → \`${e.specifier || e.toSymbol || e.toPath}\` in \`${e.toPath}\` (${e.kind})`
+        );
+        pushSrc(e.toPath, e.startLine ?? 1, e.endLine ?? e.startLine ?? 1, `dep:${e.kind}`);
+      }
     }
 
     const callers = graph.getCallers(h.symbolId);

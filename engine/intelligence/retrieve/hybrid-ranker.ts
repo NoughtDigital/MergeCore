@@ -100,6 +100,35 @@ function buildImportDistanceMap(
   return dist;
 }
 
+/** Inverse-degree damping so high-connectivity hubs do not swamp candidates. */
+function hubDamp(degree: number): number {
+  return 1 / Math.log2(2 + Math.max(0, degree));
+}
+
+function symbolCallDegree(store: RagStore, symbolId: string): number {
+  let n = 0;
+  for (const e of store.edgesForSymbol(symbolId)) {
+    if (e.kind === 'call' || e.kind === 'import' || e.kind === 'require') {
+      n++;
+    }
+  }
+  return n;
+}
+
+function pathImportDegree(store: RagStore, filePath: string): number {
+  const p = normalise(filePath);
+  let n = 0;
+  for (const e of store.edgesFrom(p)) {
+    if (e.kind === 'import' || e.kind === 'require' || e.kind === 'export') n++;
+  }
+  for (const e of store.edgesTo(p)) {
+    if (e.kind === 'import' || e.kind === 'require' || e.kind === 'export') n++;
+  }
+  return n;
+}
+
+const MAX_CALL_FANOUT_PER_SEED = 12;
+
 function recencyScore(mtimeMs: number | undefined, newest: number, oldest: number): number {
   if (mtimeMs === undefined || newest <= oldest) {
     return 0;
@@ -402,6 +431,7 @@ export async function hybridSearchRepositoryContext(
   for (const [p, d] of importDist) {
     if (d === 0) continue;
     const score = Math.max(5, 35 - (d - 1) * 12);
+    const damp = hubDamp(pathImportDegree(store, p));
     upsert({
       id: `dep:${p}`,
       resultType: 'dependency',
@@ -410,11 +440,14 @@ export async function hybridSearchRepositoryContext(
       endLine: 1,
       sourceType: 'dependency',
       breakdown: {
-        importDistance: score,
+        importDistance: Math.max(1, Math.round(score * damp)),
         path: pathBasenameScore(q, p) || undefined,
         generatedPenalty: generatedPenalty({ path: p }) || undefined,
       },
-      reasonParts: [`dependency distance ${d} from seed files`],
+      reasonParts: [
+        `dependency distance ${d} from seed files`,
+        damp < 0.85 ? 'hub-damped' : '',
+      ].filter(Boolean),
       analysis: 'deterministic',
       charEstimate: 200,
     });
@@ -430,7 +463,14 @@ export async function hybridSearchRepositoryContext(
     }
   }
   for (const sym of seedSymbols.slice(0, 12)) {
-    for (const edge of graph.getCallers(sym.id)) {
+    const seedDegree = symbolCallDegree(store, sym.id);
+    const callers = graph.getCallers(sym.id).slice(0, MAX_CALL_FANOUT_PER_SEED);
+    for (const edge of callers) {
+      const targetDegree = edge.fromSymbol
+        ? symbolCallDegree(store, edge.fromSymbol)
+        : pathImportDegree(store, edge.fromPath);
+      const damp = hubDamp(Math.max(seedDegree, targetDegree));
+      const base = edge.confidence === 'certain' ? 40 : 22;
       upsert({
         id: `call:${edge.id}`,
         resultType: 'symbol',
@@ -440,9 +480,12 @@ export async function hybridSearchRepositoryContext(
         endLine: edge.endLine ?? edge.startLine ?? 1,
         sourceType: 'dependency',
         breakdown: {
-          callGraph: edge.confidence === 'certain' ? 40 : 22,
+          callGraph: Math.max(1, Math.round(base * damp)),
         },
-        reasonParts: [`caller of ${sym.name} at ${edge.fromPath}`],
+        reasonParts: [
+          `caller of ${sym.name} at ${edge.fromPath}`,
+          damp < 0.85 ? 'hub-damped' : '',
+        ].filter(Boolean),
         analysis:
           edge.confidence === 'certain' ||
           isDeterministicEdgeResolution(edge.resolutionMethod)
@@ -451,7 +494,13 @@ export async function hybridSearchRepositoryContext(
         charEstimate: 160,
       });
     }
-    for (const edge of graph.getCallees(sym.id)) {
+    const callees = graph.getCallees(sym.id).slice(0, MAX_CALL_FANOUT_PER_SEED);
+    for (const edge of callees) {
+      const targetDegree = edge.toSymbol
+        ? symbolCallDegree(store, edge.toSymbol)
+        : pathImportDegree(store, edge.toPath);
+      const damp = hubDamp(Math.max(seedDegree, targetDegree));
+      const base = edge.confidence === 'certain' ? 35 : 18;
       upsert({
         id: `callee:${edge.id}`,
         resultType: 'symbol',
@@ -461,9 +510,12 @@ export async function hybridSearchRepositoryContext(
         endLine: edge.endLine ?? edge.startLine ?? 1,
         sourceType: 'dependency',
         breakdown: {
-          callGraph: edge.confidence === 'certain' ? 35 : 18,
+          callGraph: Math.max(1, Math.round(base * damp)),
         },
-        reasonParts: [`callee of ${sym.name}`],
+        reasonParts: [
+          `callee of ${sym.name}`,
+          damp < 0.85 ? 'hub-damped' : '',
+        ].filter(Boolean),
         analysis:
           edge.confidence === 'certain' ||
           isDeterministicEdgeResolution(edge.resolutionMethod)

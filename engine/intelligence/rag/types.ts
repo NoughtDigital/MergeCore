@@ -92,7 +92,12 @@ export interface RagDependencyEdge {
     | 'implements'
     | 'typeUsage'
     | 'fileDependency'
-    | 'likelyTestCoverage';
+    | 'likelyTestCoverage'
+    | 'route'
+    | 'job'
+    | 'event'
+    | 'integration'
+    | 'documentation';
   readonly specifier: string;
   readonly fromSymbol?: string;
   readonly toSymbol?: string;

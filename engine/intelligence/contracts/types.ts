@@ -210,7 +210,12 @@ export type DependencyEdgeKind =
   | 'implements'
   | 'typeUsage'
   | 'fileDependency'
-  | 'likelyTestCoverage';
+  | 'likelyTestCoverage'
+  | 'route'
+  | 'job'
+  | 'event'
+  | 'integration'
+  | 'documentation';
 
 /** Import / require / dependency / code-graph relationship. */
 export interface DependencyEdge {
@@ -365,6 +370,97 @@ export interface ContextPack {
   readonly instructions: readonly InstructionDocument[];
   readonly references: readonly SourceReference[];
   readonly incomplete: boolean;
+  /** Ranked relationship paths explaining how evidence connects (optional). */
+  readonly relationshipPaths?: readonly RelationshipPath[];
+}
+
+/** A node on an explainable relationship path. */
+export interface RelationshipPathNode {
+  readonly symbolId?: string;
+  readonly name?: string;
+  readonly path: string;
+  readonly kind?: string;
+}
+
+/** One hop on a relationship path, with source evidence. */
+export interface RelationshipPathStep {
+  readonly node: RelationshipPathNode;
+  /** Edge used to enter this node from the previous step (absent for the seed). */
+  readonly edge?: DependencyEdge;
+  readonly evidence: readonly SourceReference[];
+}
+
+/** A ranked, bounded path through the repository graph. */
+export interface RelationshipPath {
+  readonly id: string;
+  readonly steps: readonly RelationshipPathStep[];
+  readonly score: number;
+  readonly reasons: readonly string[];
+  readonly confidence: EdgeConfidence;
+  readonly deterministic: boolean;
+  readonly cycleClosed?: boolean;
+}
+
+export type TraverseDirection = 'outgoing' | 'incoming' | 'both';
+
+export type TraverseWeightProfile = 'impact' | 'entry' | 'tests' | 'default';
+
+export interface TraverseStopWhen {
+  readonly hitEntryPoint?: boolean;
+  readonly hitTest?: boolean;
+  readonly hitIntegration?: boolean;
+  readonly hitInstruction?: boolean;
+}
+
+/** Budgets and filters for bounded relationship traversal. */
+export interface TraverseBudget {
+  readonly maxDepth?: number;
+  readonly maxNodes?: number;
+  readonly maxPaths?: number;
+  readonly maxFanOutPerNode?: number;
+  readonly hubDegreeTruncate?: number;
+  readonly kinds?: readonly DependencyEdgeKind[];
+  readonly direction?: TraverseDirection;
+  readonly minConfidence?: EdgeConfidence;
+  readonly stopWhen?: TraverseStopWhen;
+  readonly weightProfile?: TraverseWeightProfile;
+}
+
+export interface ChangeImpactTarget {
+  readonly symbolId?: string;
+  readonly path?: string;
+}
+
+export interface ChangeImpactNode {
+  readonly symbolId?: string;
+  readonly name?: string;
+  readonly path: string;
+  readonly reason: string;
+  readonly confidence: EdgeConfidence;
+}
+
+/** Likely impact of changing a symbol or file — not a guarantee. */
+export interface ChangeImpactReport {
+  readonly target: ChangeImpactTarget;
+  readonly workspaceRoot: string;
+  readonly directlyAffected: readonly ChangeImpactNode[];
+  readonly likelyDownstream: readonly RelationshipPath[];
+  readonly relatedTests: readonly ChangeImpactNode[];
+  readonly publicInterfaces: readonly ChangeImpactNode[];
+  readonly externalIntegrations: readonly ChangeImpactNode[];
+  readonly applicableRules: readonly ApplicableInstructionRef[];
+  readonly uncertainDynamic: readonly ChangeImpactNode[];
+  readonly notes: readonly string[];
+}
+
+/** Lightweight instruction pointer for impact reports (avoids circular imports). */
+export interface ApplicableInstructionRef {
+  readonly id: string;
+  readonly text: string;
+  readonly sourceFile: string;
+  readonly startLine: number;
+  readonly endLine: number;
+  readonly binding?: string;
 }
 
 /** Progress phases emitted during indexing. */

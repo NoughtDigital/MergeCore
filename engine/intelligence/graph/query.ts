@@ -1,11 +1,17 @@
 import type {
   DependencyEdge,
   DependencyEdgeKind,
+  RelationshipPath,
   SymbolRecord,
+  TraverseBudget,
 } from '../contracts';
 import type { RagStore } from '../rag/store';
 import type { TsJsCodeGraphService } from './ts/service';
 import { normaliseRel } from './ts/paths';
+import {
+  traverseRelationshipPaths,
+  type TraverseStart,
+} from './paths/traverse';
 
 export interface SymbolPosition {
   readonly line: number;
@@ -52,7 +58,12 @@ export interface CodeGraphQuery {
     kinds?: readonly DependencyEdgeKind[]
   ): readonly DependencyEdge[];
   getRelatedTests(symbolId: string): readonly RelatedTestResult[];
+  /** @deprecated Prefer traverseRelationshipPaths for explainable paths. */
   traverseGraph(start: string, options?: TraverseOptions): readonly TraverseNode[];
+  traverseRelationshipPaths(
+    start: TraverseStart,
+    budget?: TraverseBudget
+  ): readonly RelationshipPath[];
 }
 
 function ragToSymbol(sym: {
@@ -299,6 +310,14 @@ export function createCodeGraphQuery(
         }
       }
       return out;
+    },
+
+    traverseRelationshipPaths(start, budget) {
+      return traverseRelationshipPaths({
+        store,
+        start,
+        budget,
+      });
     },
   };
 }
