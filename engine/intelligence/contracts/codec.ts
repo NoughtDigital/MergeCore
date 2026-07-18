@@ -201,6 +201,52 @@ export function parseSymbolRecord(json: string): SymbolRecord {
   if (containerName !== undefined) {
     (result as { containerName?: string }).containerName = containerName;
   }
+  const returnTypeText = optionalString(raw, 'returnTypeText');
+  const jsdocSummary = optionalString(raw, 'jsdocSummary');
+  const signatureText = optionalString(raw, 'signatureText');
+  const overloadIndex = optionalNumber(raw, 'overloadIndex');
+  if (returnTypeText !== undefined) {
+    (result as { returnTypeText?: string }).returnTypeText = returnTypeText;
+  }
+  if (jsdocSummary !== undefined) {
+    (result as { jsdocSummary?: string }).jsdocSummary = jsdocSummary;
+  }
+  if (signatureText !== undefined) {
+    (result as { signatureText?: string }).signatureText = signatureText;
+  }
+  if (overloadIndex !== undefined) {
+    (result as { overloadIndex?: number }).overloadIndex = overloadIndex;
+  }
+  const parameters = raw.parameters;
+  if (parameters !== undefined) {
+    if (!Array.isArray(parameters)) {
+      throw new Error('SymbolRecord.parameters must be an array when present');
+    }
+    (result as { parameters?: SymbolRecord['parameters'] }).parameters = parameters.map((p) => {
+      if (!isObject(p)) {
+        throw new Error('SymbolParameter must be an object');
+      }
+      const param: {
+        name: string;
+        typeText?: string;
+        optional?: boolean;
+        rest?: boolean;
+      } = { name: requireString(p, 'name') };
+      const typeText = optionalString(p, 'typeText');
+      const optional = optionalBoolean(p, 'optional');
+      const rest = optionalBoolean(p, 'rest');
+      if (typeText !== undefined) {
+        param.typeText = typeText;
+      }
+      if (optional !== undefined) {
+        param.optional = optional;
+      }
+      if (rest !== undefined) {
+        param.rest = rest;
+      }
+      return param;
+    });
+  }
   return result;
 }
 
@@ -208,25 +254,86 @@ export function serializeDependencyEdge(value: DependencyEdge): string {
   return JSON.stringify(value);
 }
 
+const EDGE_KINDS = new Set([
+  'import',
+  'require',
+  'export',
+  'reference',
+  'call',
+  'extends',
+  'implements',
+  'typeUsage',
+  'fileDependency',
+  'likelyTestCoverage',
+]);
+
+const EDGE_CONFIDENCE = new Set(['certain', 'high', 'medium', 'low', 'heuristic']);
+
+const EDGE_RESOLUTION = new Set([
+  'typescript-checker',
+  'typescript-ast',
+  'path-alias',
+  'naming-heuristic',
+  'import-graph',
+  'unresolved',
+  'heuristic',
+]);
+
 export function parseDependencyEdge(json: string): DependencyEdge {
   const raw = JSON.parse(json) as unknown;
   if (!isObject(raw)) {
     throw new Error('DependencyEdge must be an object');
   }
   const kind = requireString(raw, 'kind');
-  if (kind !== 'import' && kind !== 'require' && kind !== 'export' && kind !== 'reference') {
+  if (!EDGE_KINDS.has(kind)) {
     throw new Error(`Invalid DependencyEdge.kind: ${kind}`);
   }
-  return {
+  const result: DependencyEdge = {
     id: requireString(raw, 'id'),
     fromPath: requireString(raw, 'fromPath'),
     toPath: requireString(raw, 'toPath'),
-    kind,
+    kind: kind as DependencyEdge['kind'],
     specifier: requireString(raw, 'specifier'),
     fromSymbol: optionalString(raw, 'fromSymbol'),
     toSymbol: optionalString(raw, 'toSymbol'),
     startLine: optionalNumber(raw, 'startLine'),
   };
+  const startColumn = optionalNumber(raw, 'startColumn');
+  const endLine = optionalNumber(raw, 'endLine');
+  const endColumn = optionalNumber(raw, 'endColumn');
+  if (startColumn !== undefined) {
+    (result as { startColumn?: number }).startColumn = startColumn;
+  }
+  if (endLine !== undefined) {
+    (result as { endLine?: number }).endLine = endLine;
+  }
+  if (endColumn !== undefined) {
+    (result as { endColumn?: number }).endColumn = endColumn;
+  }
+  const confidence = optionalString(raw, 'confidence');
+  if (confidence !== undefined) {
+    if (!EDGE_CONFIDENCE.has(confidence)) {
+      throw new Error(`Invalid DependencyEdge.confidence: ${confidence}`);
+    }
+    (result as { confidence?: DependencyEdge['confidence'] }).confidence =
+      confidence as DependencyEdge['confidence'];
+  }
+  const resolutionMethod = optionalString(raw, 'resolutionMethod');
+  if (resolutionMethod !== undefined) {
+    if (!EDGE_RESOLUTION.has(resolutionMethod)) {
+      throw new Error(`Invalid DependencyEdge.resolutionMethod: ${resolutionMethod}`);
+    }
+    (result as { resolutionMethod?: DependencyEdge['resolutionMethod'] }).resolutionMethod =
+      resolutionMethod as DependencyEdge['resolutionMethod'];
+  }
+  const evidence = raw.evidence;
+  if (evidence !== undefined) {
+    if (!Array.isArray(evidence) || !evidence.every((e) => typeof e === 'string')) {
+      throw new Error('DependencyEdge.evidence must be string[] when present');
+    }
+    (result as { evidence?: string[] }).evidence = evidence as string[];
+  }
+  return result;
 }
 
 export function serializeDocumentChunk(value: DocumentChunk): string {

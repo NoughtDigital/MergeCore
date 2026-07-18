@@ -116,7 +116,7 @@ export function extractJsTsSymbols(
       out.push({
         id: `${language}:${rel}:${name}:${i + 1}`,
         name,
-        kind: 'type',
+        kind: 'typeAlias',
         location: { path: rel, startLine: i + 1, endLine: i + 1 },
         exported,
         language,
@@ -198,6 +198,8 @@ export function extractJsTsDependencies(filePath: string, content: string): Depe
         kind,
         specifier,
         startLine: i + 1,
+        confidence: 'heuristic',
+        resolutionMethod: 'heuristic',
       });
       break;
     }

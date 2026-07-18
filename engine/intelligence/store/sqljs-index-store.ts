@@ -25,6 +25,17 @@ function toDocumentChunk(chunk: RagChunk): DocumentChunk {
 }
 
 function toSymbolRecord(sym: RagSymbolRecord): SymbolRecord {
+  let parameters: SymbolRecord['parameters'];
+  if (sym.parametersJson) {
+    try {
+      const parsed = JSON.parse(sym.parametersJson) as unknown;
+      if (Array.isArray(parsed)) {
+        parameters = parsed as SymbolRecord['parameters'];
+      }
+    } catch {
+      parameters = undefined;
+    }
+  }
   return {
     id: sym.id,
     name: sym.name,
@@ -33,10 +44,17 @@ function toSymbolRecord(sym: RagSymbolRecord): SymbolRecord {
       path: sym.path,
       startLine: sym.startLine,
       endLine: sym.endLine,
+      startColumn: sym.startColumn,
+      endColumn: sym.endColumn,
     },
     exported: sym.exported,
     containerName: sym.containerName,
     language: sym.language,
+    parameters,
+    returnTypeText: sym.returnTypeText,
+    jsdocSummary: sym.jsdocSummary,
+    signatureText: sym.signatureText,
+    overloadIndex: sym.overloadIndex,
   };
 }
 
@@ -66,9 +84,16 @@ function fromSymbol(sym: SymbolRecord): RagSymbolRecord {
     path: sym.location.path,
     startLine: sym.location.startLine,
     endLine: sym.location.endLine,
+    startColumn: sym.location.startColumn,
+    endColumn: sym.location.endColumn,
     language: sym.language,
     exported: sym.exported,
     containerName: sym.containerName,
+    parametersJson: sym.parameters ? JSON.stringify(sym.parameters) : undefined,
+    returnTypeText: sym.returnTypeText,
+    jsdocSummary: sym.jsdocSummary,
+    signatureText: sym.signatureText,
+    overloadIndex: sym.overloadIndex,
   };
 }
 

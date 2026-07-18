@@ -2,11 +2,19 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import { defaultLanguageAdapters, resolveLanguageAdapter } from '../adapters';
 import type {
+  DependencyEdge,
   ExclusionRecord,
   IndexPhase,
   IndexStatus,
   LanguageAdapter,
+  SymbolRecord,
 } from '../contracts';
+import {
+  createTsJsCodeGraphService,
+  GraphReconcileScheduler,
+  isTsJsPath,
+  type TsJsCodeGraphService,
+} from '../graph';
 import { sha256 } from '../rag/hash';
 import { RagStore, STORE_SCHEMA_VERSION } from '../rag/store';
 import type { RagDependencyEdge, RagSymbolRecord } from '../rag/types';
@@ -18,6 +26,7 @@ import {
 } from './workspace-scanner';
 
 const BATCH_SIZE = 25;
+const RECONCILE_DELAY_MS = 400;
 
 export type FileChange =
   | { readonly type: 'create' | 'update'; readonly path: string }
@@ -32,6 +41,8 @@ export interface CreateRepositoryFileIndexerOptions {
   readonly debugExclusions?: boolean;
   readonly languageAdapters?: readonly LanguageAdapter[];
   readonly onStatus?: (status: IndexStatus) => void;
+  /** When false, skip compiler graph and use heuristic adapters only. Default true. */
+  readonly useCompilerGraph?: boolean;
 }
 
 export interface RepositoryFileIndexer {
@@ -43,6 +54,7 @@ export interface RepositoryFileIndexer {
   rebuildIndex(signal?: AbortSignal): Promise<IndexStatus>;
   dispose(): Promise<void>;
   getRagStore(): RagStore;
+  getCodeGraphService(): TsJsCodeGraphService | undefined;
 }
 
 function yieldEventLoop(): Promise<void> {
@@ -55,6 +67,27 @@ function throwIfAborted(signal?: AbortSignal): void {
     err.name = 'AbortError';
     throw err;
   }
+}
+
+function toRagSymbol(s: SymbolRecord): RagSymbolRecord {
+  return {
+    id: s.id,
+    name: s.name,
+    kind: s.kind,
+    path: s.location.path,
+    startLine: s.location.startLine,
+    endLine: s.location.endLine,
+    startColumn: s.location.startColumn,
+    endColumn: s.location.endColumn,
+    language: s.language,
+    exported: s.exported,
+    containerName: s.containerName,
+    parametersJson: s.parameters ? JSON.stringify(s.parameters) : undefined,
+    returnTypeText: s.returnTypeText,
+    jsdocSummary: s.jsdocSummary,
+    signatureText: s.signatureText,
+    overloadIndex: s.overloadIndex,
+  };
 }
 
 /**
@@ -88,6 +121,9 @@ class RepositoryFileIndexerImpl implements RepositoryFileIndexer {
   private readonly adapters: readonly LanguageAdapter[];
   private readonly maxFileBytes: number;
   private readonly debugExclusions: boolean;
+  private graph: TsJsCodeGraphService | undefined;
+  private readonly reconcile: GraphReconcileScheduler | undefined;
+  private graphBootstrapped = false;
 
   constructor(
     readonly workspaceRoot: string,
@@ -98,6 +134,16 @@ class RepositoryFileIndexerImpl implements RepositoryFileIndexer {
     this.adapters = options.languageAdapters ?? defaultLanguageAdapters();
     this.maxFileBytes = options.maxFileBytes ?? DEFAULT_MAX_FILE_BYTES;
     this.debugExclusions = options.debugExclusions === true;
+    if (options.useCompilerGraph !== false) {
+      this.graph = createTsJsCodeGraphService(workspaceRoot);
+      this.reconcile = new GraphReconcileScheduler(RECONCILE_DELAY_MS, (paths) =>
+        this.reconcileDependents(paths)
+      );
+    }
+  }
+
+  getCodeGraphService(): TsJsCodeGraphService | undefined {
+    return this.graph;
   }
 
   async getIndexStatus(): Promise<IndexStatus> {
@@ -167,22 +213,53 @@ class RepositoryFileIndexerImpl implements RepositoryFileIndexer {
 
     try {
       const toIndex: string[] = [];
+      const changedTsJs: string[] = [];
       for (const change of changes) {
         throwIfAborted(signal);
         if (change.type === 'delete') {
-          this.store.removeFile(change.path.replace(/\\/g, '/'));
+          const p = change.path.replace(/\\/g, '/');
+          this.graph?.removeFile(p);
+          this.store.removeFile(p);
           this.filesIndexed++;
+          if (isTsJsPath(p)) {
+            changedTsJs.push(p);
+          }
           continue;
         }
         if (change.type === 'rename') {
-          this.store.removeFile(change.fromPath.replace(/\\/g, '/'));
-          toIndex.push(change.toPath.replace(/\\/g, '/'));
+          const from = change.fromPath.replace(/\\/g, '/');
+          const to = change.toPath.replace(/\\/g, '/');
+          this.graph?.removeFile(from);
+          this.store.removeFile(from);
+          toIndex.push(to);
+          if (isTsJsPath(from) || isTsJsPath(to)) {
+            changedTsJs.push(from, to);
+          }
           continue;
         }
-        toIndex.push(change.path.replace(/\\/g, '/'));
+        const p = change.path.replace(/\\/g, '/');
+        toIndex.push(p);
+        if (isTsJsPath(p)) {
+          changedTsJs.push(p);
+        }
       }
 
       await this.indexPathList(toIndex, signal, /* prune */ false);
+
+      if (this.reconcile && changedTsJs.length > 0) {
+        const dependents = new Set<string>();
+        for (const p of changedTsJs) {
+          for (const imp of this.store.importersOf(p)) {
+            if (!toIndex.includes(imp)) {
+              dependents.add(imp);
+            }
+          }
+        }
+        if (dependents.size > 0) {
+          this.reconcile.schedule([...dependents]);
+        }
+      }
+
       this.phase = 'done';
       return this.buildStatus();
     } catch (err) {
@@ -204,6 +281,11 @@ class RepositoryFileIndexerImpl implements RepositoryFileIndexer {
     this.ensureAlive();
     this.store.wipe();
     await this.store.persist();
+    this.graph?.dispose();
+    this.graphBootstrapped = false;
+    if (this.options.useCompilerGraph !== false) {
+      this.graph = createTsJsCodeGraphService(this.workspaceRoot);
+    }
     return this.startInitialIndex(signal);
   }
 
@@ -212,10 +294,11 @@ class RepositoryFileIndexerImpl implements RepositoryFileIndexer {
       return;
     }
     this.disposed = true;
+    this.reconcile?.dispose();
+    this.graph?.dispose();
     await this.store.close();
   }
 
-  /** Shared store for hosts that also need retrieval. */
   getRagStore(): RagStore {
     this.ensureAlive();
     return this.store;
@@ -255,11 +338,35 @@ class RepositoryFileIndexerImpl implements RepositoryFileIndexer {
     };
   }
 
+  private ensureGraphBootstrapped(): void {
+    if (!this.graph || this.graphBootstrapped) {
+      return;
+    }
+    this.graph.bootstrap();
+    this.graphBootstrapped = true;
+  }
+
+  private async reconcileDependents(paths: readonly string[]): Promise<void> {
+    if (this.disposed || !this.graph) {
+      return;
+    }
+    const keep = new Set<string>();
+    for (const rel of paths) {
+      try {
+        await this.indexOne(rel, keep, /* force */ true);
+      } catch {
+        // ignore per-file reconcile errors
+      }
+    }
+    await this.store.persist();
+  }
+
   private async indexPathList(
     paths: readonly string[],
     signal: AbortSignal | undefined,
     prune: boolean
   ): Promise<void> {
+    this.ensureGraphBootstrapped();
     const keep = new Set<string>();
     for (let i = 0; i < paths.length; i++) {
       throwIfAborted(signal);
@@ -281,7 +388,11 @@ class RepositoryFileIndexerImpl implements RepositoryFileIndexer {
     await this.store.persist();
   }
 
-  private async indexOne(relPath: string, keep: Set<string>): Promise<void> {
+  private async indexOne(
+    relPath: string,
+    keep: Set<string>,
+    force = false
+  ): Promise<void> {
     const evalResult = await evaluatePathForIndex(this.workspaceRoot, relPath, {
       debugExclusions: this.debugExclusions,
       maxFileBytes: this.maxFileBytes,
@@ -291,8 +402,8 @@ class RepositoryFileIndexerImpl implements RepositoryFileIndexer {
       if (evalResult.exclusion) {
         this.exclusions.push(evalResult.exclusion);
       }
-      // If previously indexed but now ignored, remove
       if (this.store.getFile(relPath)) {
+        this.graph?.removeFile(relPath);
         this.store.removeFile(relPath);
       }
       return;
@@ -305,6 +416,7 @@ class RepositoryFileIndexerImpl implements RepositoryFileIndexer {
       content = await fs.readFile(abs);
       mtimeMs = (await fs.stat(abs)).mtimeMs;
     } catch {
+      this.graph?.removeFile(relPath);
       this.store.removeFile(relPath);
       this.filesSkipped++;
       return;
@@ -335,16 +447,24 @@ class RepositoryFileIndexerImpl implements RepositoryFileIndexer {
     const existing = this.store.getFile(relPath);
     keep.add(relPath);
 
-    if (existing && existing.hash === hash) {
-      // Content unchanged — do not reparse (mtime alone is not authority).
+    if (!force && existing && existing.hash === hash) {
       this.filesSkipped++;
       return;
     }
 
     const adapter = resolveLanguageAdapter(relPath, this.adapters);
     const docChunks = adapter.chunk(relPath, text);
-    const symbols = adapter.extractSymbols(relPath, text);
-    const edges = adapter.extractDependencies(relPath, text);
+
+    let symbols: readonly SymbolRecord[];
+    let edges: readonly DependencyEdge[];
+    if (this.graph && isTsJsPath(relPath)) {
+      const extracted = this.graph.extractFile(relPath, text);
+      symbols = extracted.symbols;
+      edges = extracted.edges;
+    } else {
+      symbols = adapter.extractSymbols(relPath, text);
+      edges = adapter.extractDependencies(relPath, text);
+    }
 
     const ragChunks = docChunks.map((c) => ({
       id: c.id,
@@ -358,18 +478,7 @@ class RepositoryFileIndexerImpl implements RepositoryFileIndexer {
       fileHash: c.fileHash,
     }));
 
-    const ragSymbols: RagSymbolRecord[] = symbols.map((s) => ({
-      id: s.id,
-      name: s.name,
-      kind: s.kind,
-      path: s.location.path,
-      startLine: s.location.startLine,
-      endLine: s.location.endLine,
-      language: s.language,
-      exported: s.exported,
-      containerName: s.containerName,
-    }));
-
+    const ragSymbols: RagSymbolRecord[] = symbols.map(toRagSymbol);
     const ragEdges: RagDependencyEdge[] = edges.map((e) => ({ ...e }));
 
     this.store.replaceFileGraph(relPath, hash, mtimeMs, ragChunks, ragSymbols, ragEdges, {

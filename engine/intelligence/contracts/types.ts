@@ -74,7 +74,15 @@ export interface SymbolLocation {
   readonly endColumn?: number;
 }
 
-/** First-class symbol extracted by a language adapter. */
+/** Parameter on a function / method / constructor symbol. */
+export interface SymbolParameter {
+  readonly name: string;
+  readonly typeText?: string;
+  readonly optional?: boolean;
+  readonly rest?: boolean;
+}
+
+/** First-class symbol extracted by a language adapter or compiler graph. */
 export interface SymbolRecord {
   readonly id: string;
   readonly name: string;
@@ -83,18 +91,55 @@ export interface SymbolRecord {
   readonly exported?: boolean;
   readonly containerName?: string;
   readonly language: string;
+  readonly parameters?: readonly SymbolParameter[];
+  readonly returnTypeText?: string;
+  readonly jsdocSummary?: string;
+  readonly signatureText?: string;
+  readonly overloadIndex?: number;
 }
 
-/** Import / require / dependency relationship between files or symbols. */
+/** How a graph edge was resolved. */
+export type EdgeResolutionMethod =
+  | 'typescript-checker'
+  | 'typescript-ast'
+  | 'path-alias'
+  | 'naming-heuristic'
+  | 'import-graph'
+  | 'unresolved'
+  | 'heuristic';
+
+/** Confidence that a graph edge is correct. */
+export type EdgeConfidence = 'certain' | 'high' | 'medium' | 'low' | 'heuristic';
+
+/** Relationship kinds stored on dependency / code-graph edges. */
+export type DependencyEdgeKind =
+  | 'import'
+  | 'require'
+  | 'export'
+  | 'reference'
+  | 'call'
+  | 'extends'
+  | 'implements'
+  | 'typeUsage'
+  | 'fileDependency'
+  | 'likelyTestCoverage';
+
+/** Import / require / dependency / code-graph relationship. */
 export interface DependencyEdge {
   readonly id: string;
   readonly fromPath: string;
   readonly toPath: string;
-  readonly kind: 'import' | 'require' | 'export' | 'reference';
+  readonly kind: DependencyEdgeKind;
   readonly specifier: string;
   readonly fromSymbol?: string;
   readonly toSymbol?: string;
   readonly startLine?: number;
+  readonly startColumn?: number;
+  readonly endLine?: number;
+  readonly endColumn?: number;
+  readonly confidence?: EdgeConfidence;
+  readonly resolutionMethod?: EdgeResolutionMethod;
+  readonly evidence?: readonly string[];
 }
 
 /** Indexed text chunk used for lexical retrieval. */

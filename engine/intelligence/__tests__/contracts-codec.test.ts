@@ -58,7 +58,7 @@ describe('shared contract codec', () => {
       filesPending: 0,
       storeDir: '/tmp/repo/.mergecore/rag',
       hasSqlite: true,
-      schemaVersion: 3,
+      schemaVersion: 4,
       cancellable: true,
       updatedAt: 1,
       fingerprint: 'abc',

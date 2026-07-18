@@ -8,6 +8,7 @@ const require = createRequire(__filename);
 const fixtures = require('../../../packages/test-fixtures/index.js') as {
   typescriptMiniRoot: string;
   javascriptMiniRoot: string;
+  typescriptGraphRoot: string;
 };
 
 describe('package boundaries', () => {
@@ -81,7 +82,9 @@ describe('package boundaries', () => {
   it('exposes fixture roots for tests', () => {
     assert.ok(fs.existsSync(fixtures.typescriptMiniRoot));
     assert.ok(fs.existsSync(fixtures.javascriptMiniRoot));
+    assert.ok(fs.existsSync(fixtures.typescriptGraphRoot));
     assert.ok(fs.existsSync(path.join(fixtures.typescriptMiniRoot, 'src', 'index.ts')));
     assert.ok(fs.existsSync(path.join(fixtures.javascriptMiniRoot, 'src', 'index.js')));
+    assert.ok(fs.existsSync(path.join(fixtures.typescriptGraphRoot, 'src', 'core.ts')));
   });
 });

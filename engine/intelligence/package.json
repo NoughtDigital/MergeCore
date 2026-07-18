@@ -8,16 +8,16 @@
     "build": "tsc -p ./tsconfig.json",
     "prepare": "npm run build",
     "lint": "tsc --noEmit -p ./tsconfig.json",
-    "test": "npm run build && tsx --test __tests__/*.test.ts __tests__/indexer/*.test.ts __tests__/instructions/*.test.ts"
+    "test": "npm run build && tsx --test __tests__/*.test.ts __tests__/indexer/*.test.ts __tests__/instructions/*.test.ts __tests__/graph/*.test.ts"
   },
   "devDependencies": {
     "@types/node": "^20.19.43",
     "@types/sql.js": "^1.4.11",
-    "tsx": "^4.23.1",
-    "typescript": "^5.9.3"
+    "tsx": "^4.23.1"
   },
   "dependencies": {
     "ignore": "^7.0.6",
-    "sql.js": "^1.14.1"
+    "sql.js": "^1.14.1",
+    "typescript": "^5.9.3"
   }
 }

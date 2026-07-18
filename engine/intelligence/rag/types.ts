@@ -59,6 +59,13 @@ export interface RagSymbolRecord {
   readonly language: string;
   readonly exported?: boolean;
   readonly containerName?: string;
+  readonly startColumn?: number;
+  readonly endColumn?: number;
+  readonly parametersJson?: string;
+  readonly returnTypeText?: string;
+  readonly jsdocSummary?: string;
+  readonly signatureText?: string;
+  readonly overloadIndex?: number;
 }
 
 /** Stored dependency edge (mirrors contracts.DependencyEdge). */
@@ -66,18 +73,41 @@ export interface RagDependencyEdge {
   readonly id: string;
   readonly fromPath: string;
   readonly toPath: string;
-  readonly kind: 'import' | 'require' | 'export' | 'reference';
+  readonly kind:
+    | 'import'
+    | 'require'
+    | 'export'
+    | 'reference'
+    | 'call'
+    | 'extends'
+    | 'implements'
+    | 'typeUsage'
+    | 'fileDependency'
+    | 'likelyTestCoverage';
   readonly specifier: string;
   readonly fromSymbol?: string;
   readonly toSymbol?: string;
   readonly startLine?: number;
+  readonly startColumn?: number;
+  readonly endLine?: number;
+  readonly endColumn?: number;
+  readonly confidence?: 'certain' | 'high' | 'medium' | 'low' | 'heuristic';
+  readonly resolutionMethod?:
+    | 'typescript-checker'
+    | 'typescript-ast'
+    | 'path-alias'
+    | 'naming-heuristic'
+    | 'import-graph'
+    | 'unresolved'
+    | 'heuristic';
+  readonly evidence?: readonly string[];
 }
 
 /**
- * On-disk snapshot version. v1/v2 readable; new writes use version 3.
+ * On-disk snapshot version. v1–v3 readable; new writes use version 4.
  */
 export interface RagStoreSnapshot {
-  readonly version: 1 | 2 | 3;
+  readonly version: 1 | 2 | 3 | 4;
   readonly workspaceRoot: string;
   readonly workspaceId?: string;
   readonly updatedAt: number;

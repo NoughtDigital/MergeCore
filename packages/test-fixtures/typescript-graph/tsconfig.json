@@ -1,0 +1,20 @@
+{
+  "name": "typescript-graph",
+  "private": true,
+  "version": "0.0.0",
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "ESNext",
+    "moduleResolution": "node",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "jsx": "react-jsx",
+    "baseUrl": ".",
+    "paths": {
+      "@lib/*": ["packages/lib/src/*"]
+    },
+    "allowJs": true
+  },
+  "include": ["src/**/*", "packages/**/*", "tests/**/*"]
+}

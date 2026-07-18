@@ -136,9 +136,16 @@ export async function indexWorkspace(opts: IndexWorkspaceOptions): Promise<Index
       path: s.location.path,
       startLine: s.location.startLine,
       endLine: s.location.endLine,
+      startColumn: s.location.startColumn,
+      endColumn: s.location.endColumn,
       language: s.language,
       exported: s.exported,
       containerName: s.containerName,
+      parametersJson: s.parameters ? JSON.stringify(s.parameters) : undefined,
+      returnTypeText: s.returnTypeText,
+      jsdocSummary: s.jsdocSummary,
+      signatureText: s.signatureText,
+      overloadIndex: s.overloadIndex,
     }));
 
     const ragEdges: RagDependencyEdge[] = edges.map((e) => ({ ...e }));

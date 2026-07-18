@@ -15,7 +15,7 @@ import type {
 const STORE_DIR = '.mergecore/rag';
 const SQLITE_FILE = 'index.sqlite';
 const JSON_MIRROR = 'index.json';
-export const STORE_SCHEMA_VERSION = 3 as const;
+export const STORE_SCHEMA_VERSION = 4 as const;
 const STORE_VERSION = STORE_SCHEMA_VERSION;
 
 export function defaultRagStoreDir(workspaceRoot: string): string {
@@ -170,7 +170,14 @@ function schema(db: Database): void {
       end_line INTEGER NOT NULL,
       language TEXT NOT NULL,
       exported INTEGER,
-      container_name TEXT
+      container_name TEXT,
+      start_column INTEGER,
+      end_column INTEGER,
+      parameters_json TEXT,
+      return_type_text TEXT,
+      jsdoc_summary TEXT,
+      signature_text TEXT,
+      overload_index INTEGER
     );
     CREATE TABLE IF NOT EXISTS edges (
       id TEXT PRIMARY KEY,
@@ -180,7 +187,13 @@ function schema(db: Database): void {
       specifier TEXT NOT NULL,
       from_symbol TEXT,
       to_symbol TEXT,
-      start_line INTEGER
+      start_line INTEGER,
+      start_column INTEGER,
+      end_line INTEGER,
+      end_column INTEGER,
+      confidence TEXT,
+      resolution_method TEXT,
+      evidence_json TEXT
     );
     CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts4(
       id,
@@ -190,7 +203,7 @@ function schema(db: Database): void {
       text
     );
   `);
-  db.run(`INSERT OR REPLACE INTO meta(key, value) VALUES ('version', '3')`);
+  db.run(`INSERT OR REPLACE INTO meta(key, value) VALUES ('version', '4')`);
 }
 
 /**
@@ -242,6 +255,7 @@ export class RagStore {
       }
       schema(db);
       migrateFilesTable(db);
+      migrateGraphTables(db);
 
       const countRow = db.exec('SELECT COUNT(*) AS c FROM chunks');
       const count = Number(countRow[0]?.values[0]?.[0] ?? 0);
@@ -352,6 +366,10 @@ export class RagStore {
     );
   }
 
+  getSymbol(symbolId: string): RagSymbolRecord | undefined {
+    return (this.snapshot.symbols ?? {})[symbolId];
+  }
+
   edgesFrom(path: string): readonly RagDependencyEdge[] {
     const key = normalise(path);
     return this.allEdges().filter((e) => e.fromPath === key);
@@ -360,6 +378,30 @@ export class RagStore {
   edgesTo(path: string): readonly RagDependencyEdge[] {
     const key = normalise(path);
     return this.allEdges().filter((e) => e.toPath === key);
+  }
+
+  /** Files that import / depend on `relPath` (reverse file dependency). */
+  importersOf(relPath: string): readonly string[] {
+    const key = normalise(relPath);
+    const out = new Set<string>();
+    for (const e of this.allEdges()) {
+      if (
+        e.toPath === key &&
+        (e.kind === 'import' ||
+          e.kind === 'require' ||
+          e.kind === 'fileDependency' ||
+          e.kind === 'export')
+      ) {
+        out.add(e.fromPath);
+      }
+    }
+    return [...out];
+  }
+
+  edgesForSymbol(symbolId: string): readonly RagDependencyEdge[] {
+    return this.allEdges().filter(
+      (e) => e.fromSymbol === symbolId || e.toSymbol === symbolId
+    );
   }
 
   /**
@@ -437,24 +479,45 @@ export class RagStore {
     }
 
     const nextSymbols: Record<string, RagSymbolRecord> = { ...(this.snapshot.symbols ?? {}) };
+    const removedSymbolIds = new Set<string>();
     for (const [sid, sym] of Object.entries(nextSymbols)) {
       if (sym.path === key) {
+        removedSymbolIds.add(sid);
         delete nextSymbols[sid];
       }
     }
     for (const sym of symbols) {
       nextSymbols[sym.id] = { ...sym, path: normalise(sym.path) };
+      removedSymbolIds.delete(sym.id);
     }
 
-    const keptEdges = (this.snapshot.edges ?? []).filter((e) => e.fromPath !== key);
-    const nextEdges = [
-      ...keptEdges,
-      ...edges.map((e) => ({
+    const keptEdges = (this.snapshot.edges ?? []).filter((e) => {
+      if (e.fromPath === key) {
+        return false;
+      }
+      if (e.toSymbol && removedSymbolIds.has(e.toSymbol)) {
+        return false;
+      }
+      if (e.fromSymbol && removedSymbolIds.has(e.fromSymbol) && e.fromPath !== key) {
+        return false;
+      }
+      return true;
+    });
+    const seenIds = new Set(keptEdges.map((e) => e.id));
+    const appended: RagDependencyEdge[] = [];
+    for (const e of edges) {
+      const normalised = {
         ...e,
         fromPath: normalise(e.fromPath),
         toPath: normalise(e.toPath),
-      })),
-    ];
+      };
+      if (seenIds.has(normalised.id)) {
+        continue;
+      }
+      seenIds.add(normalised.id);
+      appended.push(normalised);
+    }
+    const nextEdges = [...keptEdges, ...appended];
 
     this.snapshot = {
       ...this.snapshot,
@@ -495,12 +558,25 @@ export class RagStore {
     const nextFiles = { ...this.snapshot.files };
     delete nextFiles[key];
     const nextSymbols: Record<string, RagSymbolRecord> = { ...(this.snapshot.symbols ?? {}) };
+    const removedSymbolIds = new Set<string>();
     for (const [sid, sym] of Object.entries(nextSymbols)) {
       if (sym.path === key) {
+        removedSymbolIds.add(sid);
         delete nextSymbols[sid];
       }
     }
-    const nextEdges = (this.snapshot.edges ?? []).filter((e) => e.fromPath !== key);
+    const nextEdges = (this.snapshot.edges ?? []).filter((e) => {
+      if (e.fromPath === key || e.toPath === key) {
+        return false;
+      }
+      if (e.toSymbol && removedSymbolIds.has(e.toSymbol)) {
+        return false;
+      }
+      if (e.fromSymbol && removedSymbolIds.has(e.fromSymbol)) {
+        return false;
+      }
+      return true;
+    });
     this.snapshot = {
       ...this.snapshot,
       version: STORE_VERSION,
@@ -635,6 +711,7 @@ export class RagStore {
         const db = new SQL.Database();
         schema(db);
         migrateFilesTable(db);
+      migrateGraphTables(db);
         syncDbFromSnapshot(db, payload);
         this.db = db;
         const data = db.export();
@@ -663,7 +740,10 @@ async function tryLoadJsonMirror(
     const raw = await fs.readFile(jsonPath ?? ragJsonMirrorPath(workspaceRoot), 'utf8');
     const parsed = JSON.parse(raw) as RagStoreSnapshot;
     if (
-      (parsed.version !== 1 && parsed.version !== 2 && parsed.version !== 3) ||
+      (parsed.version !== 1 &&
+        parsed.version !== 2 &&
+        parsed.version !== 3 &&
+        parsed.version !== 4) ||
       typeof parsed.chunks !== 'object'
     ) {
       return undefined;
@@ -708,6 +788,46 @@ function migrateFilesTable(db: Database): void {
   add('byte_length', 'byte_length INTEGER');
   add('indexed_at', 'indexed_at REAL');
   add('parse_status', 'parse_status TEXT');
+}
+
+function migrateGraphTables(db: Database): void {
+  const addCols = (table: string, columns: ReadonlyArray<[string, string]>): void => {
+    const cols = new Set<string>();
+    try {
+      const info = db.exec(`PRAGMA table_info(${table})`);
+      for (const row of info[0]?.values ?? []) {
+        cols.add(String(row[1]));
+      }
+    } catch {
+      return;
+    }
+    for (const [name, ddl] of columns) {
+      if (!cols.has(name)) {
+        try {
+          db.run(`ALTER TABLE ${table} ADD COLUMN ${ddl}`);
+        } catch {
+          // ignore
+        }
+      }
+    }
+  };
+  addCols('symbols', [
+    ['start_column', 'start_column INTEGER'],
+    ['end_column', 'end_column INTEGER'],
+    ['parameters_json', 'parameters_json TEXT'],
+    ['return_type_text', 'return_type_text TEXT'],
+    ['jsdoc_summary', 'jsdoc_summary TEXT'],
+    ['signature_text', 'signature_text TEXT'],
+    ['overload_index', 'overload_index INTEGER'],
+  ]);
+  addCols('edges', [
+    ['start_column', 'start_column INTEGER'],
+    ['end_line', 'end_line INTEGER'],
+    ['end_column', 'end_column INTEGER'],
+    ['confidence', 'confidence TEXT'],
+    ['resolution_method', 'resolution_method TEXT'],
+    ['evidence_json', 'evidence_json TEXT'],
+  ]);
 }
 
 function hydrateFromDb(workspaceRoot: string, db: Database): RagStoreSnapshot {
@@ -786,7 +906,9 @@ function hydrateFromDb(workspaceRoot: string, db: Database): RagStoreSnapshot {
 
   try {
     const symRows = db.exec(
-      'SELECT id, name, kind, path, start_line, end_line, language, exported, container_name FROM symbols'
+      `SELECT id, name, kind, path, start_line, end_line, language, exported, container_name,
+              start_column, end_column, parameters_json, return_type_text, jsdoc_summary,
+              signature_text, overload_index FROM symbols`
     );
     for (const row of symRows[0]?.values ?? []) {
       const id = String(row[0]);
@@ -800,17 +922,58 @@ function hydrateFromDb(workspaceRoot: string, db: Database): RagStoreSnapshot {
         language: String(row[6]),
         exported: row[7] == null ? undefined : Number(row[7]) === 1,
         containerName: row[8] != null ? String(row[8]) : undefined,
+        startColumn: row[9] != null ? Number(row[9]) : undefined,
+        endColumn: row[10] != null ? Number(row[10]) : undefined,
+        parametersJson: row[11] != null ? String(row[11]) : undefined,
+        returnTypeText: row[12] != null ? String(row[12]) : undefined,
+        jsdocSummary: row[13] != null ? String(row[13]) : undefined,
+        signatureText: row[14] != null ? String(row[14]) : undefined,
+        overloadIndex: row[15] != null ? Number(row[15]) : undefined,
       };
     }
   } catch {
-    // symbols table may be missing on legacy DBs — schema() creates it on open
+    // Fallback for legacy symbol table without v4 columns
+    try {
+      const symRows = db.exec(
+        'SELECT id, name, kind, path, start_line, end_line, language, exported, container_name FROM symbols'
+      );
+      for (const row of symRows[0]?.values ?? []) {
+        const id = String(row[0]);
+        symbols[id] = {
+          id,
+          name: String(row[1]),
+          kind: String(row[2]),
+          path: String(row[3]),
+          startLine: Number(row[4]),
+          endLine: Number(row[5]),
+          language: String(row[6]),
+          exported: row[7] == null ? undefined : Number(row[7]) === 1,
+          containerName: row[8] != null ? String(row[8]) : undefined,
+        };
+      }
+    } catch {
+      // symbols table may be missing on legacy DBs
+    }
   }
 
   try {
     const edgeRows = db.exec(
-      'SELECT id, from_path, to_path, kind, specifier, from_symbol, to_symbol, start_line FROM edges'
+      `SELECT id, from_path, to_path, kind, specifier, from_symbol, to_symbol, start_line,
+              start_column, end_line, end_column, confidence, resolution_method, evidence_json
+       FROM edges`
     );
     for (const row of edgeRows[0]?.values ?? []) {
+      let evidence: string[] | undefined;
+      if (row[13] != null) {
+        try {
+          const parsed = JSON.parse(String(row[13])) as unknown;
+          if (Array.isArray(parsed) && parsed.every((e) => typeof e === 'string')) {
+            evidence = parsed as string[];
+          }
+        } catch {
+          evidence = undefined;
+        }
+      }
       edges.push({
         id: String(row[0]),
         fromPath: String(row[1]),
@@ -820,10 +983,37 @@ function hydrateFromDb(workspaceRoot: string, db: Database): RagStoreSnapshot {
         fromSymbol: row[5] != null ? String(row[5]) : undefined,
         toSymbol: row[6] != null ? String(row[6]) : undefined,
         startLine: row[7] != null ? Number(row[7]) : undefined,
+        startColumn: row[8] != null ? Number(row[8]) : undefined,
+        endLine: row[9] != null ? Number(row[9]) : undefined,
+        endColumn: row[10] != null ? Number(row[10]) : undefined,
+        confidence: row[11] != null ? (String(row[11]) as RagDependencyEdge['confidence']) : undefined,
+        resolutionMethod:
+          row[12] != null
+            ? (String(row[12]) as RagDependencyEdge['resolutionMethod'])
+            : undefined,
+        evidence,
       });
     }
   } catch {
-    // edges table may be missing on legacy DBs
+    try {
+      const edgeRows = db.exec(
+        'SELECT id, from_path, to_path, kind, specifier, from_symbol, to_symbol, start_line FROM edges'
+      );
+      for (const row of edgeRows[0]?.values ?? []) {
+        edges.push({
+          id: String(row[0]),
+          fromPath: String(row[1]),
+          toPath: String(row[2]),
+          kind: String(row[3]) as RagDependencyEdge['kind'],
+          specifier: String(row[4]),
+          fromSymbol: row[5] != null ? String(row[5]) : undefined,
+          toSymbol: row[6] != null ? String(row[6]) : undefined,
+          startLine: row[7] != null ? Number(row[7]) : undefined,
+        });
+      }
+    } catch {
+      // edges table may be missing on legacy DBs
+    }
   }
 
   return {
@@ -877,7 +1067,14 @@ function syncDbFromSnapshot(db: Database, snapshot: RagStoreSnapshot): void {
       end_line INTEGER NOT NULL,
       language TEXT NOT NULL,
       exported INTEGER,
-      container_name TEXT
+      container_name TEXT,
+      start_column INTEGER,
+      end_column INTEGER,
+      parameters_json TEXT,
+      return_type_text TEXT,
+      jsdoc_summary TEXT,
+      signature_text TEXT,
+      overload_index INTEGER
     );
     CREATE TABLE IF NOT EXISTS edges (
       id TEXT PRIMARY KEY,
@@ -887,9 +1084,16 @@ function syncDbFromSnapshot(db: Database, snapshot: RagStoreSnapshot): void {
       specifier TEXT NOT NULL,
       from_symbol TEXT,
       to_symbol TEXT,
-      start_line INTEGER
+      start_line INTEGER,
+      start_column INTEGER,
+      end_line INTEGER,
+      end_column INTEGER,
+      confidence TEXT,
+      resolution_method TEXT,
+      evidence_json TEXT
     );
   `);
+  migrateGraphTables(db);
 
   for (const file of Object.values(snapshot.files)) {
     db.run(
@@ -944,8 +1148,9 @@ function syncDbFromSnapshot(db: Database, snapshot: RagStoreSnapshot): void {
 
   for (const sym of Object.values(snapshot.symbols ?? {})) {
     db.run(
-      `INSERT INTO symbols(id, name, kind, path, start_line, end_line, language, exported, container_name)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT OR REPLACE INTO symbols(id, name, kind, path, start_line, end_line, language, exported, container_name,
+        start_column, end_column, parameters_json, return_type_text, jsdoc_summary, signature_text, overload_index)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         sym.id,
         sym.name,
@@ -956,14 +1161,22 @@ function syncDbFromSnapshot(db: Database, snapshot: RagStoreSnapshot): void {
         sym.language,
         sym.exported === undefined ? null : sym.exported ? 1 : 0,
         sym.containerName ?? null,
+        sym.startColumn ?? null,
+        sym.endColumn ?? null,
+        sym.parametersJson ?? null,
+        sym.returnTypeText ?? null,
+        sym.jsdocSummary ?? null,
+        sym.signatureText ?? null,
+        sym.overloadIndex ?? null,
       ]
     );
   }
 
   for (const edge of snapshot.edges ?? []) {
     db.run(
-      `INSERT INTO edges(id, from_path, to_path, kind, specifier, from_symbol, to_symbol, start_line)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT OR REPLACE INTO edges(id, from_path, to_path, kind, specifier, from_symbol, to_symbol, start_line,
+        start_column, end_line, end_column, confidence, resolution_method, evidence_json)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         edge.id,
         edge.fromPath,
@@ -973,9 +1186,15 @@ function syncDbFromSnapshot(db: Database, snapshot: RagStoreSnapshot): void {
         edge.fromSymbol ?? null,
         edge.toSymbol ?? null,
         edge.startLine ?? null,
+        edge.startColumn ?? null,
+        edge.endLine ?? null,
+        edge.endColumn ?? null,
+        edge.confidence ?? null,
+        edge.resolutionMethod ?? null,
+        edge.evidence ? JSON.stringify(edge.evidence) : null,
       ]
     );
   }
 
-  db.run(`INSERT OR REPLACE INTO meta(key, value) VALUES ('version', '3')`);
+  db.run(`INSERT OR REPLACE INTO meta(key, value) VALUES ('version', '4')`);
 }
