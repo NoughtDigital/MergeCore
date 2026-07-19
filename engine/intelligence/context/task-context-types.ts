@@ -1,8 +1,9 @@
 import type { RetrievalBudgets } from '../retrieve/types';
+import type { ContextPackTemplate } from './templates/types';
 
 export type TaskContextDepth = 'shallow' | 'standard' | 'deep';
 
-export const TASK_CONTEXT_SCHEMA_VERSION = 1;
+export const TASK_CONTEXT_SCHEMA_VERSION = 2;
 
 export interface TaskContextSourceRef {
   readonly path: string;
@@ -31,6 +32,8 @@ export interface TaskContextMeta {
   readonly modelProvider: string;
   readonly dataLeftMachine: boolean;
   readonly incomplete: boolean;
+  readonly templateId?: string;
+  readonly templateName?: string;
 }
 
 export interface TaskContextPack {
@@ -52,6 +55,12 @@ export interface TaskContextInput {
   readonly graphService?: import('../graph/ts/service').TsJsCodeGraphService;
   /** When true, skip writing; assembler only. */
   readonly dryRun?: boolean;
+  /** Built-in or workspace template id. */
+  readonly templateId?: string;
+  /** Optional in-memory customisation of the resolved template. */
+  readonly templateCustomise?: import('./templates/types').TemplateCustomiseInput;
+  /** Pre-resolved template (skips disk lookup when set). */
+  readonly template?: ContextPackTemplate;
 }
 
 export const REQUIRED_TASK_CONTEXT_SECTIONS = [

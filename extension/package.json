@@ -1,7 +1,7 @@
 {
   "name": "mergecore",
   "displayName": "MergeCore",
-  "description": "Local-first repository cognition: understand architecture, explain code on hover, and preserve engineering knowledge \u2014 not another autocomplete tool.",
+  "description": "Local-first repository cognition: understand architecture, explain code on hover, and preserve engineering knowledge — not another autocomplete tool.",
   "version": "0.1.0",
   "publisher": "mergecore",
   "engines": {
@@ -90,13 +90,11 @@
     "onCommand:mergecore.previewDataSentToModel",
     "onCommand:mergecore.previewModelRequest",
     "onCommand:mergecore.exportDiagnostics",
-    "onCommand:mergecore.markMissingContext",
-    "onCommand:mergecore.exportUsageAnalytics",
-    "onCommand:mergecore.deleteLocalUsageDiagnostics",
-    "onCommand:mergecore.disableUsageAnalytics",
-    "onCommand:mergecore.enableUsageAnalytics",
-    "onCommand:mergecore.showUsageMetrics",
-    "onCommand:mergecore.inspectLastRetrieval",
+    "onCommand:mergecore.scanContextConflicts",
+    "onCommand:mergecore.reviewExtractedRules",
+    "onCommand:mergecore.ignoreContextConflict",
+    "onCommand:mergecore.openConflictRuleSource",
+    "onCommand:mergecore.openConflictingCode",
     "onView:mergecore.sidebar"
   ],
   "main": "./out/extension.js",
@@ -104,229 +102,310 @@
     "commands": [
       {
         "command": "mergecore.indexRepository",
-        "title": "MergeCore: Index Repository"
+        "title": "Index Repository",
+        "category": "MergeCore"
       },
       {
         "command": "mergecore.setExplanationMode",
-        "title": "MergeCore: Set Explanation Mode"
+        "title": "Set Explanation Mode",
+        "category": "MergeCore"
       },
       {
         "command": "mergecore.setIntelligenceProfile",
-        "title": "MergeCore: Set Intelligence Profile"
+        "title": "Set Intelligence Profile",
+        "category": "MergeCore"
       },
       {
         "command": "mergecore.review.quick",
-        "title": "MergeCore: Quick Review (current function)"
+        "title": "Quick Review (current function)",
+        "category": "MergeCore"
       },
       {
         "command": "mergecore.review.file",
-        "title": "MergeCore: File Review (active file)"
+        "title": "File Review (active file)",
+        "category": "MergeCore"
       },
       {
         "command": "mergecore.review.flow",
-        "title": "MergeCore: Flow Review (linked files + business process)"
+        "title": "Flow Review (linked files + business process)",
+        "category": "MergeCore"
       },
       {
         "command": "mergecore.review.pr",
-        "title": "MergeCore: PR Review (changed files + impact)"
+        "title": "PR Review (changed files + impact)",
+        "category": "MergeCore"
       },
       {
         "command": "mergecore.review.disaster",
-        "title": "MergeCore: Disaster Review (find everything wrong)"
+        "title": "Disaster Review (find everything wrong)",
+        "category": "MergeCore"
       },
       {
         "command": "mergecore.reviewSelection",
-        "title": "MergeCore: Review Selection"
+        "title": "Review Selection",
+        "category": "MergeCore"
       },
       {
         "command": "mergecore.reviewFile",
-        "title": "MergeCore: Review Active File"
+        "title": "Review Active File",
+        "category": "MergeCore"
       },
       {
         "command": "mergecore.reviewGitDiff",
-        "title": "MergeCore: Review Git Diff (working tree)"
+        "title": "Review Git Diff (working tree)",
+        "category": "MergeCore"
       },
       {
         "command": "mergecore.reviewStagedDiff",
-        "title": "MergeCore: Review Staged Diff"
+        "title": "Review Staged Diff",
+        "category": "MergeCore"
       },
       {
         "command": "mergecore.showSidebar",
-        "title": "MergeCore: Open Review Panel"
+        "title": "Open Review Panel",
+        "category": "MergeCore"
       },
       {
         "command": "mergecore.applyImprovedCode",
-        "title": "MergeCore: Apply Improved Code to Active Editor",
-        "enablement": "mergecore.canApplyImproved"
+        "title": "Apply Improved Code to Active Editor",
+        "enablement": "mergecore.canApplyImproved",
+        "category": "MergeCore"
       },
       {
         "command": "mergecore.applyPatch",
-        "title": "MergeCore: Apply Patch to Active Editor",
-        "enablement": "mergecore.canApplyPatch"
+        "title": "Apply Patch to Active Editor",
+        "enablement": "mergecore.canApplyPatch",
+        "category": "MergeCore"
       },
       {
         "command": "mergecore.exportReviewMarkdown",
-        "title": "MergeCore: Copy Review Report as Markdown"
+        "title": "Copy Review Report as Markdown",
+        "category": "MergeCore"
       },
       {
         "command": "mergecore.setApiToken",
-        "title": "MergeCore: Set API Token"
+        "title": "Set API Token",
+        "category": "MergeCore"
       },
       {
         "command": "mergecore.clearApiToken",
-        "title": "MergeCore: Clear API Token"
+        "title": "Clear API Token",
+        "category": "MergeCore"
       },
       {
         "command": "mergecore.showLogs",
-        "title": "MergeCore: Show Output Channel"
+        "title": "Show Output Channel",
+        "category": "MergeCore"
       },
       {
         "command": "mergecore.chooseReviewerPersona",
-        "title": "MergeCore: Choose Reviewer Persona"
+        "title": "Choose Reviewer Persona",
+        "category": "MergeCore"
       },
       {
         "command": "mergecore.scanProdRisks",
-        "title": "MergeCore: What Breaks In Prod? (local scan)"
+        "title": "What Breaks In Prod? (local scan)",
+        "category": "MergeCore"
       },
       {
         "command": "mergecore.hover.openSource",
-        "title": "MergeCore: Open Hover Symbol Source"
+        "title": "Open Hover Symbol Source",
+        "category": "MergeCore"
       },
       {
         "command": "mergecore.hover.openExplanation",
-        "title": "MergeCore: Open Full Symbol Explanation"
+        "title": "Open Full Symbol Explanation",
+        "category": "MergeCore"
       },
       {
         "command": "mergecore.hover.viewCallers",
-        "title": "MergeCore: View Symbol Callers"
+        "title": "View Symbol Callers",
+        "category": "MergeCore"
       },
       {
         "command": "mergecore.hover.viewDependencies",
-        "title": "MergeCore: View Symbol Dependencies"
+        "title": "View Symbol Dependencies",
+        "category": "MergeCore"
       },
       {
         "command": "mergecore.hover.viewRelatedTests",
-        "title": "MergeCore: View Related Tests"
+        "title": "View Related Tests",
+        "category": "MergeCore"
       },
       {
         "command": "mergecore.hover.viewApplicableInstructions",
-        "title": "MergeCore: View Applicable Instructions"
+        "title": "View Applicable Instructions",
+        "category": "MergeCore"
       },
       {
         "command": "mergecore.hover.generateTaskContext",
-        "title": "MergeCore: Generate Task Context from Symbol"
+        "title": "Generate Task Context from Symbol",
+        "category": "MergeCore"
       },
       {
         "command": "mergecore.explainSelectedCode",
-        "title": "MergeCore: Explain Selected Code"
+        "title": "Explain Selected Code",
+        "category": "MergeCore"
       },
       {
         "command": "mergecore.memory.initialise",
-        "title": "MergeCore: Initialise Memory"
+        "title": "Initialise Memory",
+        "category": "MergeCore"
       },
       {
         "command": "mergecore.memory.review",
-        "title": "MergeCore: Review Generated Memory"
+        "title": "Review Generated Memory",
+        "category": "MergeCore"
       },
       {
         "command": "mergecore.memory.approve",
-        "title": "MergeCore: Approve Memory"
+        "title": "Approve Memory",
+        "category": "MergeCore"
       },
       {
         "command": "mergecore.memory.reject",
-        "title": "MergeCore: Mark Memory Rejected"
+        "title": "Mark Memory Rejected",
+        "category": "MergeCore"
       },
       {
         "command": "mergecore.memory.refreshStale",
-        "title": "MergeCore: Refresh Stale Memory"
+        "title": "Refresh Stale Memory",
+        "category": "MergeCore"
       },
       {
         "command": "mergecore.memory.openFolder",
-        "title": "MergeCore: Open Memory Folder"
+        "title": "Open Memory Folder",
+        "category": "MergeCore"
       },
       {
         "command": "mergecore.generateTaskContext",
-        "title": "MergeCore: Generate Task Context"
+        "title": "Generate Task Context",
+        "category": "MergeCore"
       },
       {
         "command": "mergecore.copyMcpConfig",
-        "title": "MergeCore: Copy MCP Client Config"
+        "title": "Copy MCP Client Config",
+        "category": "MergeCore"
       },
       {
         "command": "mergecore.showPrivacyStatus",
-        "title": "MergeCore: Show Privacy Status"
+        "title": "Show Privacy Status",
+        "category": "MergeCore"
       },
       {
         "command": "mergecore.showIndexedFiles",
-        "title": "MergeCore: Show Indexed Files"
+        "title": "Show Indexed Files",
+        "category": "MergeCore"
       },
       {
         "command": "mergecore.showExcludedFiles",
-        "title": "MergeCore: Show Excluded Files"
+        "title": "Show Excluded Files",
+        "category": "MergeCore"
       },
       {
         "command": "mergecore.previewIndexRules",
-        "title": "MergeCore: Preview Index Rules"
+        "title": "Preview Index Rules",
+        "category": "MergeCore"
       },
       {
         "command": "mergecore.openIndexLocation",
-        "title": "MergeCore: Open Index Location"
+        "title": "Open Index Location",
+        "category": "MergeCore"
       },
       {
         "command": "mergecore.deleteLocalIndex",
-        "title": "MergeCore: Delete Local Index"
+        "title": "Delete Local Index",
+        "category": "MergeCore"
       },
       {
         "command": "mergecore.rebuildLocalIndex",
-        "title": "MergeCore: Rebuild Local Index"
+        "title": "Rebuild Local Index",
+        "category": "MergeCore"
       },
       {
         "command": "mergecore.configureModelProvider",
-        "title": "MergeCore: Configure Model Provider"
+        "title": "Configure Model Provider",
+        "category": "MergeCore"
       },
       {
         "command": "mergecore.disableExternalModels",
-        "title": "MergeCore: Disable External Models"
+        "title": "Disable External Models",
+        "category": "MergeCore"
       },
       {
         "command": "mergecore.previewDataSentToModel",
-        "title": "MergeCore: Preview Data Sent to Model"
+        "title": "Preview Data Sent to Model",
+        "category": "MergeCore"
       },
       {
         "command": "mergecore.previewModelRequest",
-        "title": "MergeCore: Preview Model Request"
+        "title": "Preview Model Request",
+        "category": "MergeCore"
       },
       {
         "command": "mergecore.exportDiagnostics",
-        "title": "MergeCore: Export Diagnostics"
+        "title": "Export Diagnostics",
+        "category": "MergeCore"
       },
       {
         "command": "mergecore.inspectLastRetrieval",
-        "title": "MergeCore: Inspect Last Retrieval"
+        "title": "Inspect Last Retrieval",
+        "category": "MergeCore"
       },
       {
         "command": "mergecore.showUsageMetrics",
-        "title": "MergeCore: Show Usage Metrics"
+        "title": "Show Usage Metrics",
+        "category": "MergeCore"
       },
       {
         "command": "mergecore.enableUsageAnalytics",
-        "title": "MergeCore: Enable Usage Analytics"
+        "title": "Enable Usage Analytics",
+        "category": "MergeCore"
       },
       {
         "command": "mergecore.disableUsageAnalytics",
-        "title": "MergeCore: Disable Usage Analytics"
+        "title": "Disable Usage Analytics",
+        "category": "MergeCore"
       },
       {
         "command": "mergecore.deleteLocalUsageDiagnostics",
-        "title": "MergeCore: Delete Local Usage Diagnostics"
+        "title": "Delete Local Usage Diagnostics",
+        "category": "MergeCore"
       },
       {
         "command": "mergecore.exportUsageAnalytics",
-        "title": "MergeCore: Export Usage Analytics"
+        "title": "Export Usage Analytics",
+        "category": "MergeCore"
       },
       {
         "command": "mergecore.markMissingContext",
-        "title": "MergeCore: Mark Missing Context"
+        "title": "Mark Missing Context",
+        "category": "MergeCore"
+      },
+      {
+        "command": "mergecore.scanContextConflicts",
+        "title": "Scan for Context Conflicts",
+        "category": "MergeCore"
+      },
+      {
+        "command": "mergecore.reviewExtractedRules",
+        "title": "Review Extracted Rules",
+        "category": "MergeCore"
+      },
+      {
+        "command": "mergecore.ignoreContextConflict",
+        "title": "Ignore Conflict",
+        "category": "MergeCore"
+      },
+      {
+        "command": "mergecore.openConflictRuleSource",
+        "title": "Open Rule Source",
+        "category": "MergeCore"
+      },
+      {
+        "command": "mergecore.openConflictingCode",
+        "title": "Open Conflicting Code",
+        "category": "MergeCore"
       }
     ],
     "menus": {
@@ -542,6 +621,21 @@
         },
         {
           "command": "mergecore.markMissingContext"
+        },
+        {
+          "command": "mergecore.scanContextConflicts"
+        },
+        {
+          "command": "mergecore.reviewExtractedRules"
+        },
+        {
+          "command": "mergecore.ignoreContextConflict"
+        },
+        {
+          "command": "mergecore.openConflictRuleSource"
+        },
+        {
+          "command": "mergecore.openConflictingCode"
         }
       ]
     },
@@ -587,7 +681,7 @@
             "external"
           ],
           "enumDescriptions": [
-            "Deterministic only \u2014 no model calls (default)",
+            "Deterministic only — no model calls (default)",
             "Local OpenAI-compatible HTTP model (loopback by default)",
             "External BYOK provider (OpenAI or Anthropic)"
           ],
@@ -612,12 +706,12 @@
             "anthropic"
           ],
           "enumDescriptions": [
-            "Deterministic only \u2014 no model calls",
+            "Deterministic only — no model calls",
             "Legacy alias for local mode",
             "Legacy alias for external OpenAI",
             "Legacy alias for external Anthropic"
           ],
-          "markdownDescription": "Deprecated \u2014 prefer **mergecore.privacy.modelMode**. Still read for migration."
+          "markdownDescription": "Deprecated — prefer **mergecore.privacy.modelMode**. Still read for migration."
         },
         "mergecore.privacy.anonymiseDiagnostics": {
           "type": "boolean",
@@ -627,7 +721,7 @@
         "mergecore.privacy.usageAnalyticsEnabled": {
           "type": "boolean",
           "default": false,
-          "markdownDescription": "Opt-in anonymised local usage counts (latency histograms, hashed path keys). **Off by default.** Enable via **MergeCore: Enable Usage Analytics** after reviewing collected categories. Does not send data automatically \u2014 use **Export Usage Analytics** for a scrubbed bundle."
+          "markdownDescription": "Opt-in anonymised local usage counts (latency histograms, hashed path keys). **Off by default.** Enable via **MergeCore: Enable Usage Analytics** after reviewing collected categories. Does not send data automatically — use **Export Usage Analytics** for a scrubbed bundle."
         },
         "mergecore.privacy.extraExclusions": {
           "type": "array",
@@ -651,7 +745,7 @@
             "deep"
           ],
           "enumDescriptions": [
-            "Fewer files/symbols \u2014 faster, tighter packs",
+            "Fewer files/symbols — faster, tighter packs",
             "Balanced retrieval budgets (recommended)",
             "Larger neighbourhood and character budget"
           ],
@@ -699,15 +793,50 @@
           ],
           "markdownDescription": "Optional reasoning lens layered on top of explanation mode. Change via **MergeCore: Set Intelligence Profile**."
         },
+        "mergecore.local.baseUrl": {
+          "type": "string",
+          "default": "http://127.0.0.1:11434/v1",
+          "markdownDescription": "OpenAI-compatible local model base URL (must include `/v1`). Works with Ollama `/v1`, LM Studio, llama.cpp server, etc."
+        },
+        "mergecore.local.model": {
+          "type": "string",
+          "default": "llama3.2",
+          "markdownDescription": "Local chat model name when **mergecore.privacy.modelMode** is `local`."
+        },
+        "mergecore.local.timeoutMs": {
+          "type": "number",
+          "default": 45000,
+          "markdownDescription": "Local model request timeout in milliseconds."
+        },
+        "mergecore.local.maxContextTokens": {
+          "type": "number",
+          "default": 8192,
+          "markdownDescription": "Hard estimated input token budget for local model requests (chars ≈ tokens × 4)."
+        },
+        "mergecore.local.supportsStructuredOutput": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "When true, request JSON object responses from the local server when available."
+        },
+        "mergecore.local.supportsStreaming": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "When true, streaming completions may be used where supported."
+        },
+        "mergecore.local.apiKey": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Optional bearer token for local servers that require auth. Leave empty when the server needs no key."
+        },
         "mergecore.local.ollamaBaseUrl": {
           "type": "string",
           "default": "http://127.0.0.1:11434",
-          "markdownDescription": "Deprecated \u2014 prefer **mergecore.local.baseUrl**. Still used for embeddings and as a migration fallback."
+          "markdownDescription": "Deprecated — prefer **mergecore.local.baseUrl**. Still used for embeddings and as a migration fallback."
         },
         "mergecore.local.chatModel": {
           "type": "string",
           "default": "llama3.2",
-          "markdownDescription": "Deprecated \u2014 prefer **mergecore.local.model**."
+          "markdownDescription": "Deprecated — prefer **mergecore.local.model**."
         },
         "mergecore.local.embedModel": {
           "type": "string",
@@ -766,41 +895,6 @@
             "Teaches juniors. Explains the why, not just the what."
           ],
           "markdownDescription": "Secondary review persona (optional). Primary cognition depth is controlled by **mergecore.explanationMode**."
-        },
-        "mergecore.local.baseUrl": {
-          "type": "string",
-          "default": "http://127.0.0.1:11434/v1",
-          "markdownDescription": "OpenAI-compatible local model base URL (must include `/v1`). Works with Ollama `/v1`, LM Studio, llama.cpp server, etc."
-        },
-        "mergecore.local.model": {
-          "type": "string",
-          "default": "llama3.2",
-          "markdownDescription": "Local chat model name when **mergecore.privacy.modelMode** is `local`."
-        },
-        "mergecore.local.timeoutMs": {
-          "type": "number",
-          "default": 45000,
-          "markdownDescription": "Local model request timeout in milliseconds."
-        },
-        "mergecore.local.maxContextTokens": {
-          "type": "number",
-          "default": 8192,
-          "markdownDescription": "Hard estimated input token budget for local model requests (chars \u2248 tokens \u00d7 4)."
-        },
-        "mergecore.local.supportsStructuredOutput": {
-          "type": "boolean",
-          "default": true,
-          "markdownDescription": "When true, request JSON object responses from the local server when available."
-        },
-        "mergecore.local.supportsStreaming": {
-          "type": "boolean",
-          "default": true,
-          "markdownDescription": "When true, streaming completions may be used where supported."
-        },
-        "mergecore.local.apiKey": {
-          "type": "string",
-          "default": "",
-          "markdownDescription": "Optional bearer token for local servers that require auth. Leave empty when the server needs no key."
         }
       }
     }

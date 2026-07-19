@@ -3,8 +3,11 @@ import * as vscode from 'vscode';
 import {
   assembleTaskContextPack,
   hashRelativePath,
+  listContextPackTemplates,
+  previewContextPackTemplate,
   recordUsageEvent,
-  parseTaskContextDepth,
+  resolveContextPackTemplate,
+  setWorkspaceDefaultTemplate,
   writeTaskContextPack,
   type TaskContextDepth,
   type TaskContextPack,
@@ -39,7 +42,8 @@ async function buildPack(input: {
   readonly workspaceRoot: string;
   readonly indexer: IndexerService;
   readonly task: string;
-  readonly depth: TaskContextDepth;
+  readonly depth?: TaskContextDepth;
+  readonly templateId?: string;
   readonly selectedFiles: readonly string[];
   readonly selectedSymbols?: readonly string[];
   readonly modelPorts: ExplainerPorts | ModelPorts;
@@ -53,6 +57,7 @@ async function buildPack(input: {
     store,
     task: input.task,
     depth: input.depth,
+    templateId: input.templateId,
     selectedFiles: input.selectedFiles,
     selectedSymbols: input.selectedSymbols,
     graphService,
@@ -132,7 +137,6 @@ async function buildPack(input: {
       if (err instanceof PrivacyGateError) {
         void vscode.window.showWarningMessage(err.message);
       }
-      // keep deterministic — never fall back to another provider
     }
   }
   return pack;
@@ -150,6 +154,7 @@ export function registerGenerateTaskContext(
         selectedFiles?: string[];
         selectedSymbols?: string[];
         depth?: TaskContextDepth;
+        templateId?: string;
       }) => {
         if (!vscode.workspace.isTrusted) {
           void vscode.window.showErrorMessage(
@@ -182,12 +187,6 @@ export function registerGenerateTaskContext(
           return;
         }
 
-        const defaultDepth = parseTaskContextDepth(
-          vscode.workspace
-            .getConfiguration('mergecore')
-            .get<string>('taskContext.defaultDepth')
-        );
-
         const task =
           preset?.task ??
           (await vscode.window.showInputBox({
@@ -197,6 +196,53 @@ export function registerGenerateTaskContext(
             ignoreFocusOut: true,
           }));
         if (!task?.trim()) return;
+
+        const loaded = await listContextPackTemplates(workspaceRoot);
+        let templateId = preset?.templateId;
+        if (!templateId) {
+          const picks = [
+            ...loaded.builtins.map((t) => ({
+              label: t.name,
+              description: t.id,
+              detail: t.description,
+              id: t.id,
+            })),
+            ...loaded.workspace.map((t) => ({
+              label: `${t.name} (workspace)`,
+              description: t.id,
+              detail: t.filePath ?? t.description,
+              id: t.id,
+            })),
+          ];
+          const defaultPick = picks.find((p) => p.id === loaded.defaultId) ?? picks[0];
+          const chosen = await vscode.window.showQuickPick(picks, {
+            title: 'Context-pack template',
+            placeHolder: `Default: ${loaded.defaultId}`,
+          });
+          templateId = chosen?.id ?? defaultPick?.id;
+          if (chosen && chosen.id !== loaded.defaultId) {
+            const setDef = await vscode.window.showQuickPick(
+              [
+                { label: 'Use for this pack only', id: 'once' as const },
+                { label: 'Set as workspace default', id: 'default' as const },
+                { label: 'Preview retrieval settings', id: 'preview' as const },
+              ],
+              { title: 'Template options' }
+            );
+            if (setDef?.id === 'default') {
+              await setWorkspaceDefaultTemplate(workspaceRoot, chosen.id);
+            } else if (setDef?.id === 'preview') {
+              const { template } = await resolveContextPackTemplate({
+                workspaceRoot,
+                templateId: chosen.id,
+              });
+              const preview = previewContextPackTemplate(template);
+              void vscode.window.showInformationMessage(
+                `${preview.template.name}: depth ${preview.retrieval.depth}, dep ${preview.retrieval.dependencyDepth}, maxChars ${preview.retrieval.maxChars}, sections ${preview.sections.length}`
+              );
+            }
+          }
+        }
 
         let selectedFiles = [...(preset?.selectedFiles ?? [])];
         if (!preset?.selectedFiles) {
@@ -232,14 +278,14 @@ export function registerGenerateTaskContext(
           (
             await vscode.window.showQuickPick(
               [
-                { label: 'Standard (recommended)', depth: 'standard' as const },
+                { label: 'Use template depth', depth: undefined as TaskContextDepth | undefined },
+                { label: 'Standard', depth: 'standard' as const },
                 { label: 'Shallow', depth: 'shallow' as const },
                 { label: 'Deep', depth: 'deep' as const },
               ],
-              { title: 'Retrieval depth' }
+              { title: 'Retrieval depth override' }
             )
-          )?.depth ??
-          defaultDepth;
+          )?.depth;
 
         await vscode.window.withProgress(
           {
@@ -249,14 +295,16 @@ export function registerGenerateTaskContext(
           },
           async () => {
             const make = async (
-              d: TaskContextDepth,
-              files: readonly string[]
+              d: TaskContextDepth | undefined,
+              files: readonly string[],
+              tpl?: string
             ): Promise<TaskContextPack> =>
               buildPack({
                 workspaceRoot,
                 indexer: deps.indexer,
                 task: task.trim(),
                 depth: d,
+                templateId: tpl ?? templateId,
                 selectedFiles: files,
                 selectedSymbols: preset?.selectedSymbols,
                 modelPorts: deps.modelPorts,
@@ -264,7 +312,7 @@ export function registerGenerateTaskContext(
                 globalState: deps.globalState,
               });
 
-            let pack = await make(depth, selectedFiles);
+            let pack = await make(depth, selectedFiles, templateId);
             let savedPath: string | undefined;
             try {
               const written = await writeTaskContextPack(workspaceRoot, pack);
@@ -282,7 +330,7 @@ export function registerGenerateTaskContext(
                       location: vscode.ProgressLocation.Notification,
                       title: 'MergeCore: regenerating task context…',
                     },
-                    async () => make(d, files)
+                    async () => make(d, files, pack.meta.templateId)
                   );
                 },
                 savePack: async (p) => {

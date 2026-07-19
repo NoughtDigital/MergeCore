@@ -8,14 +8,20 @@ import {
   createInstructionResolver,
   createRepositorySearchEngine,
   createSourceReference,
-  getSessionLastInspection,
-  loadLastInspection,
+  customiseTemplate,
   detectTaskRiskIndicators,
   formatRelationshipPathLabel,
+  getSessionLastInspection,
+  listContextPackTemplates,
+  loadLastInspection,
   MEMORY_DIR,
   parseTaskContextDepth,
+  previewContextPackTemplate,
   RAG_DIR,
+  resolveContextPackTemplate,
+  saveContextPackTemplate,
   scanProdRisks,
+  setWorkspaceDefaultTemplate,
   sha256,
   traverseRelationshipPaths,
   writeTaskContextPack,
@@ -817,6 +823,7 @@ export async function toolGenerateTaskContext(args: {
   selectedFiles?: string[];
   depth?: TaskContextDepth | string;
   persist?: boolean;
+  templateId?: string;
 }) {
   if (!args.task?.trim()) {
     return errorResult('malformed_request', 'task is required');
@@ -828,14 +835,15 @@ export async function toolGenerateTaskContext(args: {
       if (!safe.ok) return safe.response;
       selected.push(safe.rel);
     }
-    const depth = parseTaskContextDepth(
-      typeof args.depth === 'string' ? args.depth : undefined
-    );
+    const depth = args.depth
+      ? parseTaskContextDepth(typeof args.depth === 'string' ? args.depth : undefined)
+      : undefined;
     const pack = await assembleTaskContextPack({
       workspaceRoot: opened.workspaceRoot,
       store: opened.store,
       task: args.task,
       depth,
+      templateId: args.templateId,
       selectedFiles: selected.length > 0 ? selected : undefined,
       graphService: opened.indexer.getCodeGraphService(),
     });
@@ -860,11 +868,14 @@ export async function toolGenerateTaskContext(args: {
 
     logMeta('generate_task_context', opened.workspaceRoot, {
       incomplete: incomplete ? 1 : 0,
+      templateId: pack.meta.templateId ?? '',
     });
     return textResult({
       workspaceRoot: opened.workspaceRoot,
       savedPath,
       incomplete,
+      templateId: pack.meta.templateId ?? null,
+      templateName: pack.meta.templateName ?? null,
       meta: {
         ...pack.meta,
         incomplete,
@@ -875,6 +886,118 @@ export async function toolGenerateTaskContext(args: {
       storeDir: opened.store.storeDirectory,
     });
   });
+}
+
+export async function toolListContextPackTemplates() {
+  const opened = await openSharedIndex('list_context_pack_templates');
+  if (!opened.ok) return opened.response;
+  try {
+    const loaded = await listContextPackTemplates(opened.opened.workspaceRoot);
+    return textResult({
+      workspaceRoot: opened.opened.workspaceRoot,
+      defaultId: loaded.defaultId,
+      builtins: loaded.builtins.map((t) => ({
+        id: t.id,
+        name: t.name,
+        description: t.description,
+        sections: t.sections,
+      })),
+      workspace: loaded.workspace.map((t) => ({
+        id: t.id,
+        name: t.name,
+        description: t.description,
+        filePath: t.filePath,
+        sections: t.sections,
+      })),
+      issues: loaded.issues,
+    });
+  } finally {
+    await opened.opened.close();
+  }
+}
+
+export async function toolPreviewContextPackTemplate(args: {
+  templateId?: string;
+}) {
+  const opened = await openSharedIndex('preview_context_pack_template');
+  if (!opened.ok) return opened.response;
+  try {
+    const { template, issues } = await resolveContextPackTemplate({
+      workspaceRoot: opened.opened.workspaceRoot,
+      templateId: args.templateId,
+    });
+    return textResult({ ...previewContextPackTemplate(template), issues });
+  } finally {
+    await opened.opened.close();
+  }
+}
+
+export async function toolSaveContextPackTemplate(args: {
+  baseId: string;
+  name?: string;
+  id?: string;
+  setDefault?: boolean;
+  requireTests?: boolean;
+  prioritiseArchitecture?: boolean;
+  uncertaintyBlocksCompletion?: boolean;
+  dependencyDepth?: number;
+  sections?: string[];
+}) {
+  if (!args.baseId?.trim()) {
+    return errorResult('malformed_request', 'baseId is required');
+  }
+  const opened = await openSharedIndex('save_context_pack_template');
+  if (!opened.ok) return opened.response;
+  try {
+    const { template: base } = await resolveContextPackTemplate({
+      workspaceRoot: opened.opened.workspaceRoot,
+      templateId: args.baseId,
+    });
+    const custom = customiseTemplate(base, {
+      baseId: args.baseId,
+      name: args.name,
+      id: args.id,
+      sections: args.sections,
+      requireTests: args.requireTests,
+      prioritiseArchitecture: args.prioritiseArchitecture,
+      uncertaintyBlocksCompletion: args.uncertaintyBlocksCompletion,
+      retrieval:
+        args.dependencyDepth !== undefined
+          ? { ...base.retrieval, dependencyDepth: args.dependencyDepth }
+          : undefined,
+    });
+    const saved = await saveContextPackTemplate(opened.opened.workspaceRoot, custom, {
+      setDefault: args.setDefault,
+    });
+    return textResult({
+      relativePath: saved.relativePath,
+      template: previewContextPackTemplate(custom),
+    });
+  } finally {
+    await opened.opened.close();
+  }
+}
+
+export async function toolSetDefaultContextPackTemplate(args: {
+  templateId: string;
+}) {
+  if (!args.templateId?.trim()) {
+    return errorResult('malformed_request', 'templateId is required');
+  }
+  const opened = await openSharedIndex('set_default_context_pack_template');
+  if (!opened.ok) return opened.response;
+  try {
+    await setWorkspaceDefaultTemplate(
+      opened.opened.workspaceRoot,
+      args.templateId.trim()
+    );
+    return textResult({
+      defaultId: args.templateId.trim(),
+      path: '.mergecore/templates/default',
+    });
+  } finally {
+    await opened.opened.close();
+  }
 }
 
 export async function toolGetArchitectureSummary(args: {

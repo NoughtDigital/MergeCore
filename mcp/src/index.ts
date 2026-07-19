@@ -14,6 +14,10 @@ import {
   toolGenerateTaskContext,
   toolGetArchitectureSummary,
   toolGetRelatedFiles,
+  toolListContextPackTemplates,
+  toolPreviewContextPackTemplate,
+  toolSaveContextPackTemplate,
+  toolSetDefaultContextPackTemplate,
   toolGetRelevantInstructions,
   toolIndexRepository,
   toolIndexStatus,
@@ -141,17 +145,63 @@ function createServer(): McpServer {
 
   server.tool(
     'generate_task_context',
-    'Generate a focused Markdown task context pack (instructions, components, deps, tests, risks, sources). Deterministic; local only.',
+    'Generate a focused Markdown task context pack from a template (instructions, components, deps, tests, risks, sources). Deterministic; local only.',
     {
       task: z.string().describe('Software task description'),
       selectedFiles: z.array(z.string()).optional(),
       depth: z.enum(['shallow', 'standard', 'deep']).optional(),
+      templateId: z
+        .string()
+        .optional()
+        .describe('Context-pack template id (builtin or .mergecore/templates)'),
       persist: z
         .boolean()
         .optional()
         .describe('Write under .mergecore/generated/context-packs/ (default true)'),
     },
     async (args) => toolGenerateTaskContext(args)
+  );
+
+  server.tool(
+    'list_context_pack_templates',
+    'List built-in and workspace context-pack templates under .mergecore/templates/.',
+    {},
+    async () => toolListContextPackTemplates()
+  );
+
+  server.tool(
+    'preview_context_pack_template',
+    'Preview retrieval settings and sections for a context-pack template (cannot disable privacy).',
+    {
+      templateId: z.string().optional().describe('Template id; defaults to workspace default'),
+    },
+    async (args) => toolPreviewContextPackTemplate(args)
+  );
+
+  server.tool(
+    'save_context_pack_template',
+    'Customise a template and save it under .mergecore/templates/.',
+    {
+      baseId: z.string().describe('Builtin or workspace template to customise'),
+      name: z.string().optional(),
+      id: z.string().optional(),
+      setDefault: z.boolean().optional(),
+      requireTests: z.boolean().optional(),
+      prioritiseArchitecture: z.boolean().optional(),
+      uncertaintyBlocksCompletion: z.boolean().optional(),
+      dependencyDepth: z.number().int().min(0).max(4).optional(),
+      sections: z.array(z.string()).optional(),
+    },
+    async (args) => toolSaveContextPackTemplate(args)
+  );
+
+  server.tool(
+    'set_default_context_pack_template',
+    'Set the workspace default context-pack template id (.mergecore/templates/default).',
+    {
+      templateId: z.string(),
+    },
+    async (args) => toolSetDefaultContextPackTemplate(args)
   );
 
   server.tool(
@@ -275,6 +325,7 @@ function createServer(): McpServer {
         .enum(['shallow', 'standard', 'deep'])
         .optional()
         .describe('Retrieval depth (default standard)'),
+      templateId: z.string().optional().describe('Context-pack template id'),
       persist: z
         .boolean()
         .optional()

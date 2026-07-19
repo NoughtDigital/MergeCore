@@ -8,9 +8,7 @@ import {
   assembleTaskContextPack,
   budgetsForDepth,
   createRepositoryFileIndexer,
-  packHasRequiredSections,
   parseTaskContextFrontmatter,
-  REQUIRED_TASK_CONTEXT_SECTIONS,
   writeTaskContextPack,
 } from '../../index.js';
 
@@ -50,24 +48,24 @@ describe('Generate Task Context', () => {
         store: indexer.getRagStore(),
         task: 'Add partial refunds to subscriptions.',
         depth: 'standard',
+        templateId: 'new-feature',
         graphService: indexer.getCodeGraphService(),
       });
-      for (const h of REQUIRED_TASK_CONTEXT_SECTIONS) {
-        assert.ok(pack.markdown.includes(`# ${h}`), `missing ${h}`);
-      }
-      assert.ok(packHasRequiredSections(pack.markdown));
+      assert.equal(pack.meta.templateId, 'new-feature');
+      assert.ok(pack.markdown.includes('# Task'));
+      assert.ok(pack.markdown.includes('# Change scope') || pack.markdown.includes('# Relevant components'));
+      assert.ok(pack.markdown.includes('# Sources'));
       assert.match(pack.markdown, /refund|billing|subscription/i);
       assert.ok(
         pack.markdown.includes('AGENTS.md') ||
-          pack.sections
-            .find((s) => s.title === 'Applicable instructions')
-            ?.bullets.some((b) => /agents|adr|convention/i.test(b))
+          pack.sections.some((s) =>
+            s.bullets.some((b) => /agents|adr|convention/i.test(b))
+          )
       );
       assert.ok(
-        pack.sections
-          .find((s) => s.title === 'Tests likely affected')
-          ?.bullets.some((b) => /refund|test/i.test(b)) ||
-          pack.markdown.includes('tests/')
+        pack.sections.some((s) =>
+          /test/i.test(s.title) && s.bullets.some((b) => /refund|test/i.test(b))
+        ) || pack.markdown.includes('tests/')
       );
       assert.ok(pack.meta.sources.length > 0);
       assert.equal(pack.meta.modelProvider, 'none');
@@ -118,9 +116,9 @@ describe('Generate Task Context', () => {
         selectedFiles: ['src/routes/orders.ts'],
         graphService: indexer.getCodeGraphService(),
       });
-      assert.ok(pack.markdown.includes('# Applicable instructions'));
+      assert.ok(pack.markdown.includes('# Task'));
       assert.ok(/auth|protect|orders/i.test(pack.markdown));
-      assert.ok(pack.sections.some((s) => s.title === 'Risks and edge cases'));
+      assert.ok(pack.sections.some((s) => /risk|permission|attack|instruction/i.test(s.title)));
       await indexer.dispose();
     } finally {
       await rm(root, { recursive: true, force: true });
@@ -224,7 +222,7 @@ describe('Generate Task Context', () => {
         pathHint: 'src/core.ts',
         graphService: indexer.getCodeGraphService(),
       });
-      const order = pack.sections.find((s) => s.title === 'Suggested inspection order');
+      const order = pack.sections.find((s) => /inspection|acceptance|walkthrough|order/i.test(s.title));
       assert.ok(order && order.bullets.length > 0);
       assert.ok(/core\.ts|add|hello/i.test(pack.markdown));
       await indexer.dispose();

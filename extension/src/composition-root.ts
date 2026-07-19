@@ -31,6 +31,7 @@ import { registerGenerateTaskContext } from './presentation/context/register-tas
 import { registerCopyMcpConfig } from './presentation/commands/register-copy-mcp-config';
 import { registerPrivacyCommands } from './presentation/privacy/register-privacy-commands';
 import { registerDiagnosticsCommands } from './presentation/diagnostics/register-diagnostics-commands';
+import { registerContextConflictCommands } from './presentation/conflicts/register-context-conflict-commands';
 import {
   modelEnhancementAllowed,
   resolveChatPorts,
@@ -244,6 +245,7 @@ export function createMergeCoreApp(context: vscode.ExtensionContext): void {
     logger,
   });
   registerDiagnosticsCommands({ context, indexer });
+  registerContextConflictCommands(context, { indexer, logger });
 
   const provider = vscode.window.registerWebviewViewProvider(MergeCoreSidebarProvider.viewId, sidebar, {
     webviewOptions: {

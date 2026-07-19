@@ -32,3 +32,30 @@ export {
   type WriteTaskContextPackResult,
 } from './write-task-context-pack';
 export { detectTaskRiskIndicators, type TaskRiskIndicator } from './task-risks';
+
+export {
+  listBuiltinTemplates,
+  getBuiltinTemplate,
+  listContextPackTemplates,
+  resolveContextPackTemplate,
+  customiseTemplate,
+  previewContextPackTemplate,
+  saveContextPackTemplate,
+  setWorkspaceDefaultTemplate,
+  readWorkspaceDefaultTemplateId,
+  parseContextPackTemplateMarkdown,
+  serialiseContextPackTemplate,
+  inheritBuiltinDefaults,
+  budgetsFromTemplate,
+  packMatchesTemplateSections,
+  TEMPLATE_BUDGET_CEILING,
+  TEMPLATE_FORBIDDEN_KEYS,
+  BUILTIN_TEMPLATES,
+  SECTION_CATALOG,
+  type ContextPackTemplate,
+  type TemplatePreview,
+  type TemplateCustomiseInput,
+  type TemplateParseIssue,
+  type TemplateParseResult,
+  type LoadedTemplates,
+} from './templates';

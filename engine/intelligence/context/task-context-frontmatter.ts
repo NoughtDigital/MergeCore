@@ -20,6 +20,8 @@ export interface TaskContextFrontmatter {
   readonly sources: readonly TaskContextSourceRef[];
   readonly modelProvider: string;
   readonly dataLeftMachine: boolean;
+  readonly templateId?: string;
+  readonly templateName?: string;
 }
 
 export function metaToFrontmatter(meta: TaskContextMeta): TaskContextFrontmatter {
@@ -42,6 +44,8 @@ export function metaToFrontmatter(meta: TaskContextMeta): TaskContextFrontmatter
     sources: meta.sources,
     modelProvider: meta.modelProvider,
     dataLeftMachine: meta.dataLeftMachine,
+    templateId: meta.templateId,
+    templateName: meta.templateName,
   };
 }
 
@@ -80,6 +84,12 @@ export function serialiseTaskContextDocument(
   lines.push(`confidence: ${frontmatter.confidence}`);
   lines.push(`model_provider: ${yamlScalar(frontmatter.modelProvider)}`);
   lines.push(`data_left_machine: ${frontmatter.dataLeftMachine}`);
+  if (frontmatter.templateId) {
+    lines.push(`template_id: ${yamlScalar(frontmatter.templateId)}`);
+  }
+  if (frontmatter.templateName) {
+    lines.push(`template_name: ${yamlScalar(frontmatter.templateName)}`);
+  }
   lines.push('sources:');
   if (frontmatter.sources.length === 0) {
     lines.push('  []');

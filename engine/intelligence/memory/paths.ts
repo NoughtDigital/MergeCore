@@ -10,6 +10,10 @@ export const CONTEXT_PACKS_DIR = '.mergecore/generated/context-packs';
 export const EXPLANATIONS_DIR = '.mergecore/generated/explanations';
 export const PROVENANCE_PATH = '.mergecore/generated/provenance.json';
 export const CONFIG_PATH = '.mergecore/config.json';
+/** Workspace context-pack templates (Markdown + frontmatter). */
+export const TEMPLATES_DIR = '.mergecore/templates';
+/** Optional workspace default template id file (plain text slug). */
+export const DEFAULT_TEMPLATE_PATH = '.mergecore/templates/default';
 /** Local-first usage metrics and retrieval feedback (machine-local). */
 export const DIAGNOSTICS_DIR = '.mergecore/diagnostics';
 export const USAGE_METRICS_PATH = '.mergecore/diagnostics/usage-metrics.json';

@@ -4,7 +4,11 @@ import { REQUIRED_TASK_CONTEXT_SECTIONS } from './task-context-types';
 export function renderTaskContextMarkdown(
   meta: TaskContextMeta,
   sections: readonly TaskContextSection[],
-  options: { readonly modelBanner?: boolean } = {}
+  options: {
+    readonly modelBanner?: boolean;
+    /** When set, render these titles in order instead of the legacy fixed list. */
+    readonly sectionOrder?: readonly string[];
+  } = {}
 ): string {
   const lines: string[] = [];
   if (options.modelBanner) {
@@ -17,13 +21,27 @@ export function renderTaskContextMarkdown(
     lines.push('');
   }
 
-  for (const title of REQUIRED_TASK_CONTEXT_SECTIONS) {
+  if (meta.templateName) {
+    lines.push(`> **Template:** ${meta.templateName}${meta.templateId ? ` (\`${meta.templateId}\`)` : ''}`);
+    lines.push('');
+  }
+
+  const order =
+    options.sectionOrder && options.sectionOrder.length > 0
+      ? options.sectionOrder
+      : sections.length > 0
+        ? sections.map((s) => s.title)
+        : [...REQUIRED_TASK_CONTEXT_SECTIONS];
+
+  const rendered = new Set<string>();
+  for (const title of order) {
     const section = sections.find((s) => s.title === title);
     lines.push(`# ${title}`);
     lines.push('');
     if (!section || section.bullets.length === 0) {
       lines.push('- _(none)_');
       lines.push('');
+      rendered.add(title);
       continue;
     }
     for (const b of section.bullets) {
@@ -31,6 +49,26 @@ export function renderTaskContextMarkdown(
         lines.push(b);
       } else {
         lines.push(`- ${b}`);
+      }
+    }
+    lines.push('');
+    rendered.add(title);
+  }
+
+  // Include any extra sections not in order
+  for (const section of sections) {
+    if (rendered.has(section.title)) continue;
+    lines.push(`# ${section.title}`);
+    lines.push('');
+    if (section.bullets.length === 0) {
+      lines.push('- _(none)_');
+    } else {
+      for (const b of section.bullets) {
+        if (b.startsWith('```') || b.startsWith('- ') || b.startsWith('**') || b.startsWith('>')) {
+          lines.push(b);
+        } else {
+          lines.push(`- ${b}`);
+        }
       }
     }
     lines.push('');
@@ -52,7 +90,10 @@ export function packHasRequiredSections(markdown: string): boolean {
 export function buildTaskContextPack(
   meta: TaskContextMeta,
   sections: readonly TaskContextSection[],
-  options?: { readonly modelBanner?: boolean }
+  options?: {
+    readonly modelBanner?: boolean;
+    readonly sectionOrder?: readonly string[];
+  }
 ): TaskContextPack {
   return {
     meta,

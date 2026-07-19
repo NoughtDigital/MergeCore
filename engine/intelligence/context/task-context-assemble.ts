@@ -11,6 +11,13 @@ import { fingerprintFile } from '../memory/provenance';
 import { budgetsForDepth } from './task-context-budgets';
 import { buildTaskContextPack } from './task-context-markdown';
 import { detectTaskRiskIndicators } from './task-risks';
+import {
+  budgetsFromTemplate,
+  buildSectionsFromTemplate,
+  getBuiltinTemplate,
+  resolveContextPackTemplate,
+  type SectionContentBag,
+} from './templates';
 import { recordUsageEvent } from '../diagnostics/index';
 import type {
   TaskContextInput,
@@ -101,9 +108,37 @@ function confidenceFromHits(hits: readonly RetrievalHit[]): number {
 export async function assembleTaskContextPack(
   input: TaskContextInput
 ): Promise<TaskContextPack> {
-  const depth = input.depth ?? 'standard';
-  const { budgets, k: defaultK } = budgetsForDepth(depth);
-  const k = input.k ?? defaultK;
+  const resolved = input.template
+    ? { template: input.template, issues: [] as const }
+    : await resolveContextPackTemplate({
+        workspaceRoot: input.workspaceRoot,
+        templateId: input.templateId,
+        customise: input.templateCustomise,
+      });
+  const template =
+    resolved.template ??
+    getBuiltinTemplate(input.templateId ?? 'new-feature') ??
+    getBuiltinTemplate('new-feature')!;
+
+  const fromTemplate = budgetsFromTemplate(template);
+  const depth = input.depth ?? fromTemplate.depth;
+  const depthBudgets = budgetsForDepth(depth);
+  const budgets = {
+    ...fromTemplate.budgets,
+    ...(input.depth
+      ? {
+          maxFiles: Math.max(
+            fromTemplate.budgets.maxFiles,
+            depthBudgets.budgets.maxFiles
+          ),
+          maxSymbols: Math.max(
+            fromTemplate.budgets.maxSymbols,
+            depthBudgets.budgets.maxSymbols
+          ),
+        }
+      : {}),
+  };
+  const k = input.k ?? fromTemplate.k;
   const store = input.store;
   const task = input.task.trim();
   const selectedFiles = [...(input.selectedFiles ?? [])].map((p) =>
@@ -134,16 +169,25 @@ export async function assembleTaskContextPack(
     );
   }
 
+  // Query boost from template prioritise hints
+  const priorityQuery = [
+    task,
+    ...template.retrieval.prioritise.map((p) => p.replace(/_/g, ' ')),
+    template.prioritiseArchitecture ? 'architecture ADR decision' : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
+
   const engine = await createRepositorySearchEngine({
     store,
     useInstructions: true,
   });
-  const search = await engine.searchRepositoryContext(task, {
-    debug: true,
+  const search = await engine.searchRepositoryContext(priorityQuery, {
     k,
     pathHint: input.pathHint ?? selectedFiles[0],
     selectedFiles: selectedFiles.length > 0 ? selectedFiles : undefined,
     budgets,
+    debug: true,
   });
 
   // Boost pinned symbols via getContextForSymbol
@@ -166,12 +210,27 @@ export async function assembleTaskContextPack(
     return true;
   });
 
-  // Cap by budgets
+  // Cap by budgets + template sourceTypes
+  const allowedTypes = new Set(template.sourceTypes);
+  const allows = (t: RetrievalHit['resultType']): boolean => {
+    if (allowedTypes.size === 0) return true;
+    if (t === 'file' || t === 'chunk') return allowedTypes.has('source');
+    if (t === 'symbol') return allowedTypes.has('symbol');
+    if (t === 'instruction') return allowedTypes.has('instruction');
+    if (t === 'architecture') {
+      return allowedTypes.has('architecture') || allowedTypes.has('documentation');
+    }
+    if (t === 'dependency') return allowedTypes.has('dependency');
+    if (t === 'test') return allowedTypes.has('test');
+    return true;
+  };
+
   const fileHits: RetrievalHit[] = [];
   const symbolHits: RetrievalHit[] = [];
   const otherHits: RetrievalHit[] = [];
   const filesUsed = new Set<string>();
   for (const h of hits) {
+    if (!allows(h.resultType)) continue;
     if (h.resultType === 'symbol' && symbolHits.length < budgets.maxSymbols) {
       symbolHits.push(h);
     } else if (
@@ -188,7 +247,12 @@ export async function assembleTaskContextPack(
       h.resultType === 'architecture' ||
       h.resultType === 'dependency'
     ) {
-      otherHits.push(h);
+      // Architecture hits first when template prioritises architecture
+      if (template.prioritiseArchitecture && h.resultType === 'architecture') {
+        otherHits.unshift(h);
+      } else {
+        otherHits.push(h);
+      }
     }
   }
   const capped = [...symbolHits, ...fileHits, ...otherHits].slice(0, k + 20);
@@ -227,7 +291,15 @@ export async function assembleTaskContextPack(
         maxPaths: 6,
         maxFanOutPerNode: 8,
         direction: 'both',
-        weightProfile: 'default',
+        kinds:
+          template.preferredRelationshipKinds.length > 0
+            ? template.preferredRelationshipKinds
+            : undefined,
+        weightProfile: template.id.includes('bug')
+          ? 'impact'
+          : template.id.includes('test')
+            ? 'tests'
+            : 'default',
       },
     });
     for (const rp of relPaths) {
@@ -397,7 +469,11 @@ export async function assembleTaskContextPack(
     blob,
     callerCount: totalCallers,
     relatedTestCount: totalTests,
-  });
+  }).filter((r) =>
+    template.riskCategories.length === 0
+      ? true
+      : template.riskCategories.includes(r.id)
+  );
   const riskBullets =
     risks.length === 0
       ? [
@@ -486,59 +562,67 @@ export async function assembleTaskContextPack(
     withFp.push({ ...s, fingerprint });
   }
 
-  // Char budget trim on component excerpts already limited; trim bullets if needed
-  let sections: TaskContextSection[] = [
-    { title: 'Task', bullets: [task] },
-    { title: 'Repository understanding', bullets: understanding },
-    {
-      title: 'Applicable instructions',
-      bullets:
-        instrBullets.length > 0
-          ? instrBullets
-          : ['**Evidence:** No recognised AGENTS/CLAUDE/Cursor convention docs in scope.'],
-    },
-    {
-      title: 'Relevant components',
-      bullets:
-        componentBullets.length > 0
-          ? componentBullets
-          : ['**Uncertain:** No relevant components retrieved.'],
-    },
-    {
-      title: 'Related types and dependencies',
-      bullets:
-        depBullets.length > 0 || callerBullets.length > 0
-          ? [...depBullets.slice(0, 20), ...callerBullets.slice(0, 12)]
-          : ['**Evidence:** No dependency/caller edges indexed for top symbols.'],
-    },
-    {
-      title: 'Existing implementation patterns',
-      bullets:
-        patternBullets.length > 0
-          ? patternBullets
-          : ['**Uncertain:** No clear similar patterns extracted from the index.'],
-    },
-    {
-      title: 'Tests likely affected',
-      bullets:
-        testBullets.length > 0
-          ? testBullets
+  const sourceBullets = withFp.slice(0, 40).map((s) => {
+    const lines =
+      s.startLine === s.endLine
+        ? `L${s.startLine}`
+        : `L${s.startLine}–${s.endLine}`;
+    return `[\`${s.path}:${lines}\`](${s.path}#L${s.startLine}) — ${s.label ?? 'evidence'}`;
+  });
+
+  const bags: SectionContentBag = {
+    task: [task],
+    understanding,
+    instructions:
+      instrBullets.length > 0
+        ? instrBullets
+        : ['**Evidence:** No recognised AGENTS/CLAUDE/Cursor convention docs in scope.'],
+    components:
+      componentBullets.length > 0
+        ? componentBullets
+        : ['**Uncertain:** No relevant components retrieved.'],
+    dependencies:
+      depBullets.length > 0
+        ? depBullets.slice(0, 20)
+        : ['**Evidence:** No dependency edges indexed for top symbols.'],
+    callers: callerBullets.slice(0, 12),
+    patterns:
+      patternBullets.length > 0
+        ? patternBullets
+        : ['**Uncertain:** No clear similar patterns extracted from the index.'],
+    tests:
+      testBullets.length > 0
+        ? testBullets
+        : template.requireTests
+          ? [
+              '**Uncertain:** Test discovery required by template but no related tests found in the local index.',
+            ]
           : ['**Evidence:** No related tests found in the local index.'],
-    },
-    { title: 'Risks and edge cases', bullets: riskBullets },
-    { title: 'Suggested inspection order', bullets: inspection },
-    { title: 'Uncertainty', bullets: uncertainty },
-    {
-      title: 'Sources',
-      bullets: withFp.slice(0, 40).map((s) => {
-        const lines =
-          s.startLine === s.endLine
-            ? `L${s.startLine}`
-            : `L${s.startLine}–${s.endLine}`;
-        return `[\`${s.path}:${lines}\`](${s.path}#L${s.startLine}) — ${s.label ?? 'evidence'}`;
-      }),
-    },
-  ];
+    risks: riskBullets,
+    inspection,
+    uncertainty,
+    sources:
+      sourceBullets.length > 0
+        ? sourceBullets
+        : ['**Evidence:** No sources collected.'],
+  };
+
+  let sections: TaskContextSection[] = buildSectionsFromTemplate(template, bags);
+
+  const materialUncertainty =
+    capped.length < 3 ||
+    search.incomplete ||
+    incompleteNotes.length > 0 ||
+    (template.requireTests && totalTests === 0) ||
+    uncertainty.some((u) => /incomplete|Few retrieval|No related tests/i.test(u));
+
+  const incomplete =
+    store.chunkCount === 0 ||
+    capped.length < 3 ||
+    search.incomplete ||
+    incompleteNotes.length > 0 ||
+    (template.uncertaintyBlocksCompletion && materialUncertainty) ||
+    (template.requireTests && totalTests === 0);
 
   // Soft enforce maxChars by truncating long sections
   let draft = buildTaskContextPack(
@@ -547,7 +631,14 @@ export async function assembleTaskContextPack(
       generatedAt: new Date().toISOString(),
       indexRevision: `${store.chunkCount}:${store.updatedAt}`,
       depth,
-      budgets,
+      budgets: {
+        maxFiles: budgets.maxFiles,
+        maxSymbols: budgets.maxSymbols,
+        maxChunks: budgets.maxChunks,
+        maxDependencyDepth: budgets.maxDependencyDepth,
+        maxChars: budgets.maxChars,
+        maxTokensApprox: budgets.maxTokensApprox,
+      },
       k,
       selectedFiles,
       selectedSymbols,
@@ -555,23 +646,31 @@ export async function assembleTaskContextPack(
       sources: withFp,
       modelProvider: 'none',
       dataLeftMachine: false,
-      incomplete:
-        store.chunkCount === 0 ||
-        capped.length < 3 ||
-        search.incomplete ||
-        incompleteNotes.length > 0,
+      incomplete,
+      templateId: template.id,
+      templateName: template.name,
     },
-    sections
+    sections,
+    { sectionOrder: sections.map((s) => s.title) }
   );
 
   if (draft.markdown.length > budgets.maxChars) {
     sections = sections.map((sec) => {
-      if (sec.title === 'Relevant components' || sec.title === 'Related types and dependencies') {
-        return { ...sec, bullets: sec.bullets.slice(0, Math.max(4, Math.floor(sec.bullets.length / 2))) };
+      if (
+        /components|dependencies|walkthrough|coupling|consumers|data flow/i.test(
+          sec.title
+        )
+      ) {
+        return {
+          ...sec,
+          bullets: sec.bullets.slice(0, Math.max(4, Math.floor(sec.bullets.length / 2))),
+        };
       }
       return sec;
     });
-    draft = buildTaskContextPack(draft.meta, sections);
+    draft = buildTaskContextPack(draft.meta, sections, {
+      sectionOrder: sections.map((s) => s.title),
+    });
   }
 
   void recordUsageEvent(input.workspaceRoot, {
